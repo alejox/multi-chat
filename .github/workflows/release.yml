@@ -1,0 +1,35 @@
+name: Publicar versión
+
+# Para publicar: sube "version" en buildspec.json, haz commit y empuja un tag con esa versión:
+#   git tag v2.0.0 && git push origin v2.0.0
+# Compila el plugin y adjunta los zips de Windows y macOS a la Release del tag.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: El tag coincide con buildspec.json
+        run: |
+          v="v$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")"
+          [ "$v" = "$GITHUB_REF_NAME" ] || { echo "El tag es $GITHUB_REF_NAME pero buildspec.json dice $v"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Crear la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          gh release create "$GITHUB_REF_NAME" dist/* --title "Multichat $GITHUB_REF_NAME" --generate-notes

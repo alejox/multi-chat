@@ -1,3 +1,8 @@
-__pycache__/
-*.pyc
-.venv/
+# Compilación
+/build*/
+/.deps/
+/release/
+/dist/
+*.lock.json
+.DS_Store
+/cmake/.CMakeBuildNumber

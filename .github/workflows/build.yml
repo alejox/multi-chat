@@ -1,0 +1,100 @@
+name: Compilar plugin
+
+# Compila el plugin para OBS 33 en Windows (Visual Studio) y macOS (Xcode, binario universal)
+# y deja los zips como artefactos. release.yml lo reutiliza para publicar una versión.
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  # Parsers de Twitch, YouTube y Kick (solo Qt Core, sin OBS ni red).
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Qt 6
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qt6-base-dev ninja-build
+      - name: Compilar y ejecutar las pruebas
+        run: |
+          cmake -S tests -B build_tests -G Ninja
+          cmake --build build_tests
+          ctest --test-dir build_tests --output-on-failure
+
+  macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Versión
+        id: version
+        run: echo "v=$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")" >> "$GITHUB_OUTPUT"
+      - name: Configurar (descarga OBS 33, obs-deps y Qt)
+        run: |
+          xcodebuild -version
+          cmake --preset macos-ci
+      - name: Compilar con Xcode
+        run: |
+          set -o pipefail
+          cmake --build --preset macos-ci 2>&1 | tee build.log || { echo "--- errores"; grep -E "error:|warning:" build.log | sort -u; exit 1; }
+      - name: Empaquetar
+        run: |
+          plugin="$(find build_macos -type d -name 'obs-multichat.plugin' -path '*RelWithDebInfo*' | head -1)"
+          echo "plugin: $plugin"
+          test -n "$plugin"
+          codesign --verify --deep --strict --verbose=2 "$plugin"
+          lipo -archs "$plugin/Contents/MacOS/obs-multichat"
+          for file in locale/es-ES.ini locale/en-US.ini overlay/index.html; do
+            test -f "$plugin/Contents/Resources/$file" || { echo "Falta $file"; exit 1; }
+          done
+          mkdir -p dist
+          ditto -c -k --keepParent "$plugin" "dist/obs-multichat-${{ steps.version.outputs.v }}-macos.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-macos
+          path: dist/*
+
+  windows:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+      - name: Versión
+        id: version
+        run: '"v=$((Get-Content buildspec.json | ConvertFrom-Json).version)" >> $env:GITHUB_OUTPUT'
+      - name: Configurar (descarga OBS 33, obs-deps y Qt)
+        run: cmake --preset windows-ci-x64
+      - name: Compilar con Visual Studio
+        run: cmake --build --preset windows-ci-x64
+      - name: Empaquetar
+        run: |
+          cmake --install build_x64 --prefix release --config RelWithDebInfo
+          # Con la forma de la carpeta de OBS (C:\Program Files\obs-studio): el .dll en
+          # obs-plugins\64bit y los datos en data\obs-plugins\obs-multichat.
+          $built = "release/obs-multichat"
+          New-Item -ItemType Directory -Force package/obs-plugins/64bit, package/data/obs-plugins | Out-Null
+          Copy-Item "$built/bin/64bit/obs-multichat.dll" package/obs-plugins/64bit/
+          Copy-Item "$built/data" package/data/obs-plugins/obs-multichat -Recurse
+          Get-ChildItem -Recurse package | Select-Object -ExpandProperty FullName
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path package/* -DestinationPath "dist/obs-multichat-${{ steps.version.outputs.v }}-windows-x64.zip"
+      - name: El zip trae la forma de la carpeta de OBS
+        run: |
+          $zip = Get-Item "dist/obs-multichat-*-windows-x64.zip"
+          $dir = Join-Path $env:RUNNER_TEMP $zip.BaseName
+          Expand-Archive $zip.FullName -DestinationPath $dir
+          foreach ($file in 'obs-plugins\64bit\obs-multichat.dll', 'data\obs-plugins\obs-multichat\overlay\index.html',
+                            'data\obs-plugins\obs-multichat\locale\es-ES.ini', 'data\obs-plugins\obs-multichat\locale\en-US.ini') {
+            if (-not (Test-Path (Join-Path $dir $file))) { throw "Falta $file en el zip" }
+          }
+          # El plugin solo debe depender de OBS, Qt y del sistema (WinHTTP).
+          $dumpbin = Get-ChildItem -Recurse "${env:ProgramFiles}\Microsoft Visual Studio" -Filter dumpbin.exe | Where-Object FullName -like '*Hostx64\x64*' | Select-Object -First 1
+          & $dumpbin.FullName /dependents (Join-Path $dir 'obs-plugins\64bit\obs-multichat.dll')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-windows
+          path: dist/*
