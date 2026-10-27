@@ -153,15 +153,15 @@ QColor readableColor(const QString &hex, const QString &name, const QColor &back
 					  "#FF8A65", "#26C6DA", "#F06292", "#9CCC65", "#9575CD"};
 	QColor c(hex);
 	if (!c.isValid()) {
-		uint h = qHash(name);
+		const size_t h = qHash(name);
 		c = fallback[h % (sizeof(fallback) / sizeof(fallback[0]))];
 	}
 	const bool darkBg = background.lightnessF() < 0.5;
-	const qreal l = c.lightnessF();
-	if (darkBg && l < 0.55)
-		c = QColor::fromHslF(c.hslHueF(), c.hslSaturationF(), 0.55 + (0.55 - l) * 0.3);
-	else if (!darkBg && l > 0.45)
-		c = QColor::fromHslF(c.hslHueF(), c.hslSaturationF(), 0.38);
+	const float l = float(c.lightnessF());
+	if (darkBg && l < 0.55f)
+		c = QColor::fromHslF(c.hslHueF(), c.hslSaturationF(), 0.55f + (0.55f - l) * 0.3f);
+	else if (!darkBg && l > 0.45f)
+		c = QColor::fromHslF(c.hslHueF(), c.hslSaturationF(), 0.38f);
 	return c;
 }
 

@@ -34,7 +34,7 @@ QString configPath()
 int platformOrder(const QString &p)
 {
 	static const QStringList order = {"twitch", "youtube", "kick", "demo"};
-	return order.indexOf(p);
+	return int(order.indexOf(p));
 }
 
 } // namespace
@@ -60,7 +60,7 @@ void ChatManager::load()
 	if (file.open(QIODevice::ReadOnly))
 		cfg = QJsonDocument::fromJson(file.readAll()).object();
 	QStringList list;
-	for (const QJsonValue &v : cfg.value("chats").toArray())
+	for (const QJsonValue v : cfg.value("chats").toArray())
 		list << v.toString();
 	configure(list, cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto, false);
 }

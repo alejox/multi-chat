@@ -176,7 +176,7 @@ private:
 			QString status = "idle";
 			int live = -1;
 			QString detail;
-			for (const QJsonValue &v : sources) {
+			for (const QJsonValue v : sources) {
 				const QJsonObject s = v.toObject();
 				if (s.value("key").toString() == info.key) {
 					status = s.value("status").toString();

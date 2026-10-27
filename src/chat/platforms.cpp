@@ -95,7 +95,7 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 		return false;
 	}
 
-	const int colon = raw.indexOf(':');
+	const qsizetype colon = raw.indexOf(':');
 	QString platform = raw.left(colon).trimmed().toLower();
 	QString channel = colon < 0 ? QString() : raw.mid(colon + 1).trimmed();
 	if (platform == "yt")
