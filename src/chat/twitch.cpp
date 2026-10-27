@@ -75,11 +75,11 @@ IrcMessage parseIrc(const QString &input)
 	IrcMessage msg;
 	QString line = input;
 	if (line.startsWith('@')) {
-		int sp = line.indexOf(' ');
+		qsizetype sp = line.indexOf(' ');
 		const QString raw = line.mid(1, sp < 0 ? -1 : sp - 1);
 		line = sp < 0 ? QString() : line.mid(sp + 1);
 		for (const QString &kv : raw.split(';')) {
-			int eq = kv.indexOf('=');
+			qsizetype eq = kv.indexOf('=');
 			if (eq < 0)
 				msg.tags.insert(kv, QString());
 			else
@@ -87,13 +87,13 @@ IrcMessage parseIrc(const QString &input)
 		}
 	}
 	if (line.startsWith(':')) {
-		int sp = line.indexOf(' ');
+		qsizetype sp = line.indexOf(' ');
 		msg.prefix = line.mid(1, sp < 0 ? -1 : sp - 1);
 		line = sp < 0 ? QString() : line.mid(sp + 1);
 	}
 	QString trailing;
 	bool hasTrailing = false;
-	int t = line.indexOf(" :");
+	qsizetype t = line.indexOf(" :");
 	if (t >= 0) {
 		trailing = line.mid(t + 2);
 		line = line.left(t);
@@ -128,11 +128,11 @@ QJsonArray splitEmotes(const QString &body, const QString &emotesTag)
 	}
 	std::sort(ranges.begin(), ranges.end());
 
-	auto slice = [&](int from, int to) {
+	auto slice = [&](qsizetype from, qsizetype to) {
 		return QString::fromUcs4(reinterpret_cast<const char32_t *>(cps.constData()) + from, to - from);
 	};
 	QJsonArray parts;
-	int cur = 0;
+	qsizetype cur = 0;
 	for (const auto &[a, b, id] : ranges) {
 		if (a < cur || b >= cps.size() || b < a)
 			continue;

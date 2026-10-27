@@ -28,7 +28,7 @@ QString simpleText(const QJsonObject &obj)
 	if (obj.contains("simpleText"))
 		return obj.value("simpleText").toString();
 	QString out;
-	for (const QJsonValue &r : obj.value("runs").toArray())
+	for (const QJsonValue r : obj.value("runs").toArray())
 		out += r.toObject().value("text").toString();
 	return out;
 }
@@ -36,7 +36,7 @@ QString simpleText(const QJsonObject &obj)
 QJsonArray runsToParts(const QJsonArray &runs)
 {
 	QJsonArray parts;
-	for (const QJsonValue &v : runs) {
+	for (const QJsonValue v : runs) {
 		const QJsonObject r = v.toObject();
 		if (r.contains("text")) {
 			parts.append(textPart(r.value("text").toString()));
@@ -58,7 +58,7 @@ QJsonArray runsToParts(const QJsonArray &runs)
 QStringList badges(const QJsonObject &renderer)
 {
 	QStringList out;
-	for (const QJsonValue &v : renderer.value("authorBadges").toArray()) {
+	for (const QJsonValue v : renderer.value("authorBadges").toArray()) {
 		const QJsonObject b = v.toObject().value("liveChatAuthorBadgeRenderer").toObject();
 		const QString icon = b.value("icon").toObject().value("iconType").toString();
 		QString name;
@@ -149,7 +149,7 @@ QJsonObject toMessage(const QJsonObject &action, const QString &channel)
 QString nextContinuation(const QJsonObject &lc, int &timeoutMs)
 {
 	timeoutMs = 3000;
-	for (const QJsonValue &v : lc.value("continuations").toArray()) {
+	for (const QJsonValue v : lc.value("continuations").toArray()) {
 		const QJsonObject c = v.toObject();
 		for (const char *k :
 		     {"invalidationContinuationData", "timedContinuationData", "reloadContinuationData"}) {
@@ -237,7 +237,7 @@ protected:
 				break;
 			// El primer lote es historial antiguo: no lo repetimos.
 			if (!first) {
-				for (const QJsonValue &a : lc.value("actions").toArray()) {
+				for (const QJsonValue a : lc.value("actions").toArray()) {
 					QJsonObject m = toMessage(a.toObject(), source_.channel);
 					if (!m.isEmpty())
 						post_(m);

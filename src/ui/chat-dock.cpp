@@ -52,10 +52,13 @@ void savePrefs(const QJsonObject &prefs)
 		file.write(QJsonDocument(prefs).toJson());
 }
 
-QColor blend(const QColor &a, const QColor &b, qreal t)
+QColor blend(const QColor &a, const QColor &b, float t)
 {
-	return QColor::fromRgbF(a.redF() + (b.redF() - a.redF()) * t, a.greenF() + (b.greenF() - a.greenF()) * t,
-				a.blueF() + (b.blueF() - a.blueF()) * t);
+	auto mix = [t](float x, float y) {
+		return x + (y - x) * t;
+	};
+	return QColor::fromRgbF(mix(float(a.redF()), float(b.redF())), mix(float(a.greenF()), float(b.greenF())),
+				mix(float(a.blueF()), float(b.blueF())));
 }
 
 } // namespace
@@ -110,7 +113,7 @@ void ChatView::changeEvent(QEvent *event)
 QString ChatView::html(const QJsonObject &m) const
 {
 	const QColor base = palette().color(QPalette::Base);
-	const QColor muted = blend(palette().color(QPalette::Text), base, 0.45);
+	const QColor muted = blend(palette().color(QPalette::Text), base, 0.45f);
 	const QString platform = m.value("platform").toString();
 	const int icon = qRound(emoteSize_ * 0.75);
 	QString out;
@@ -122,7 +125,7 @@ QString ChatView::html(const QJsonObject &m) const
 
 	out += QStringLiteral("<img src=\"mc-icon:%1\" width=\"%2\" height=\"%2\">&nbsp;").arg(platform).arg(icon);
 
-	for (const QJsonValue &b : m.value("badges").toArray()) {
+	for (const QJsonValue b : m.value("badges").toArray()) {
 		QString label;
 		QColor bg;
 		if (ui::badgeStyle(b.toString(), label, bg))
@@ -146,7 +149,7 @@ QString ChatView::html(const QJsonObject &m) const
 		const bool action = m.value("action").toBool();
 		out += action ? QStringLiteral(" <span style=\"color:%1;\">").arg(color.name())
 			      : QStringLiteral("<span style=\"color:%1;\">:</span> <span>").arg(muted.name());
-		for (const QJsonValue &v : parts) {
+		for (const QJsonValue v : parts) {
 			const QJsonObject p = v.toObject();
 			if (p.value("type").toString() == "emote")
 				out += QStringLiteral("<img src=\"%1\" height=\"%2\" title=\"%3\">")
@@ -179,7 +182,7 @@ void ChatView::addMessage(const QJsonObject &m)
 	format.setBottomMargin(2);
 	if (m.value("kind").toString() == "highlight") {
 		const QColor base = palette().color(QPalette::Base);
-		format.setBackground(blend(base, ui::platformColor(m.value("platform").toString()), 0.22));
+		format.setBackground(blend(base, ui::platformColor(m.value("platform").toString()), 0.22f));
 		format.setLeftMargin(2);
 	}
 	QTextCursor cursor(document()->lastBlock());
@@ -225,7 +228,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 {
 	const QJsonObject prefs = loadPrefs();
 	fontSize_ = prefs.value("fontSize").toInt(11);
-	for (const QJsonValue &v : prefs.value("hidden").toArray())
+	for (const QJsonValue v : prefs.value("hidden").toArray())
 		hidden_.insert(v.toString());
 
 	auto *root = new QVBoxLayout(this);
@@ -304,7 +307,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 
 	ChatManager &manager = ChatManager::instance();
 	QList<QJsonObject> history;
-	for (const QJsonValue &v : manager.history())
+	for (const QJsonValue v : manager.history())
 		history << v.toObject();
 	view_->setMessages(history);
 	connect(&manager, &ChatManager::message, view_, &ChatView::addMessage);
@@ -336,7 +339,7 @@ void ChatDock::updateState(const QJsonObject &state)
 		status_->setStyleSheet("color: #ff4d4d; font-weight: bold;");
 	} else {
 		QStringList names;
-		for (const QJsonValue &p : live)
+		for (const QJsonValue p : live)
 			names << chat::platformName(p.toString());
 		status_->setText(names.isEmpty() ? ui::T("Dock.OffAir") : ui::T("Dock.LiveOn").arg(names.join(", ")));
 		status_->setStyleSheet(QString());
@@ -357,7 +360,7 @@ void ChatDock::updateState(const QJsonObject &state)
 		delete item->widget();
 		delete item;
 	}
-	for (const QJsonValue &v : sources) {
+	for (const QJsonValue v : sources) {
 		const QJsonObject s = v.toObject();
 		const QString key = s.value("key").toString();
 		const QString platform = s.value("platform").toString();
@@ -396,7 +399,7 @@ void ChatDock::updateState(const QJsonObject &state)
 	chips_->setVisible(!sources.isEmpty());
 
 	QStringList errors;
-	for (const QJsonValue &e : state.value("errors").toArray())
+	for (const QJsonValue e : state.value("errors").toArray())
 		errors << e.toString();
 	errors_->setText(errors.join("\n"));
 	errors_->setVisible(!errors.isEmpty());

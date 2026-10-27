@@ -63,7 +63,7 @@ QJsonObject toMessage(const QJsonObject &data, const QString &channel)
 	const QJsonObject identity = sender.value("identity").toObject();
 	MessageOptions o;
 	o.color = identity.value("color").toString();
-	for (const QJsonValue &b : identity.value("badges").toArray()) {
+	for (const QJsonValue b : identity.value("badges").toArray()) {
 		const QString type = b.toObject().value("type").toString();
 		QString name;
 		if (type == "broadcaster")
