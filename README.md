@@ -69,7 +69,7 @@ YouTube y Kick no tienen una API pública oficial para leer el chat sin cuenta: 
 El plugin usa la [plantilla oficial de plugins de OBS](https://github.com/obsproject/obs-plugintemplate) actualizada a **OBS 33.0.0**: obs-deps y Qt 6.11 del `2026-10-23`, macOS 13+ universal, Windows x64. La configuración descarga las dependencias sola.
 
 ```bash
-# macOS (Xcode 16+)
+# macOS (Xcode 26.5+: OBS 33 exige el SDK de macOS 26.5)
 cmake --preset macos && cmake --build --preset macos
 
 # Windows (Visual Studio 2022, SDK 10.0.26100)

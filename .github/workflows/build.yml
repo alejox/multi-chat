@@ -25,9 +25,17 @@ jobs:
           ctest --test-dir build_tests --output-on-failure
 
   macos:
-    runs-on: macos-15
+    # OBS 33 exige el SDK de macOS 26.5 (Xcode 26.5) para compilar libobs.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v5
+      - name: Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          xcode="$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          test -n "$xcode" || { echo "No hay Xcode 26 en este runner"; exit 1; }
+          sudo xcode-select -s "$xcode"
+          xcrun --sdk macosx --show-sdk-version
       - name: Versión
         id: version
         run: echo "v=$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")" >> "$GITHUB_OUTPUT"
