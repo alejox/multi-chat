@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Multichat</title>
+<!-- La fuente "Multichat" del plugin carga esta página y le manda los mensajes con el
+     evento "multichat" (javascript_event de obs-browser):
+       {type: "config", config: {...}} · {type: "message", message: {...}} · {type: "clear"} -->
+<style>
+  :root { --fs: 22px; --bg-alpha: .6; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body { color: #fff; font: 600 var(--fs)/1.35 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
+    text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; }
+  #list { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; gap: 5px; }
+  body.top #list { justify-content: flex-start; }
+  .msg { overflow-wrap: anywhere; animation: in .25s ease-out; transition: opacity .6s, transform .6s; }
+  .msg.out { opacity: 0; transform: translateX(-12px); }
+  body.bg .msg { background: rgba(0, 0, 0, var(--bg-alpha)); padding: 5px 11px; border-radius: 9px; text-shadow: none; }
+  .msg.hl { border-left: 4px solid var(--pc); padding-left: 9px; }
+  body.bg .msg.hl { background: color-mix(in srgb, var(--pc) 30%, rgba(0, 0, 0, var(--bg-alpha))); }
+  .sys { font-size: .8em; opacity: .85; font-style: italic; }
+  .pf { display: inline-block; vertical-align: -.15em; margin-right: .3em; filter: drop-shadow(0 1px 2px #000a); }
+  .pf svg { width: 1em; height: 1em; display: block; }
+  .badge { display: inline-block; font-size: .55em; font-weight: 800; padding: .1em .4em; margin-right: .35em;
+    border-radius: .3em; vertical-align: .25em; text-shadow: none; letter-spacing: .03em; }
+  .b-owner { background: #e5484d; } .b-moderator { background: #2f9e58; } .b-vip { background: #d6409f; }
+  .b-subscriber, .b-member { background: #6e56cf; } .b-verified, .b-staff { background: #5a6070; }
+  .amount { display: inline-block; font-size: .75em; font-weight: 800; padding: .05em .4em; margin-right: .35em;
+    border-radius: .3em; background: var(--pc); color: #000; text-shadow: none; }
+  .author { font-weight: 800; }
+  .body { font-weight: 500; }
+  .emote { height: 1.6em; vertical-align: middle; margin: -.3em .05em; }
+  .noicons .pf, .nobadges .badge { display: none; }
+  @keyframes in { from { opacity: 0; transform: translateY(8px); } }
+</style>
+</head>
+<body>
+<div id="list"></div>
+<script>
+const PLATFORMS = {
+  twitch: '#9146FF', youtube: '#FF0033', kick: '#53FC18',
+};
+const ICONS = {
+  twitch: '<svg viewBox="0 0 24 24"><path fill="#9146FF" d="M4.3 1 2.5 5.6V20h5v3h2.8l3-3h4.1L23 14.4V1H4.3Z"/><path fill="#fff" d="M5.2 3.2h15.5v11H5.2z"/><path fill="#9146FF" d="M15.8 6.6h2v5.8h-2zm-5.4 0h2v5.8h-2z"/></svg>',
+  youtube: '<svg viewBox="0 0 24 24"><rect x="1" y="4.5" width="22" height="15" rx="4.5" fill="#FF0033"/><path fill="#fff" d="m10 8.6 5.8 3.4-5.8 3.4z"/></svg>',
+  kick: '<svg viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="5" fill="#53FC18"/><path fill="#0b0b0b" d="M6.5 5.5h3.6v3.6h1.8V7.3h1.8V5.5h3.6V11h-1.8v2h1.8v5.5h-3.6v-1.8h-1.8v-1.8h-1.8v3.6H6.5z"/></svg>',
+};
+const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MIEMBRO', verified: '✓', staff: 'STAFF' };
+const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
+
+let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick'], icons: true, badges: true,
+  background: false, opacity: 60, align: 'bottom', preview: true, streaming: false };
+let lastReal = 0;
+const seen = new Set();
+const list = document.getElementById('list');
+
+function nameColor(hex, name) {
+  if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) {
+    let h = 0;
+    for (const c of name) h = (h * 31 + c.codePointAt(0)) | 0;
+    return FALLBACK[Math.abs(h) % FALLBACK.length];
+  }
+  hex = hex.replace('#', '');
+  let [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (lum < 0.45) {
+    const k = (0.45 - lum) / 0.55 + 0.25;
+    [r, g, b] = [r, g, b].map(v => Math.round(v + (255 - v) * k));
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function render(m) {
+  const row = el('div', 'msg' + (m.kind === 'highlight' ? ' hl' : ''));
+  row.style.setProperty('--pc', PLATFORMS[m.platform] || '#888');
+  if (m.system) row.appendChild(el('div', 'sys', m.system));
+  const icon = el('span', 'pf');
+  icon.innerHTML = ICONS[m.platform] || '';
+  row.appendChild(icon);
+  for (const b of m.badges || []) if (BADGES[b]) row.appendChild(el('span', 'badge b-' + b, BADGES[b]));
+  if (m.amount) row.appendChild(el('span', 'amount', m.amount));
+  const author = el('span', 'author', m.author);
+  author.style.color = nameColor(m.color, m.author);
+  row.appendChild(author);
+  if (m.parts && m.parts.length) {
+    row.appendChild(document.createTextNode(m.action ? ' ' : ': '));
+    const body = el('span', 'body');
+    if (m.action) body.style.color = author.style.color;
+    for (const p of m.parts) {
+      if (p.type === 'emote') {
+        const img = el('img', 'emote');
+        img.src = p.url;
+        img.alt = p.name;
+        img.onerror = () => img.replaceWith(document.createTextNode(p.name));
+        body.appendChild(img);
+      } else {
+        body.appendChild(document.createTextNode(p.text));
+      }
+    }
+    row.appendChild(body);
+  }
+  return row;
+}
+
+function remove(row) {
+  row.classList.add('out');
+  setTimeout(() => row.remove(), 600);
+}
+
+function add(m) {
+  if (!config.platforms.includes(m.platform)) return;
+  if (m.id) {
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
+    if (seen.size > 2000) seen.clear();
+  }
+  const row = render(m);
+  list.appendChild(row);
+  const shown = [...list.children].filter(c => !c.classList.contains('out'));
+  for (const old of shown.slice(0, Math.max(0, shown.length - config.max))) remove(old);
+  if (config.fade > 0) setTimeout(() => remove(row), config.fade * 1000);
+}
+
+function applyConfig(c) {
+  config = { ...config, ...c };
+  document.documentElement.style.setProperty('--fs', config.size + 'px');
+  document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
+  document.body.classList.toggle('bg', !!config.background);
+  document.body.classList.toggle('top', config.align === 'top');
+  document.body.classList.toggle('noicons', !config.icons);
+  document.body.classList.toggle('nobadges', !config.badges);
+}
+
+window.addEventListener('multichat', e => {
+  const data = e.detail || {};
+  if (data.type === 'config') applyConfig(data.config || {});
+  else if (data.type === 'message' && data.message) {
+    if (data.message.channel !== 'demo') lastReal = Date.now();
+    add(data.message);
+  } else if (data.type === 'clear') list.textContent = '';
+});
+
+// Mensajes de ejemplo para colocar el overlay mientras no llega chat de verdad.
+const SAMPLES = [
+  ['twitch', 'LunaGamer', '#FF7F50', ['subscriber'], '¡Holaaa desde Buenos Aires!'],
+  ['youtube', 'María Fernández', '', ['member'], 'qué buen stream hoy'],
+  ['kick', 'kicker_mx', '#53FC18', [], 'saludos a todos los del chat de Kick'],
+  ['twitch', 'pixel_pancho', '#1E90FF', ['moderator'], 'GG'],
+  ['youtube', 'Carlos R.', '', [], 'vamos que se puede 💪'],
+];
+let sample = 0;
+setInterval(() => {
+  if (!config.preview || config.streaming || Date.now() - lastReal < 30000) return;
+  const [platform, author, color, badges, text] = SAMPLES[sample++ % SAMPLES.length];
+  add({ id: 'sample-' + sample, platform, author, color, badges, parts: [{ type: 'text', text }], kind: 'chat' });
+}, 2500);
+
+applyConfig({});
+</script>
+</body>
+</html>
