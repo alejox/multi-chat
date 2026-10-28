@@ -23,6 +23,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en vivo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
 | ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Para quitar uno, pulsa la ✕ a su derecha. |
 | 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Se configura en sus Propiedades: disposición, velocidad, tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
+| 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
 | 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en vivo, y el total. En fila o en columna, con o sin el nombre del canal. |
 | 🙈 **Filtrar** | Clic en un canal del dock para ocultar o mostrar sus mensajes. |
 | 🧪 **Mensajes de prueba** | Para ver el dock y colocar el overlay sin estar en directo. Nunca salen mientras transmites. |
@@ -48,6 +49,7 @@ Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y 
 2. **Docks → Multichat** para ver el chat dentro de OBS.
 3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha.
 4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
+5. Para la fecha y la hora sueltas: **Fuentes → + → Multichat (fecha y hora)**.
 
 ### Cuándo se conecta cada chat
 
@@ -93,11 +95,11 @@ Cada push compila en GitHub Actions para Windows y macOS (`.github/workflows/bui
 ```
 src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
 src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
-src/overlay-source.cpp     fuentes "Multichat" y "Multichat (espectadores)" (fuentes de navegador privadas)
+src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, demo
 src/net/                   red del sistema: WinHTTP (Windows) y NSURLSession (macOS)
 src/ui/                    dock, ventana de configuración, caché de emotes
-data/overlay/              páginas del chat (index.html) y de los espectadores (viewers.html)
+data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
 ```
 

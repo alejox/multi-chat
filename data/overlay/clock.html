@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Multichat · fecha y hora</title>
+<!-- La fuente "Multichat (fecha y hora)" carga esta página y le manda la configuración con el
+     evento "multichat" (javascript_event de obs-browser): {type: "config", config: {...}}.
+     El plugin da a la fuente el tamaño aproximado del recuadro; aquí se escala el recuadro
+     para que la llene justo. -->
+<style>
+  :root { --fs: 32px; --bg-alpha: .6; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body { color: #fff; font: 800 var(--fs)/1.2 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
+    text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+  #box { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: inline-flex; align-items: center;
+    gap: .45em; padding: .35em .6em; border-radius: .45em; white-space: nowrap; }
+  body.bg #box { background: rgba(0, 0, 0, var(--bg-alpha)); text-shadow: none; }
+  .bar { width: .18em; height: 1.15em; background: #fff; box-shadow: 0 0 3px #000c; }
+  body.bg .bar { box-shadow: none; }
+  .nobar .bar { display: none; }
+</style>
+</head>
+<body>
+<div id="box"><span class="bar"></span><span id="text"></span></div>
+<script>
+let config = { size: 32, date: true, time: true, seconds: false, hour24: true, bar: true, background: true, opacity: 60 };
+const box = document.getElementById('box');
+const text = document.getElementById('text');
+
+// "28 OCT 2026 04:20" en el idioma del sistema.
+function label(now) {
+  const parts = [];
+  if (config.date)
+    parts.push(now.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+      .replace(/\./g, '').replace(/\sde\s/g, ' ').toUpperCase());
+  if (config.time)
+    parts.push(now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit',
+      second: config.seconds ? '2-digit' : undefined, hour12: !config.hour24 }).toUpperCase());
+  return parts.join(' ');
+}
+
+// El recuadro llena la fuente: se escala a lo que permita el ancho o el alto.
+function fit() {
+  box.style.transform = '';
+  const w = box.offsetWidth, h = box.offsetHeight;
+  if (w && h) box.style.transform = `scale(${Math.min(innerWidth / w, innerHeight / h)})`;
+}
+addEventListener('resize', fit);
+
+let last = '';
+function tick() {
+  const value = label(new Date());
+  if (value !== last) {
+    last = value;
+    text.textContent = value;
+    fit();
+  }
+}
+setInterval(tick, 250);
+
+window.addEventListener('multichat', e => {
+  const data = e.detail || {};
+  if (data.type !== 'config') return;
+  config = { ...config, ...(data.config || {}) };
+  document.documentElement.style.setProperty('--fs', config.size + 'px');
+  document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
+  document.body.classList.toggle('bg', !!config.background);
+  document.body.classList.toggle('nobar', !config.bar);
+  last = '';
+  tick();
+});
+
+tick();
+</script>
+</body>
+</html>

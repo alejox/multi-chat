@@ -8,6 +8,8 @@
 #include <obs-module.h>
 #include <plugin-support.h>
 
+#include <QDate>
+#include <QDateTime>
 #include <QFileInfo>
 #include <QFont>
 #include <QFontMetricsF>
@@ -30,8 +32,10 @@
 
 namespace {
 
+enum class Kind { Chat, Viewers, Clock };
+
 struct OverlaySource {
-	bool viewers = false; // fuente de espectadores en lugar de chat
+	Kind kind = Kind::Chat;
 	obs_source_t *self = nullptr;
 	obs_source_t *browser = nullptr;
 	QJsonObject config;
@@ -63,11 +67,11 @@ void send(OverlaySource *s, const QJsonObject &payload)
 // Últimos canales conocidos (live y espectadores), para las fuentes de espectadores.
 QJsonArray lastSources;
 
-void sendAll(const QJsonObject &payload, bool viewers = false)
+void sendAll(const QJsonObject &payload)
 {
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	for (OverlaySource *s : sources)
-		if (s->viewers == viewers)
+		if (s->kind == Kind::Chat)
 			send(s, payload);
 }
 
@@ -207,6 +211,56 @@ void refreshViewers(OverlaySource *s)
 	send(s, viewersPayload(items, total));
 }
 
+// ---- Fuente de fecha y hora ----
+
+// Tamaño del recuadro de clock.html con un texto de ejemplo del ancho máximo (la página luego
+// escala el recuadro para llenar la fuente justo).
+QSize clockBoxSize(const OverlaySource *s)
+{
+	const QJsonObject &c = s->config;
+	const double em = std::max(1, c.value("size").toInt(32));
+	QFont font;
+	font.setFamilies({"Segoe UI", ".AppleSystemUIFont", "Helvetica Neue", "Roboto"});
+	font.setPixelSize(int(em));
+	font.setWeight(QFont::ExtraBold);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+	font.setFeature(QFont::Tag("tnum"), 1);
+#endif
+	const QDateTime sample(QDate(2026, 12, 28), QTime(23, 58, 58));
+	QStringList parts;
+	if (c.value("date").toBool())
+		parts << QLocale().toString(sample.date(), "dd MMM yyyy").remove('.').toUpper();
+	if (c.value("time").toBool())
+		parts << QLocale()
+				 .toString(sample.time(), QString(c.value("hour24").toBool() ? "HH:mm" : "hh:mm") +
+								  (c.value("seconds").toBool() ? ":ss" : "") +
+								  (c.value("hour24").toBool() ? "" : " AP"))
+				 .toUpper();
+	const QString text = parts.join(' ');
+	double w = em * 1.2 + QFontMetricsF(font).horizontalAdvance(text) + em * 0.02 * double(text.size());
+	if (c.value("bar").toBool())
+		w += em * 0.63;
+	return QSize(std::min(4096, int(std::ceil(w))), int(std::ceil(em * 1.9)));
+}
+
+void refreshClock(OverlaySource *s)
+{
+	const QSize size = clockBoxSize(s);
+	if (uint32_t(size.width()) != s->width || uint32_t(size.height()) != s->height) {
+		s->width = uint32_t(size.width());
+		s->height = uint32_t(size.height());
+		resizeBrowser(s);
+	}
+}
+
+void refresh(OverlaySource *s)
+{
+	if (s->kind == Kind::Viewers)
+		refreshViewers(s);
+	else if (s->kind == Kind::Clock)
+		refreshClock(s);
+}
+
 void sendConfig(OverlaySource *s)
 {
 	QJsonObject config = s->config;
@@ -233,7 +287,7 @@ uint32_t tickerHeight(const QJsonObject &config)
 // Cinta horizontal con "ajustar al lienzo": su tamaño lo pone el plugin.
 bool fitsCanvas(const OverlaySource *s)
 {
-	return !s->viewers && s->config.value("layout").toString() == "horizontal" && s->config.value("fit").toBool();
+	return s->kind == Kind::Chat && s->config.value("layout").toString() == "horizontal" && s->config.value("fit").toBool();
 }
 
 // Al pasar a la cinta ajustada al lienzo, quita en las escenas la escala, el recorte y los
@@ -297,7 +351,9 @@ obs_data_t *browserSettings(const OverlaySource *s)
 	obs_data_t *bs = obs_data_create();
 	// En Windows obs_module_file puede dar una ruta relativa: la fuente de navegador
 	// necesita la absoluta.
-	char *page = obs_module_file(s->viewers ? "overlay/viewers.html" : "overlay/index.html");
+	char *page = obs_module_file(s->kind == Kind::Viewers ? "overlay/viewers.html"
+				     : s->kind == Kind::Clock ? "overlay/clock.html"
+							      : "overlay/index.html");
 	const QString path = page ? QFileInfo(QString::fromUtf8(page)).absoluteFilePath() : QString();
 	bfree(page);
 	obs_data_set_bool(bs, "is_local_file", true);
@@ -322,7 +378,7 @@ void resizeBrowser(OverlaySource *s)
 
 void readSettings(OverlaySource *s, obs_data_t *settings)
 {
-	if (!s->viewers) { // la de espectadores calcula su tamaño sola
+	if (s->kind == Kind::Chat) { // espectadores y reloj calculan su tamaño solos
 		s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
 		s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
 	}
@@ -330,7 +386,20 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 	for (const char *p : {"twitch", "youtube", "kick", "tiktok"})
 		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
 			platforms.append(p);
-	if (s->viewers) {
+	if (s->kind == Kind::Clock) {
+		s->config = QJsonObject{
+			{"size", (int)obs_data_get_int(settings, "font_size")},
+			{"date", obs_data_get_bool(settings, "date")},
+			{"time", obs_data_get_bool(settings, "time")},
+			{"seconds", obs_data_get_bool(settings, "seconds")},
+			{"hour24", obs_data_get_bool(settings, "hour24")},
+			{"bar", obs_data_get_bool(settings, "bar")},
+			{"background", obs_data_get_bool(settings, "background")},
+			{"opacity", (int)obs_data_get_int(settings, "opacity")},
+		};
+		return;
+	}
+	if (s->kind == Kind::Viewers) {
 		s->config = QJsonObject{
 			{"size", (int)obs_data_get_int(settings, "font_size")},
 			{"layout", obs_data_get_string(settings, "layout")},
@@ -378,10 +447,10 @@ const char *vw_get_name(void *)
 	return obs_module_text("Viewers.Name");
 }
 
-void *create(obs_data_t *settings, obs_source_t *source, bool viewers)
+void *create(obs_data_t *settings, obs_source_t *source, Kind kind)
 {
 	auto *s = new OverlaySource();
-	s->viewers = viewers;
+	s->kind = kind;
 	s->self = source;
 	readSettings(s, settings);
 	obs_data_t *bs = browserSettings(s);
@@ -392,19 +461,23 @@ void *create(obs_data_t *settings, obs_source_t *source, bool viewers)
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	sources.insert(s);
 	sendConfig(s);
-	if (viewers)
-		refreshViewers(s);
+	refresh(s);
 	return s;
 }
 
 void *ov_create(obs_data_t *settings, obs_source_t *source)
 {
-	return create(settings, source, false);
+	return create(settings, source, Kind::Chat);
 }
 
 void *vw_create(obs_data_t *settings, obs_source_t *source)
 {
-	return create(settings, source, true);
+	return create(settings, source, Kind::Viewers);
+}
+
+void *ck_create(obs_data_t *settings, obs_source_t *source)
+{
+	return create(settings, source, Kind::Clock);
 }
 
 void ov_destroy(void *data)
@@ -428,8 +501,7 @@ void ov_update(void *data, obs_data_t *settings)
 	if (!wasFitting && fitsCanvas(s))
 		fitAllScenes(s);
 	sendConfig(s);
-	if (s->viewers)
-		refreshViewers(s);
+	refresh(s);
 }
 
 void ov_defaults(obs_data_t *settings)
@@ -590,6 +662,41 @@ obs_properties_t *vw_properties(void *)
 	return props;
 }
 
+const char *ck_get_name(void *)
+{
+	return obs_module_text("Clock.Name");
+}
+
+void ck_defaults(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, "font_size", 32);
+	obs_data_set_default_bool(settings, "date", true);
+	obs_data_set_default_bool(settings, "time", true);
+	obs_data_set_default_bool(settings, "seconds", false);
+	obs_data_set_default_bool(settings, "hour24", true);
+	obs_data_set_default_bool(settings, "bar", true);
+	obs_data_set_default_bool(settings, "background", false);
+	obs_data_set_default_int(settings, "opacity", 60);
+}
+
+obs_properties_t *ck_properties(void *)
+{
+	obs_properties_t *props = obs_properties_create();
+	obs_property_t *size =
+		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 160, 1);
+	obs_property_int_set_suffix(size, " px");
+	obs_properties_add_bool(props, "date", obs_module_text("Clock.Date"));
+	obs_properties_add_bool(props, "time", obs_module_text("Clock.Time"));
+	obs_properties_add_bool(props, "seconds", obs_module_text("Clock.Seconds"));
+	obs_properties_add_bool(props, "hour24", obs_module_text("Clock.Hour24"));
+	obs_properties_add_bool(props, "bar", obs_module_text("Clock.Bar"));
+	obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background"));
+	obs_property_t *opacity =
+		obs_properties_add_int_slider(props, "opacity", obs_module_text("Source.Opacity"), 0, 100, 5);
+	obs_property_int_set_suffix(opacity, " %");
+	return props;
+}
+
 uint32_t ov_width(void *data)
 {
 	return static_cast<OverlaySource *>(data)->width;
@@ -651,8 +758,7 @@ void overlay_set_streaming(bool active)
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	for (OverlaySource *s : sources) {
 		sendConfig(s);
-		if (s->viewers)
-			refreshViewers(s); // al transmitir se quitan los números de ejemplo
+		refresh(s); // al transmitir se quitan los números de ejemplo
 	}
 }
 
@@ -667,7 +773,7 @@ void register_overlay_source()
 		std::lock_guard<std::mutex> lock(sourcesMutex);
 		lastSources = list;
 		for (OverlaySource *s : sources)
-			if (s->viewers)
+			if (s->kind == Kind::Viewers)
 				refreshViewers(s);
 	};
 	QObject::connect(&manager, &ChatManager::stateChanged, &manager, pushViewers);
@@ -723,4 +829,12 @@ void register_overlay_source()
 	viewers.get_defaults = vw_defaults;
 	viewers.get_properties = vw_properties;
 	obs_register_source(&viewers);
+
+	obs_source_info clock = info;
+	clock.id = "multichat_clock";
+	clock.get_name = ck_get_name;
+	clock.create = ck_create;
+	clock.get_defaults = ck_defaults;
+	clock.get_properties = ck_properties;
+	obs_register_source(&clock);
 }
