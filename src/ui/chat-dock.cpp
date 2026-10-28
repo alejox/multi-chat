@@ -4,7 +4,7 @@
 #include "ui-common.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
-#include "../update-checker.hpp"
+#include "../updater.hpp"
 
 #include <obs-module.h>
 
@@ -294,7 +294,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	updateLayout->setContentsMargins(6, 3, 3, 3);
 	auto *updateText = new QLabel(update);
 	updateText->setWordWrap(true);
-	auto *download = new QPushButton(ui::T("Update.Download"), update);
+	auto *download = new QPushButton(ui::T("Update.Now"), update);
 	updateLayout->addWidget(updateText, 1);
 	updateLayout->addWidget(download);
 	update->hide();
@@ -303,14 +303,11 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 		if (release.version.isEmpty())
 			return;
 		updateText->setText(ui::T("Update.Available").arg(release.version));
-		disconnect(download, nullptr, nullptr, nullptr);
-		connect(download, &QPushButton::clicked, download, [release] {
-			QDesktopServices::openUrl(QUrl(release.url));
-		});
 		update->show();
 	};
-	connect(&UpdateChecker::instance(), &UpdateChecker::updateAvailable, this, showUpdate);
-	showUpdate(UpdateChecker::instance().available());
+	connect(download, &QPushButton::clicked, this, [] { Updater::instance().update(); });
+	connect(&Updater::instance(), &Updater::updateAvailable, this, showUpdate);
+	showUpdate(Updater::instance().available());
 
 	chips_ = new QWidget(this);
 	chipsLayout_ = new FlowLayout(chips_, 4);
