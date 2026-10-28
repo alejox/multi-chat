@@ -73,9 +73,6 @@ Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**,
 - En **Herramientas → Gestor de plugins** (OBS 33) aparece **Multichat** con su versión.
 - Cuando hay una versión nueva, el dock **Multichat** muestra un aviso con el botón **Descargar**. Instálala igual que la primera vez (en Windows, con `Instalar Multichat.bat`).
 
-> [!TIP]
-> Si ya usabas la versión anterior en Python (`obs_multichat.py`), quítala de **Herramientas → Scripts**.
-
 ## 🎛️ Usarlo
 
 1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube.
