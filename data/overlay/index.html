@@ -50,6 +50,7 @@
     gap: .45em; padding: 0 .45em 0 .35em; white-space: nowrap; font-weight: 800; letter-spacing: .02em;
     font-variant-numeric: tabular-nums; }
   body.h.clock #clock { display: flex; }
+  .nobar #clock .bar { display: none; }
   #clock .bar { width: .18em; height: 1.15em; background: #fff; box-shadow: 0 0 3px #000c; }
   body.bg #clock { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: var(--msg-py) var(--msg-px); border-radius: var(--bg-radius);
     border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
@@ -68,7 +69,7 @@ const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A6
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok'], icons: true, badges: true,
   background: false, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 9, bgBorderWidth: 0, bgBorderColor: '#ffffff',
-  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, preview: true, streaming: false };
+  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, clockDate: true, clockTime: true, clockSeconds: false, clockHour24: true, clockBar: true, speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, preview: true, streaming: false };
 let lastReal = 0;
 const seen = new Set();
 const list = document.getElementById('list');
@@ -199,11 +200,9 @@ function updateClock() {
     list.style.right = '';
     return;
   }
-  const now = new Date();
-  const date = now.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
-    .replace(/\./g, '').replace(/\sde\s/g, ' ').toUpperCase();
-  const time = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
-  clockText.textContent = `${date} ${time}`;
+  clockText.textContent = clockLabel(new Date(), { date: config.clockDate, time: config.clockTime,
+    seconds: config.clockSeconds, hour24: config.clockHour24 });
+  document.body.classList.toggle('nobar', config.clockBar === false);
   // Entre el último mensaje y el reloj, el mismo espacio que entre mensajes.
   list.style.right = `calc(${clock.offsetWidth}px + var(--pad-x) + ${Math.max(0, config.hspacing)}px)`;
 }

@@ -490,6 +490,7 @@ void showBoxStyle(obs_properties_t *props, obs_data_t *settings, const std::stri
 bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
+	obs_property_set_visible(obs_properties_get(props, "style"), obs_data_get_bool(settings, "background"));
 	return true;
 }
 
@@ -556,6 +557,11 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"msgPadX", (int)obs_data_get_int(settings, "msg_pad_x")},
 		{"scroll", obs_data_get_string(settings, "scroll")},
 		{"clock", obs_data_get_bool(settings, "clock")},
+		{"clockDate", obs_data_get_bool(settings, "clock_date")},
+		{"clockTime", obs_data_get_bool(settings, "clock_time")},
+		{"clockSeconds", obs_data_get_bool(settings, "clock_seconds")},
+		{"clockHour24", obs_data_get_bool(settings, "clock_hour24")},
+		{"clockBar", obs_data_get_bool(settings, "clock_bar")},
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
 		{"tickerWidth", (int)obs_data_get_int(settings, "ticker_width")},
 		{"preview", obs_data_get_bool(settings, "preview")},
@@ -657,6 +663,11 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "layout", "vertical");
 	obs_data_set_default_int(settings, "speed", 120);
 	obs_data_set_default_string(settings, "scroll", "continuous");
+	obs_data_set_default_bool(settings, "clock_date", true);
+	obs_data_set_default_bool(settings, "clock_time", true);
+	obs_data_set_default_bool(settings, "clock_seconds", false);
+	obs_data_set_default_bool(settings, "clock_hour24", true);
+	obs_data_set_default_bool(settings, "clock_bar", true);
 	obs_data_set_default_bool(settings, "fit_canvas", true);
 	obs_data_set_default_int(settings, "spacing", 5);
 	obs_data_set_default_int(settings, "hspacing", 48);
@@ -702,6 +713,9 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "ticker_width"), horizontal && !manualSize);
 	obs_property_set_visible(obs_properties_get(props, "scroll"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "clock"), horizontal);
+	const bool clockOn = horizontal && obs_data_get_bool(settings, "clock");
+	for (const char *key : {"clock_date", "clock_time", "clock_seconds", "clock_hour24", "clock_bar"})
+		obs_property_set_visible(obs_properties_get(props, key), clockOn);
 	obs_property_set_visible(obs_properties_get(props, "speed"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "hspacing"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "spacing"), !horizontal);
@@ -710,6 +724,8 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "max"), !horizontal);
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
 	showBoxStyle(props, settings, "panel_", obs_data_get_bool(settings, "panel"));
+	obs_property_set_visible(obs_properties_get(props, "style"),
+				 obs_data_get_bool(settings, "background") || obs_data_get_bool(settings, "panel"));
 	for (const char *key : {"msg_pad_y", "msg_pad_x"})
 		obs_property_set_visible(obs_properties_get(props, key), obs_data_get_bool(settings, "background"));
 	return true;
@@ -743,7 +759,14 @@ obs_properties_t *ov_properties(void *)
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Continuous"), "continuous");
 	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Message"), "message");
-	obs_properties_add_bool(props, "clock", obs_module_text("Source.Clock"));
+	obs_property_t *clock = obs_properties_add_bool(props, "clock", obs_module_text("Source.Clock"));
+	obs_property_set_long_description(clock, obs_module_text("Source.Clock.Help"));
+	obs_property_set_modified_callback(clock, ov_layout_changed);
+	obs_properties_add_bool(props, "clock_date", obs_module_text("Clock.Date"));
+	obs_properties_add_bool(props, "clock_time", obs_module_text("Clock.Time"));
+	obs_properties_add_bool(props, "clock_seconds", obs_module_text("Clock.Seconds"));
+	obs_properties_add_bool(props, "clock_hour24", obs_module_text("Clock.Hour24"));
+	obs_properties_add_bool(props, "clock_bar", obs_module_text("Clock.Bar"));
 	obs_property_t *speed =
 		obs_properties_add_int_slider(props, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
 	obs_property_int_set_suffix(speed, " px/s");
@@ -835,7 +858,7 @@ void ck_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "bar", true);
 	obs_data_set_default_int(settings, "pad_y", 11);
 	obs_data_set_default_int(settings, "pad_x", 19);
-	obs_data_set_default_bool(settings, "background", false);
+	obs_data_set_default_bool(settings, "background", true);
 	obs_data_set_default_string(settings, "style", "solid");
 	boxStyleDefaults(settings, "", 60, 12);
 }

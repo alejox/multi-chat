@@ -25,3 +25,16 @@ function applyBoxStyle(c, prefix) {
   root.setProperty(`--${prefix}-bw`, (c[prefix + 'BorderWidth'] ?? 0) + 'px');
   root.setProperty(`--${prefix}-brgb`, rgbTriplet(c[prefix + 'BorderColor'] || '#ffffff'));
 }
+
+// Fecha y hora "28 OCT 2026 04:20" en el idioma del sistema. o: {date, time, seconds, hour24}.
+// La usan el reloj de la cinta (index.html) y la fuente de fecha y hora (clock.html).
+function clockLabel(now, o) {
+  const parts = [];
+  if (o.date !== false)
+    parts.push(now.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+      .replace(/\./g, '').replace(/\sde\s/g, ' ').toUpperCase());
+  if (o.time !== false)
+    parts.push(now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit',
+      second: o.seconds ? '2-digit' : undefined, hour12: o.hour24 === false }).toUpperCase());
+  return parts.join(' ');
+}
