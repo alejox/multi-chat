@@ -7,7 +7,8 @@
      evento "multichat" (javascript_event de obs-browser):
        {type: "config", config: {...}} · {type: "message", message: {...}} · {type: "clear"} -->
 <style>
-  :root { --fs: 22px; --bg-alpha: .6; --gap: 5px; }
+  :root { --fs: 22px; --gap: 5px; --bg-rgb: 0, 0, 0; --bg-alpha: .6; --bg-radius: 9px; --bg-bw: 0px; --bg-brgb: 255, 255, 255;
+    --panel-rgb: 0, 0, 0; --panel-alpha: .5; --panel-radius: 0px; --panel-bw: 0px; --panel-brgb: 255, 255, 255; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body { color: #fff; font: 600 var(--fs)/1.35 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
     text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; }
@@ -15,11 +16,12 @@
   /* Margen y no gap: así el espaciado puede ser negativo (los mensajes se solapan). */
   .msg + .msg { margin-top: var(--gap); }
   body.top #list { justify-content: flex-start; }
-  .msg { overflow-wrap: anywhere; animation: in .25s ease-out; transition: opacity .6s, transform .6s; }
+  .msg { position: relative; overflow-wrap: anywhere; animation: in .25s ease-out; transition: opacity .6s, transform .6s; }
   .msg.out { opacity: 0; transform: translateX(-12px); }
-  body.bg .msg { background: rgba(0, 0, 0, var(--bg-alpha)); padding: 5px 11px; border-radius: 9px; text-shadow: none; }
+  body.bg .msg { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: 5px 11px; border-radius: var(--bg-radius);
+    border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
   .msg.hl { border-left: 4px solid var(--pc); padding-left: 9px; }
-  body.bg .msg.hl { background: color-mix(in srgb, var(--pc) 30%, rgba(0, 0, 0, var(--bg-alpha))); }
+  body.bg .msg.hl { background: color-mix(in srgb, var(--pc) 30%, rgba(var(--bg-rgb), var(--bg-alpha))); }
   .sys { font-size: .8em; opacity: .85; font-style: italic; }
   .pf { display: inline-block; vertical-align: -.15em; margin-right: .3em; filter: drop-shadow(0 1px 2px #000a); }
   .pf svg { width: 1em; height: 1em; display: block; }
@@ -33,6 +35,10 @@
   .body { font-weight: 500; }
   .emote { height: 1.6em; vertical-align: middle; margin: -.3em .05em; }
   .noicons .pf, .nobadges .badge { display: none; }
+  /* Fondo general detrás de todo el chat. */
+  #panel { display: none; position: fixed; inset: 0; box-sizing: border-box; background: rgba(var(--panel-rgb), var(--panel-alpha));
+    border-radius: var(--panel-radius); border: var(--panel-bw) solid rgb(var(--panel-brgb)); }
+  body.panel #panel { display: block; }
   /* Horizontal: una sola línea que avanza de derecha a izquierda. */
   body.h #list { display: block; padding: 0; overflow: hidden; }
   body.h .msg { position: absolute; left: 0; top: 50%; white-space: nowrap; overflow-wrap: normal;
@@ -45,11 +51,14 @@
     font-variant-numeric: tabular-nums; }
   body.h.clock #clock { display: flex; }
   #clock .bar { width: .18em; height: 1.15em; background: #fff; box-shadow: 0 0 3px #000c; }
-  body.bg #clock { background: rgba(0, 0, 0, var(--bg-alpha)); padding: 5px 11px; border-radius: 9px; text-shadow: none; }
+  body.bg #clock { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: 5px 11px; border-radius: var(--bg-radius);
+    border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
   @keyframes in { from { opacity: 0; transform: translateY(8px); } }
 </style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<div id="panel"></div>
 <div id="list"></div>
 <div id="clock"><span class="bar"></span><span id="clock-text"></span></div>
 <script src="icons.js"></script>
@@ -58,7 +67,8 @@ const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB',
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok'], icons: true, badges: true,
-  background: false, opacity: 60, align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
+  background: false, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 9, bgBorderWidth: 0, bgBorderColor: '#ffffff',
+  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
 let lastReal = 0;
 const seen = new Set();
 const list = document.getElementById('list');
@@ -204,8 +214,12 @@ function applyConfig(c) {
   if (config.layout !== layout || config.scroll !== scroll) list.textContent = '';
   document.body.classList.toggle('h', config.layout === 'horizontal');
   document.documentElement.style.setProperty('--fs', config.size + 'px');
-  document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
-  document.documentElement.style.setProperty('--gap', config.spacing + 'px');
+  const root = document.documentElement.style;
+  applyBoxStyle(config, 'bg');
+  applyBoxStyle(config, 'panel');
+  document.documentElement.dataset.style = config.style || 'solid';
+  root.setProperty('--gap', config.spacing + 'px');
+  document.body.classList.toggle('panel', !!config.panel);
   document.body.classList.toggle('bg', !!config.background);
   document.body.classList.toggle('top', config.align === 'top');
   document.body.classList.toggle('noicons', !config.icons);

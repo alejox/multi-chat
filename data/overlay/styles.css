@@ -1,0 +1,112 @@
+/* Estilos de fondo compartidos por index.html (chat), viewers.html y clock.html.
+   Se eligen con data-style en <html>. Cada página define sus variables:
+     --bg-rgb/--bg-alpha/--bg-radius/--bg-bw/--bg-brgb      fondo de cada mensaje o recuadro
+     --panel-rgb/--panel-alpha/--panel-radius/...           fondo general del chat
+   "Sólido" (sin data-style) usa esas variables tal cual; los demás estilos traen sus propios
+   colores, pero respetan la opacidad, y Cristal/Píldora/Ventana usan el color como tinte.
+   OBS no deja que una fuente difumine lo que tiene debajo: el cristal es traslúcido, con
+   brillo y borde de luz, sin esmerilado. */
+
+body.bg .msg, body.bg #clock, body.bg #box { --s-rgb: var(--bg-rgb); --s-alpha: var(--bg-alpha); }
+#panel { --s-rgb: var(--panel-rgb); --s-alpha: var(--panel-alpha); }
+
+[data-style]:not([data-style="solid"]) :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) { isolation: isolate; }
+/* :where() no suma especificidad: cada estilo puede mover o redimensionar su ::after. */
+:where([data-style]) :where(body.bg .msg, body.bg #clock, body.bg #box, #panel)::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+}
+[data-style="solid"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel)::after { content: none; }
+
+/* Cristal, Píldora y Ventana macOS: traslúcido del color elegido, brillo y borde de luz. */
+:is([data-style="glass"], [data-style="pill"], [data-style="macos"]) :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: rgba(var(--s-rgb), calc(var(--s-alpha) * 0.6));
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+:is([data-style="glass"], [data-style="pill"], [data-style="macos"]) :is(body.bg .msg, body.bg #clock, body.bg #box, #panel)::after {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.07) 38%, rgba(255, 255, 255, 0) 58%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 35%);
+}
+[data-style="pill"] :is(body.bg .msg, body.bg #clock, body.bg #box) { border-radius: 999px; }
+[data-style="pill"] #panel { border-radius: 40px; }
+/* Ventana macOS: los tres botones arriba a la izquierda del fondo general. */
+[data-style="macos"] #panel::before {
+  content: ""; position: absolute; left: 14px; top: 11px; width: 52px; height: 12px;
+  background:
+    radial-gradient(circle at 6px 6px, #ff5f57 5.5px, transparent 6px),
+    radial-gradient(circle at 26px 6px, #febc2e 5.5px, transparent 6px),
+    radial-gradient(circle at 46px 6px, #28c840 5.5px, transparent 6px);
+}
+[data-style="macos"] body.panel:not(.h) #list { padding-top: 34px; }
+[data-style="macos"] body.h #panel::before { display: none; }
+
+/* Minimal: negro mate con un borde fino. */
+[data-style="minimal"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: rgba(14, 14, 16, var(--s-alpha)); border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: none;
+}
+
+/* Línea: negro con borde blanco. */
+[data-style="line"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: rgba(0, 0, 0, var(--s-alpha)); border: 2px solid #fff; box-shadow: none;
+}
+
+/* Synthwave: morado con borde y brillo magenta. */
+[data-style="synthwave"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: linear-gradient(to bottom, rgba(40, 6, 70, var(--s-alpha)), rgba(90, 10, 90, var(--s-alpha)));
+  border: 2px solid #ff2bd6; box-shadow: 0 0 10px rgba(255, 43, 214, 0.45), inset 0 0 14px rgba(255, 43, 214, 0.5);
+  text-shadow: 0 0 6px rgba(53, 224, 255, 0.6);
+}
+[data-style="synthwave"] .author { text-shadow: 0 0 8px rgba(255, 43, 214, 0.85); }
+
+/* Ciudad neón: noche morada con borde violeta. */
+[data-style="neoncity"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: linear-gradient(115deg, rgba(14, 10, 52, var(--s-alpha)), rgba(36, 10, 72, var(--s-alpha)));
+  border: 1.5px solid rgba(160, 90, 255, 0.85); box-shadow: inset 0 0 14px rgba(140, 70, 255, 0.4);
+}
+[data-style="neoncity"] .author { text-shadow: 0 0 8px rgba(255, 63, 216, 0.6); }
+
+/* Cyberpunk: esquinas cortadas, borde degradado cian-magenta y brillo cian. */
+[data-style="cyber"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  --cut: 10px;
+  border: 2px solid transparent; border-radius: 0; box-shadow: none;
+  background:
+    linear-gradient(120deg, rgba(5, 12, 40, var(--s-alpha)), rgba(20, 8, 50, var(--s-alpha))) padding-box,
+    linear-gradient(115deg, #22d3ff, #3a6bff 50%, #ff2bd6) border-box;
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+  letter-spacing: 0.02em;
+}
+[data-style="cyber"] #panel { --cut: 22px; }
+[data-style="cyber"] .author { text-shadow: 0 0 8px rgba(34, 228, 255, 0.8); }
+
+/* Retro: papel viejo con una franja de arcoíris. */
+[data-style="retro"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: rgba(238, 228, 205, var(--s-alpha)); border: 0; color: #1c1a17; text-shadow: none;
+  box-shadow: inset 0 0 22px rgba(120, 90, 40, 0.35);
+}
+[data-style="retro"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel)::after {
+  top: auto; height: 4px; border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, #d8452f 0 20%, #ec8a2d 20% 40%, #f2c14b 40% 60%, #4aa36c 60% 80%, #2b6f9a 80%);
+}
+[data-style="retro"] body.bg .author { filter: brightness(0.55) saturate(1.4); }
+[data-style="retro"] body.bg #clock .bar, [data-style="retro"] body.bg #box .bar { background: #1c1a17; box-shadow: none; }
+[data-style="retro"] body.bg #box .eye { filter: invert(1); }
+
+/* Glitch / VHS: líneas de barrido, nombres con colores corridos y algún salto. */
+[data-style="glitch"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px), rgba(18, 18, 20, var(--s-alpha));
+  border: 1px solid rgba(255, 255, 255, 0.14); box-shadow: none;
+}
+/* Los colores corridos solo en los nombres y el reloj: en todo el texto cuesta leer. */
+[data-style="glitch"] :is(.author, #clock-text, #text) { text-shadow: -1.5px 0 rgba(255, 40, 80, 0.85), 1.5px 0 rgba(40, 230, 255, 0.85); }
+[data-style="glitch"] :is(body.bg .msg, body.bg #clock, body.bg #box) { animation: mc-glitch 4s steps(1) infinite; }
+[data-style="glitch"] body.bg .msg:nth-child(3n + 1) { animation-delay: -1.3s; }
+[data-style="glitch"] body.bg .msg:nth-child(3n + 2) { animation-delay: -2.6s; }
+[data-style="glitch"] #panel::after { background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.45)); }
+@keyframes mc-glitch {
+  0%, 91%, 100% { translate: 0 0; clip-path: none; }
+  92% { translate: -3px 0; clip-path: inset(10% 0 55% 0); }
+  94% { translate: 3px 0; clip-path: inset(60% 0 8% 0); }
+  96% { translate: -1px 0; }
+}
