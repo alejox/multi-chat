@@ -213,6 +213,21 @@ private slots:
 		QCOMPARE(r.live, 0);
 		QCOMPARE(r.viewers, -1);
 	}
+	void links()
+	{
+		QCOMPARE(linkifyHtml("hola <b>"), QString("hola &lt;b&gt;"));
+		QCOMPARE(linkifyHtml("mira https://kick.com/canal."),
+			 QString("mira <a href=\"https://kick.com/canal\">https://kick.com/canal</a>."));
+		QCOMPARE(linkifyHtml("(www.youtube.com/@x)"),
+			 QString("(<a href=\"https://www.youtube.com/@x\">www.youtube.com/@x</a>)"));
+		QCOMPARE(linkifyHtml("https://es.wikipedia.org/wiki/OBS_(software)"),
+			 QString("<a href=\"https://es.wikipedia.org/wiki/OBS_(software)\">"
+				 "https://es.wikipedia.org/wiki/OBS_(software)</a>"));
+		QCOMPARE(linkifyHtml("a&b http://x.io/?a=1&b=2", "#00f"),
+			 QString("a&amp;b <a href=\"http://x.io/?a=1&amp;b=2\" style=\"color:#00f;\">"
+				 "http://x.io/?a=1&amp;b=2</a>"));
+		QVERIFY(!linkifyHtml("javascript:alert(1) ftp://x").contains("<a"));
+	}
 };
 
 QTEST_GUILESS_MAIN(ChatTest)
