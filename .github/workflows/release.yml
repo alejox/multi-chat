@@ -2,10 +2,13 @@ name: Publicar versión
 
 # Para publicar: sube "version" en buildspec.json, haz commit y empuja un tag con esa versión:
 #   git tag v2.0.0 && git push origin v2.0.0
+# o lanza este flujo a mano (Actions → Publicar versión → Run workflow) en la rama que quieras
+# publicar: crea el tag v<version de buildspec.json> sobre ese commit.
 # Compila el plugin y adjunta los zips de Windows y macOS a la Release del tag.
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -20,9 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: El tag coincide con buildspec.json
+        id: tag
         run: |
           v="v$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")"
-          [ "$v" = "$GITHUB_REF_NAME" ] || { echo "El tag es $GITHUB_REF_NAME pero buildspec.json dice $v"; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            [ "$v" = "$GITHUB_REF_NAME" ] || { echo "El tag es $GITHUB_REF_NAME pero buildspec.json dice $v"; exit 1; }
+          elif git ls-remote --exit-code --tags origin "refs/tags/$v" >/dev/null; then
+            echo "Ya existe el tag $v: sube la versión en buildspec.json"; exit 1
+          fi
+          echo "name=$v" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -32,4 +41,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la dist
-          gh release create "$GITHUB_REF_NAME" dist/* --title "Multichat $GITHUB_REF_NAME" --generate-notes
+          tag="${{ steps.tag.outputs.name }}"
+          gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Multichat $tag" --generate-notes
