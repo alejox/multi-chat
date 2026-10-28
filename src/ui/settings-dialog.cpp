@@ -19,6 +19,8 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QShortcut>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 namespace {
@@ -47,7 +49,6 @@ public:
 					   QString::fromLatin1(p));
 		channel_ = new QLineEdit(chatsBox);
 		auto *add = new QPushButton(ui::T("Settings.Add"), chatsBox);
-		remove_ = new QPushButton(ui::T("Settings.Remove"), chatsBox);
 		addRow->addWidget(platform_);
 		addRow->addWidget(channel_, 1);
 		addRow->addWidget(add);
@@ -58,7 +59,6 @@ public:
 		hint_->setWordWrap(true);
 		hint_->setStyleSheet("color: palette(mid);");
 		hintRow->addWidget(hint_, 1);
-		hintRow->addWidget(remove_, 0, Qt::AlignTop);
 		chatsLayout->addLayout(hintRow);
 		error_ = new QLabel(chatsBox);
 		error_->setWordWrap(true);
@@ -98,16 +98,17 @@ public:
 		connect(platform_, &QComboBox::currentIndexChanged, this, [this] { updateHint(); });
 		connect(add, &QPushButton::clicked, this, [this] { addEntry(); });
 		connect(channel_, &QLineEdit::returnPressed, this, [this] { addEntry(); });
-		connect(remove_, &QPushButton::clicked, this, [this] { removeSelected(); });
-		connect(list_, &QListWidget::itemSelectionChanged, this,
-			[this] { remove_->setEnabled(!list_->selectedItems().isEmpty()); });
+		auto *removeKey = new QShortcut(QKeySequence::Delete, list_);
+		connect(removeKey, &QShortcut::activated, this, [this] {
+			if (QListWidgetItem *item = list_->currentItem())
+				removeEntry(item->data(Qt::UserRole).toString());
+		});
 		connect(auto_, &QRadioButton::toggled, this, [this] { apply(); });
 		connect(demo_, &QCheckBox::toggled, this, [this] { apply(); });
 		connect(&m, &ChatManager::stateChanged, this, [this] { refreshList(); });
 
 		updateHint();
 		refreshList();
-		remove_->setEnabled(false);
 	}
 
 private:
@@ -140,10 +141,11 @@ private:
 		apply();
 	}
 
-	void removeSelected()
+	void removeEntry(const QString &entry)
 	{
-		for (QListWidgetItem *item : list_->selectedItems())
-			entries_.removeAll(item->data(Qt::UserRole).toString());
+		if (entry.isEmpty())
+			return;
+		entries_.removeAll(entry);
 		apply();
 	}
 
@@ -193,11 +195,34 @@ private:
 				text += QString::fromUtf8("  👁 ") + ui::formatCount(viewers);
 			if (status == "error" && !detail.isEmpty())
 				text += "\n" + detail;
-			auto *item = new QListWidgetItem(ui::statusIcon(info.platform, status, 18, devicePixelRatioF()),
-							 text, list_);
+			// Fila: logo con el estado, texto y una ✕ a la derecha para quitar el canal. Los
+			// clics en el texto llegan a la lista (QLabel no los usa), así que se puede seleccionar.
+			auto *item = new QListWidgetItem(list_);
 			item->setData(Qt::UserRole, entry);
+			auto *row = new QWidget(list_);
 			if (!detail.isEmpty())
-				item->setToolTip(detail);
+				row->setToolTip(detail);
+			auto *rowLayout = new QHBoxLayout(row);
+			rowLayout->setContentsMargins(4, 2, 2, 2);
+			auto *icon = new QLabel(row);
+			icon->setPixmap(ui::statusIcon(info.platform, status, 18, devicePixelRatioF()).pixmap(18, 18));
+			auto *label = new QLabel(text, row);
+			label->setTextFormat(Qt::PlainText);
+			label->setWordWrap(true);
+			auto *remove = new QToolButton(row);
+			remove->setText(QString::fromUtf8("✕"));
+			remove->setToolTip(ui::T("Settings.Remove"));
+			remove->setAutoRaise(true);
+			remove->setCursor(Qt::PointingHandCursor);
+			rowLayout->addWidget(icon, 0, Qt::AlignTop);
+			rowLayout->addWidget(label, 1);
+			rowLayout->addWidget(remove, 0, Qt::AlignVCenter);
+			// Diferido: quitar el canal reconstruye la lista y borra este botón.
+			connect(remove, &QToolButton::clicked, this, [this, entry] {
+				QMetaObject::invokeMethod(this, [this, entry] { removeEntry(entry); }, Qt::QueuedConnection);
+			});
+			item->setSizeHint(row->sizeHint());
+			list_->setItemWidget(item, row);
 			if (entry == selected)
 				list_->setCurrentItem(item);
 		}
@@ -211,7 +236,6 @@ private:
 	QListWidget *list_ = nullptr;
 	QComboBox *platform_ = nullptr;
 	QLineEdit *channel_ = nullptr;
-	QPushButton *remove_ = nullptr;
 	QLabel *hint_ = nullptr;
 	QLabel *error_ = nullptr;
 	QRadioButton *auto_ = nullptr;

@@ -230,9 +230,66 @@ uint32_t tickerHeight(const QJsonObject &config)
 	return uint32_t(std::ceil(line + 2 * pad));
 }
 
-bool isHorizontal(const OverlaySource *s)
+// Cinta horizontal con "ajustar al lienzo": su tamaño lo pone el plugin.
+bool fitsCanvas(const OverlaySource *s)
 {
-	return !s->viewers && s->config.value("layout").toString() == "horizontal";
+	return !s->viewers && s->config.value("layout").toString() == "horizontal" && s->config.value("fit").toBool();
+}
+
+// Al pasar a la cinta ajustada al lienzo, quita en las escenas la escala, el recorte y los
+// límites que tuviera la fuente y la lleva al borde izquierdo, para que ocupe el lienzo justo.
+void fitSceneItems(obs_scene_t *scene, OverlaySource *s);
+
+bool fitSceneItem(obs_scene_t *, obs_sceneitem_t *item, void *param)
+{
+	auto *s = static_cast<OverlaySource *>(param);
+	if (obs_sceneitem_is_group(item))
+		obs_sceneitem_group_enum_items(item, fitSceneItem, param);
+	if (obs_sceneitem_get_source(item) != s->self)
+		return true;
+	obs_video_info ovi;
+	const float canvasHeight = obs_get_video_info(&ovi) ? float(ovi.base_height) : 1080.0f;
+	obs_sceneitem_defer_update_begin(item);
+	obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_NONE);
+	obs_sceneitem_set_rot(item, 0.0f);
+	vec2 scale;
+	vec2_set(&scale, 1.0f, 1.0f);
+	obs_sceneitem_set_scale(item, &scale);
+	const obs_sceneitem_crop crop = {0, 0, 0, 0};
+	obs_sceneitem_set_crop(item, &crop);
+	// Arriba a la izquierda: x = 0 y la misma altura, sin salirse del lienzo.
+	vec2 pos;
+	obs_sceneitem_get_pos(item, &pos);
+	const uint32_t align = obs_sceneitem_get_alignment(item);
+	const float h = float(s->height.load());
+	if (align & OBS_ALIGN_BOTTOM)
+		pos.y -= h;
+	else if (!(align & OBS_ALIGN_TOP))
+		pos.y -= h / 2;
+	pos.x = 0.0f;
+	pos.y = std::clamp(pos.y, 0.0f, std::max(0.0f, canvasHeight - h));
+	obs_sceneitem_set_alignment(item, OBS_ALIGN_TOP | OBS_ALIGN_LEFT);
+	obs_sceneitem_set_pos(item, &pos);
+	obs_sceneitem_defer_update_end(item);
+	return true;
+}
+
+void fitSceneItems(obs_scene_t *scene, OverlaySource *s)
+{
+	obs_scene_enum_items(scene, fitSceneItem, s);
+}
+
+void fitAllScenes(OverlaySource *s)
+{
+	obs_enum_scenes(
+		[](void *param, obs_source_t *source) {
+			if (obs_scene_t *scene = obs_scene_from_source(source))
+				fitSceneItems(scene, static_cast<OverlaySource *>(param));
+			else if (obs_scene_t *group = obs_group_from_source(source))
+				fitSceneItems(group, static_cast<OverlaySource *>(param));
+			return true;
+		},
+		s);
 }
 
 obs_data_t *browserSettings(const OverlaySource *s)
@@ -300,9 +357,11 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"speed", (int)obs_data_get_int(settings, "speed")},
 		{"spacing", (int)obs_data_get_int(settings, "spacing")},
 		{"hspacing", (int)obs_data_get_int(settings, "hspacing")},
+		{"scroll", obs_data_get_string(settings, "scroll")},
+		{"fit", obs_data_get_bool(settings, "fit_canvas")},
 		{"preview", obs_data_get_bool(settings, "preview")},
 	};
-	if (isHorizontal(s)) {
+	if (fitsCanvas(s)) {
 		s->width = canvasWidth();
 		s->height = tickerHeight(s->config);
 	}
@@ -362,8 +421,11 @@ void ov_update(void *data, obs_data_t *settings)
 {
 	auto *s = static_cast<OverlaySource *>(data);
 	std::lock_guard<std::mutex> lock(sourcesMutex);
+	const bool wasFitting = fitsCanvas(s);
 	readSettings(s, settings);
 	resizeBrowser(s);
+	if (!wasFitting && fitsCanvas(s))
+		fitAllScenes(s);
 	sendConfig(s);
 	if (s->viewers)
 		refreshViewers(s);
@@ -387,6 +449,8 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "align", "bottom");
 	obs_data_set_default_string(settings, "layout", "vertical");
 	obs_data_set_default_int(settings, "speed", 120);
+	obs_data_set_default_string(settings, "scroll", "continuous");
+	obs_data_set_default_bool(settings, "fit_canvas", true);
 	obs_data_set_default_int(settings, "spacing", 5);
 	obs_data_set_default_int(settings, "hspacing", 48);
 	obs_data_set_default_bool(settings, "preview", true);
@@ -417,8 +481,11 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 		for (const char *key : {"vertical_width", "vertical_height", "fitted"})
 			obs_data_erase(settings, key);
 	}
-	obs_property_set_visible(obs_properties_get(props, "width"), !horizontal);
-	obs_property_set_visible(obs_properties_get(props, "height"), !horizontal);
+	const bool manualSize = !horizontal || !obs_data_get_bool(settings, "fit_canvas");
+	obs_property_set_visible(obs_properties_get(props, "width"), manualSize);
+	obs_property_set_visible(obs_properties_get(props, "height"), manualSize);
+	obs_property_set_visible(obs_properties_get(props, "fit_canvas"), horizontal);
+	obs_property_set_visible(obs_properties_get(props, "scroll"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "speed"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "hspacing"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "spacing"), !horizontal);
@@ -445,6 +512,13 @@ obs_properties_t *ov_properties(void *)
 	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Horizontal"), "horizontal");
 	obs_property_set_long_description(layout, obs_module_text("Source.Layout.Help"));
 	obs_property_set_modified_callback(layout, ov_layout_changed);
+	obs_property_t *fit = obs_properties_add_bool(props, "fit_canvas", obs_module_text("Source.FitCanvas"));
+	obs_property_set_long_description(fit, obs_module_text("Source.FitCanvas.Help"));
+	obs_property_set_modified_callback(fit, ov_layout_changed);
+	obs_property_t *scroll = obs_properties_add_list(props, "scroll", obs_module_text("Source.Scroll"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Continuous"), "continuous");
+	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Message"), "message");
 	obs_property_t *speed =
 		obs_properties_add_int_slider(props, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
 	obs_property_int_set_suffix(speed, " px/s");
@@ -610,7 +684,7 @@ void register_overlay_source()
 		const uint32_t canvas = canvasWidth();
 		std::lock_guard<std::mutex> lock(sourcesMutex);
 		for (OverlaySource *s : sources)
-			if (isHorizontal(s) && s->width != canvas) {
+			if (fitsCanvas(s) && s->width != canvas) {
 				s->width = canvas;
 				resizeBrowser(s);
 			}

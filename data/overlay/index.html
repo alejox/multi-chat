@@ -50,7 +50,7 @@ const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB',
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok'], icons: true, badges: true,
-  background: false, opacity: 60, align: 'bottom', layout: 'vertical', speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
+  background: false, opacity: 60, align: 'bottom', layout: 'vertical', scroll: 'continuous', speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
 let lastReal = 0;
 const seen = new Set();
 const list = document.getElementById('list');
@@ -135,8 +135,10 @@ function add(m) {
   if (config.fade > 0) setTimeout(() => remove(row), config.fade * 1000);
 }
 
-// Avance del modo horizontal. Si se acumulan mensajes fuera de pantalla, acelera para no
-// quedarse atrás del chat.
+// Avance del modo horizontal:
+// - continuo: la cinta no para; si se acumulan mensajes fuera de pantalla, acelera.
+// - por comentario: avanza lo justo para que el último mensaje quede entero a la derecha y se
+//   detiene hasta que llega otro.
 let lastFrame = 0;
 function tick(now) {
   const dt = lastFrame ? Math.min(now - lastFrame, 100) / 1000 : 0;
@@ -145,11 +147,23 @@ function tick(now) {
     const width = list.clientWidth;
     const rows = [...list.children];
     const last = rows[rows.length - 1];
-    const backlog = Math.max(0, last.x + last.offsetWidth - width);
-    const step = config.speed * (1 + backlog / (width * 2)) * dt;
+    let step, targets = null;
+    if (config.scroll === 'message') {
+      targets = [];
+      let right = width - Math.round(config.size * 0.4);
+      for (let i = rows.length - 1; i >= 0; i--) {
+        targets[i] = right - rows[i].offsetWidth;
+        right = targets[i] - config.hspacing;
+      }
+      // Más rápido cuanto más falte, para no quedarse atrás si escriben mucho.
+      step = Math.max(config.speed, (last.x - targets[rows.length - 1]) * 3) * dt;
+    } else {
+      const backlog = Math.max(0, last.x + last.offsetWidth - width);
+      step = config.speed * (1 + backlog / (width * 2)) * dt;
+    }
     let edge = -Infinity;
-    for (const row of rows) {
-      row.x = Math.max(row.x - step, edge);
+    for (const [i, row] of rows.entries()) {
+      row.x = Math.max(row.x - step, edge, targets ? targets[i] : -Infinity);
       edge = row.x + row.offsetWidth + config.hspacing;
       if (edge - config.hspacing < 0) row.remove();
       else row.style.transform = `translate(${row.x}px, -50%)`;
@@ -160,9 +174,9 @@ function tick(now) {
 requestAnimationFrame(tick);
 
 function applyConfig(c) {
-  const layout = config.layout;
+  const { layout, scroll } = config;
   config = { ...config, ...c };
-  if (config.layout !== layout) list.textContent = '';
+  if (config.layout !== layout || config.scroll !== scroll) list.textContent = '';
   document.body.classList.toggle('h', config.layout === 'horizontal');
   document.documentElement.style.setProperty('--fs', config.size + 'px');
   document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
