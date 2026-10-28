@@ -30,17 +30,6 @@ let config = { size: 32, date: true, time: true, seconds: false, hour24: true, b
 const box = document.getElementById('box');
 const text = document.getElementById('text');
 
-// "28 OCT 2026 04:20" en el idioma del sistema.
-function label(now) {
-  const parts = [];
-  if (config.date)
-    parts.push(now.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
-      .replace(/\./g, '').replace(/\sde\s/g, ' ').toUpperCase());
-  if (config.time)
-    parts.push(now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit',
-      second: config.seconds ? '2-digit' : undefined, hour12: !config.hour24 }).toUpperCase());
-  return parts.join(' ');
-}
 
 // El recuadro llena la fuente: se escala a lo que permita el ancho o el alto.
 function fit() {
@@ -52,7 +41,7 @@ addEventListener('resize', fit);
 
 let last = '';
 function tick() {
-  const value = label(new Date());
+  const value = clockLabel(new Date(), config);
   if (value !== last) {
     last = value;
     text.textContent = value;
