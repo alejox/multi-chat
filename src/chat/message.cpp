@@ -1,6 +1,8 @@
 #include "message.hpp"
 
 #include <QDateTime>
+#include <QRegularExpression>
+#include <QUrl>
 #include <QUuid>
 
 namespace chat {
@@ -52,6 +54,35 @@ QString platformName(const QString &platform)
 	if (platform == "demo")
 		return QStringLiteral("Demo");
 	return platform;
+}
+
+QString linkifyHtml(const QString &text, const QString &linkColor)
+{
+	static const QRegularExpression url(QStringLiteral("\\b(?:https?://|www\\.)[^\\s<>\"]+"),
+					    QRegularExpression::CaseInsensitiveOption);
+	// Puntuación que suele ir pegada al final de un enlace pero no forma parte de él.
+	static const QString trailing = QStringLiteral(".,;:!?)]}'\"");
+	const QString style = linkColor.isEmpty() ? QString() : QStringLiteral(" style=\"color:%1;\"").arg(linkColor);
+	QString out;
+	qsizetype cur = 0;
+	auto it = url.globalMatch(text);
+	while (it.hasNext()) {
+		const auto m = it.next();
+		QString link = m.captured();
+		while (!link.isEmpty() && trailing.contains(link.back()) &&
+		       !(link.back() == ')' && link.count('(') >= link.count(')')))
+			link.chop(1);
+		if (link.size() <= 4)
+			continue;
+		const QString href = link.startsWith(QStringLiteral("www."), Qt::CaseInsensitive) ? "https://" + link : link;
+		out += text.mid(cur, m.capturedStart() - cur).toHtmlEscaped();
+		out += QStringLiteral("<a href=\"%1\"%2>%3</a>")
+			       .arg(QString::fromUtf8(QUrl::fromUserInput(href).toEncoded()).toHtmlEscaped(), style,
+				    link.toHtmlEscaped());
+		cur = m.capturedStart() + link.size();
+	}
+	out += text.mid(cur).toHtmlEscaped();
+	return out;
 }
 
 } // namespace chat

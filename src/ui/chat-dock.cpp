@@ -7,6 +7,7 @@
 
 #include <obs-module.h>
 
+#include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
 #include <QFile>
@@ -68,8 +69,13 @@ QColor blend(const QColor &a, const QColor &b, float t)
 
 ChatView::ChatView(QWidget *parent) : QTextBrowser(parent)
 {
+	// Los enlaces del chat se abren en el navegador; solo http y https.
 	setOpenLinks(false);
 	setOpenExternalLinks(false);
+	connect(this, &QTextBrowser::anchorClicked, this, [](const QUrl &url) {
+		if (url.scheme() == "http" || url.scheme() == "https")
+			QDesktopServices::openUrl(url);
+	});
 	setFrameShape(QFrame::NoFrame);
 	setUndoRedoEnabled(false);
 	document()->setMaximumBlockCount(kMaxMessages);
@@ -157,7 +163,8 @@ QString ChatView::html(const QJsonObject &m) const
 					       .arg(emoteSize_)
 					       .arg(p.value("name").toString().toHtmlEscaped());
 			else
-				out += p.value("text").toString().toHtmlEscaped();
+				out += chat::linkifyHtml(p.value("text").toString(),
+							 palette().color(QPalette::Link).name());
 		}
 		out += QStringLiteral("</span>");
 	}

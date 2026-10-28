@@ -30,4 +30,7 @@ QJsonObject makeMessage(const QString &platform, const QString &channel, const Q
 // Nombre visible de la plataforma.
 QString platformName(const QString &platform);
 
+// Texto escapado para HTML con los enlaces (http://, https://, www.) como <a href>.
+QString linkifyHtml(const QString &text, const QString &linkColor = {});
+
 } // namespace chat
