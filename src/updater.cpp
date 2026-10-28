@@ -20,6 +20,8 @@
 #include <QStandardPaths>
 #include <QUrl>
 
+#include <cstdio>
+
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -36,10 +38,12 @@ namespace {
 const char *const kLatestRelease = "https://api.github.com/repos/alejox/multi-chat/releases/latest";
 const char *const kReleasesPage = "https://github.com/alejox/multi-chat/releases/latest";
 
-#ifdef _WIN32
+#if defined(_WIN32)
 const char *const kAssetSuffix = "-windows-x64.zip";
-#else
+#elif defined(__APPLE__)
 const char *const kAssetSuffix = "-macos.zip";
+#else
+const char *const kAssetSuffix = "-linux-x86_64.tar.gz";
 #endif
 
 QString text(const char *key)
@@ -54,12 +58,45 @@ QWidget *mainWindow()
 
 QString systemTool(const char *name)
 {
-#ifdef _WIN32
+#if defined(_WIN32)
 	// curl.exe y tar.exe vienen con Windows 10 (1803) y 11.
 	return qEnvironmentVariable("SystemRoot", "C:\\Windows") + "\\System32\\" + name + ".exe";
-#else
+#elif defined(__APPLE__)
 	return QString("/usr/bin/") + name;
+#else
+	const QString found = QStandardPaths::findExecutable(QString::fromLatin1(name));
+	return found.isEmpty() ? QString("/usr/bin/") + name : found;
 #endif
+}
+
+// La descarga con curl (y en Linux, si no está, con wget, que traen Ubuntu y Debian).
+// file vacío: lo descargado sale por la salida estándar.
+void downloadCommand(const QString &url, const QString &file, int seconds, bool api, QString *program,
+		     QStringList *args)
+{
+#if !defined(_WIN32) && !defined(__APPLE__)
+	if (QStandardPaths::findExecutable("curl").isEmpty() && !QStandardPaths::findExecutable("wget").isEmpty()) {
+		*program = systemTool("wget");
+		*args = {"-q", "--timeout", QString::number(seconds), "-O", file.isEmpty() ? QString("-") : file};
+		if (api)
+			*args << "--header" << "Accept: application/vnd.github+json";
+		*args << url;
+		return;
+	}
+#endif
+	*program = systemTool("curl");
+	*args = {"-fsSL", "--max-time", QString::number(seconds)};
+	if (api)
+		*args << "-H" << "Accept: application/vnd.github+json";
+	if (!file.isEmpty())
+		*args << "-o" << file;
+	*args << url;
+}
+
+// "curl" o "wget", para los mensajes de error.
+QString tool(const QProcess *process)
+{
+	return QFileInfo(process->program()).baseName();
 }
 
 QString workDir()
@@ -240,7 +277,7 @@ bool installWindows(const QString &extracted, QString *problem)
 }
 #endif
 
-#ifdef __APPLE__
+#ifndef _WIN32
 // Copia un árbol de carpetas encima de otro (crea lo que falte, pisa lo que exista).
 bool copyTree(const QString &from, const QString &to, QString *problem)
 {
@@ -263,7 +300,9 @@ bool copyTree(const QString &from, const QString &to, QString *problem)
 	}
 	return true;
 }
+#endif
 
+#ifdef __APPLE__
 // …/obs-multichat.plugin (el binario está en Contents/MacOS/).
 QString bundleRoot()
 {
@@ -301,6 +340,42 @@ bool installMac(const QString &extracted, QString *problem)
 	// Sin la marca de "descargado de internet", macOS no vuelve a pedir permiso para abrirlo.
 	QProcess::execute("/usr/bin/xattr", {"-cr", root});
 	return true;
+}
+#endif
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+// La carpeta de plugins del usuario: ~/.config/obs-studio/plugins/obs-multichat, con el .so en
+// bin/64bit y los datos en data. Ahí OBS no pide permisos; si el plugin vino en un paquete del
+// sistema (/usr/lib/…), lo actualiza ese paquete.
+bool installLinux(const QString &extracted, QString *problem)
+{
+	const QString binary = moduleBinary();
+	QDir root = QFileInfo(binary).absoluteDir();
+	const bool userFolder = root.dirName() == "64bit" && root.cdUp() && root.dirName() == "bin" && root.cdUp() &&
+				root.dirName() == "obs-multichat";
+	if (!userFolder || !QFileInfo(root.absolutePath()).isWritable()) {
+		*problem = QString("El plugin no está en ~/.config/obs-studio/plugins/obs-multichat: %1").arg(binary);
+		return false;
+	}
+	const QString fresh = QDir(extracted).filePath("obs-multichat");
+	const QString freshSo = fresh + "/bin/64bit/obs-multichat.so";
+	if (!QFileInfo::exists(freshSo) || !QFileInfo(fresh + "/data").isDir()) {
+		*problem = "El archivo no trae la carpeta obs-multichat.";
+		return false;
+	}
+	// rename() cambia el archivo de una vez: el .so cargado sigue en memoria hasta reiniciar OBS.
+	const QString temp = binary + ".new";
+	QFile::remove(temp);
+	if (!QFile::copy(freshSo, temp)) {
+		*problem = QString("No se pudo copiar %1").arg(temp);
+		return false;
+	}
+	if (std::rename(QFile::encodeName(temp).constData(), QFile::encodeName(binary).constData()) != 0) {
+		QFile::remove(temp);
+		*problem = QString("No se pudo reemplazar %1").arg(binary);
+		return false;
+	}
+	return copyTree(fresh + "/data", root.filePath("data"), problem);
 }
 #endif
 
@@ -346,7 +421,7 @@ void Updater::check(bool manual)
 		if (code != 0) {
 			obs_log(LOG_INFO, "no se pudo revisar si hay actualizaciones (curl %d)", code);
 			if (manual)
-				fail(text("Update.CheckFailed"), QString("curl %1: %2").arg(code).arg(error));
+				fail(text("Update.CheckFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
 			return;
 		}
 		handleRelease(json, manual);
@@ -359,8 +434,10 @@ void Updater::check(bool manual)
 		if (manual)
 			fail(text("Update.CheckFailed"), curl->errorString());
 	});
-	curl->start(systemTool("curl"), {"-fsSL", "--max-time", "20", "-H", "Accept: application/vnd.github+json",
-					 QString::fromUtf8(kLatestRelease)});
+	QString program;
+	QStringList args;
+	downloadCommand(QString::fromUtf8(kLatestRelease), QString(), 20, true, &program, &args);
+	curl->start(program, args);
 }
 
 void Updater::handleRelease(const QByteArray &json, bool manual)
@@ -436,7 +513,7 @@ void Updater::download(const chat::Release &release)
 		curl->deleteLater();
 		if (code != 0 || QFileInfo(zip).size() == 0) {
 			busy_ = false;
-			fail(text("Update.DownloadFailed"), QString("curl %1: %2").arg(code).arg(error));
+			fail(text("Update.DownloadFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
 			return;
 		}
 		install(version, zip);
@@ -448,27 +525,34 @@ void Updater::download(const chat::Release &release)
 		busy_ = false;
 		fail(text("Update.DownloadFailed"), curl->errorString());
 	});
-	curl->start(systemTool("curl"), {"-fsSL", "--max-time", "300", "-o", zip, release.url});
+	QString program;
+	QStringList args;
+	downloadCommand(release.url, zip, 300, false, &program, &args);
+	curl->start(program, args);
 }
 
 void Updater::install(const QString &version, const QString &zipPath)
 {
 	const QString extracted = QDir(workDir()).filePath("unzipped");
 	QDir().mkpath(extracted);
-#ifdef _WIN32
+#if defined(_WIN32)
 	const int unzip = QProcess::execute(systemTool("tar"), {"-xf", zipPath, "-C", extracted});
-#else
+#elif defined(__APPLE__)
 	const int unzip = QProcess::execute(systemTool("ditto"), {"-x", "-k", zipPath, extracted});
+#else
+	const int unzip = QProcess::execute(systemTool("tar"), {"-xzf", zipPath, "-C", extracted});
 #endif
 	QString problem;
 	bool ok = false;
 	if (unzip != 0) {
 		problem = QString("No se pudo descomprimir %1 (código %2)").arg(QDir::toNativeSeparators(zipPath)).arg(unzip);
 	} else {
-#ifdef _WIN32
+#if defined(_WIN32)
 		ok = installWindows(extracted, &problem);
-#else
+#elif defined(__APPLE__)
 		ok = installMac(extracted, &problem);
+#else
+		ok = installLinux(extracted, &problem);
 #endif
 	}
 	busy_ = false;

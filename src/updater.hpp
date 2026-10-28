@@ -11,6 +11,8 @@
 //     administrador: la copia la hace PowerShell con "Ejecutar como administrador". Si el plugin
 //     estaba en una carpeta de antes, queda en la nueva y se quita la copia de antes.
 //   - macOS: reemplaza obs-multichat.plugin y le quita la marca de descargado de internet.
+//   - Linux: reemplaza ~/.config/obs-studio/plugins/obs-multichat (descarga un .tar.gz con curl
+//     o wget y lo descomprime con tar).
 
 #include "chat/updates.hpp"
 

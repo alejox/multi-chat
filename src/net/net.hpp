@@ -1,6 +1,6 @@
 #pragma once
 
-// Red con las APIs del sistema: WinHTTP en Windows y NSURLSession en macOS.
+// Red con las APIs del sistema: WinHTTP en Windows, NSURLSession en macOS y libcurl en Linux.
 // OBS no instala los plugins TLS de Qt, así que QtNetwork no sirve para HTTPS dentro de OBS.
 // Todas las funciones son bloqueantes: se llaman solo desde hilos de trabajo.
 

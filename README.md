@@ -6,6 +6,7 @@
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
+![Linux](https://img.shields.io/badge/Linux-Ubuntu%2024.04%2B-E95420?logo=ubuntu&logoColor=white)
 ![OBS](https://img.shields.io/badge/OBS-33-302E31?logo=obsstudio&logoColor=white)
 
 </div>
@@ -31,7 +32,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 
 ## 📦 Instalar
 
-Requiere **OBS Studio 33 o superior** (Windows 10/11 o macOS 13+). Con una versión anterior de OBS, el plugin no carga y OBS avisa de que «no se han podido cargar» los plugins: actualiza OBS primero.
+Requiere **OBS Studio 33 o superior** (Windows 10/11, macOS 13+ o Linux x86_64). Con una versión anterior de OBS, el plugin no carga y OBS avisa de que «no se han podido cargar» los plugins: actualiza OBS primero.
 
 Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y **cierra OBS antes de instalar**.
 
@@ -62,12 +63,38 @@ Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**,
 3. En la Terminal, una vez: `xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin`
 4. Abre OBS.
 
+### Linux
+
+Compilado en Ubuntu 24.04 para el OBS del [PPA oficial](https://launchpad.net/~obsproject/+archive/ubuntu/obs-studio) (`sudo add-apt-repository ppa:obsproject/obs-studio`); sirve en Ubuntu 24.04 o más nuevo y distribuciones derivadas (Linux Mint 22, Pop!_OS 24.04…). El overlay usa la fuente de navegador de OBS: el OBS del PPA la trae, el paquete `obs-studio` de los repositorios de Ubuntu no.
+
+1. Descarga `obs-multichat-<versión>-linux-x86_64.tar.gz`.
+2. Descomprímelo en la carpeta de plugins de tu usuario:
+
+   ```bash
+   mkdir -p ~/.config/obs-studio/plugins
+   tar -xzf obs-multichat-*-linux-x86_64.tar.gz -C ~/.config/obs-studio/plugins
+   ```
+
+   Debe quedar así:
+
+   ```
+   ~/.config/obs-studio/plugins/obs-multichat/
+   ├── bin/64bit/obs-multichat.so
+   └── data/
+       ├── manifest.json
+       ├── locale/
+       └── overlay/
+   ```
+
+3. Abre OBS.
+
 ### Actualizaciones automáticas
 
 Al abrir OBS, el plugin revisa si hay una versión nueva en las Releases de GitHub. Si la hay, muestra un aviso con **Actualizar ahora**, **Más tarde** u **Omitir esta versión** (y el dock **Multichat** lo recuerda con su botón). **Actualizar ahora** la descarga, la instala y pide reiniciar OBS. También se puede revisar a mano en **Herramientas → Multichat: buscar actualizaciones**.
 
 - **Windows:** se instala en `C:\ProgramData\obs-studio\plugins\obs-multichat`, que es de administrador: Windows pide permiso una vez para copiar el plugin. Si estaba en la carpeta de antes (`C:\Program Files\obs-studio`), queda en la nueva y se quita la copia de antes.
 - **macOS:** se reemplaza `obs-multichat.plugin` en su carpeta y se le quita la marca de "descargado de internet", así que macOS no vuelve a pedir permiso.
+- **Linux:** se reemplaza en `~/.config/obs-studio/plugins/obs-multichat`, sin pedir permisos (descarga con `curl` o, si no está, con `wget`).
 
 Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 
@@ -99,7 +126,7 @@ YouTube, Kick y TikTok no tienen una API pública oficial para leer el chat sin 
 
 ## 🛠️ Compilar
 
-El plugin usa la [plantilla oficial de plugins de OBS](https://github.com/obsproject/obs-plugintemplate) actualizada a **OBS 33.0.0**: obs-deps y Qt 6.11 del `2026-10-23`, macOS 13+ universal, Windows x64. La configuración descarga las dependencias sola.
+El plugin usa la [plantilla oficial de plugins de OBS](https://github.com/obsproject/obs-plugintemplate) actualizada a **OBS 33.0.0**: obs-deps y Qt 6.11 del `2026-10-23`, macOS 13+ universal, Windows x64. La configuración descarga las dependencias sola. En Linux usa el OBS, Qt 6 y libcurl del sistema.
 
 ```bash
 # macOS (Xcode 26.5+: OBS 33 exige el SDK de macOS 26.5)
@@ -108,6 +135,10 @@ cmake --preset macos && cmake --build --preset macos
 # Windows (Visual Studio 2022, SDK 10.0.26100)
 cmake --preset windows-x64
 cmake --build --preset windows-x64
+
+# Ubuntu 24.04 (con el OBS del PPA oficial)
+sudo apt install obs-studio qt6-base-dev qt6-base-private-dev libcurl4-openssl-dev libsimde-dev ninja-build
+cmake --preset ubuntu-x86_64 && cmake --build --preset ubuntu-x86_64
 ```
 
 Pruebas de los parsers (sin OBS ni red, solo Qt 6 Core):
@@ -116,7 +147,7 @@ Pruebas de los parsers (sin OBS ni red, solo Qt 6 Core):
 cmake -S tests -B build_tests && cmake --build build_tests && ctest --test-dir build_tests
 ```
 
-Cada push compila en GitHub Actions para Windows y macOS (`.github/workflows/build.yml`). Para publicar una versión, sube `version` en `buildspec.json` y en `data/manifest.json` (CI comprueba que coincidan) y súbelo a `main`: el flujo *Publicar versión* crea el tag `v<versión>` y la Release con los zips. También se puede empujar el tag a mano o lanzar el flujo desde Actions.
+Cada push compila en GitHub Actions para Windows, macOS y Linux (`.github/workflows/build.yml`). Para publicar una versión, sube `version` en `buildspec.json` y en `data/manifest.json` (CI comprueba que coincidan) y súbelo a `main`: el flujo *Publicar versión* crea el tag `v<versión>` y la Release con los paquetes de los tres sistemas. También se puede empujar el tag a mano o lanzar el flujo desde Actions.
 
 ### Estructura
 
@@ -125,11 +156,11 @@ src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
 src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
 src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, demo
-src/net/                   red del sistema: WinHTTP (Windows) y NSURLSession (macOS)
+src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
 src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
 src/updater.*              actualizaciones automáticas desde las Releases de GitHub
 data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
 ```
 
-¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra.
+¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra. En Linux, libcurl (que OBS ya usa) hace HTTPS y la conexión TLS del WebSocket; el protocolo WebSocket va en `src/net/net-linux.cpp`.
