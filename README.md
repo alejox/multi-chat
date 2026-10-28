@@ -46,7 +46,7 @@ Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y 
 
 1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube.
 2. **Docks → Multichat** para ver el chat dentro de OBS.
-3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal* y dale a la fuente forma de franja (por ejemplo 1920 × 60).
+3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*: la fuente ocupa siempre el ancho del lienzo y el alto justo de una línea (si la estiraste antes, usa *Transformar → Restablecer transformación*).
 4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
 
 ### Cuándo se conecta cada chat

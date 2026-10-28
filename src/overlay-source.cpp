@@ -214,6 +214,27 @@ void sendConfig(OverlaySource *s)
 	send(s, QJsonObject{{"type", "config"}, {"config", config}});
 }
 
+// Tamaño de la cinta horizontal: el ancho del lienzo y el alto justo de una línea. La línea
+// mide 1,35 × la letra (+10 px de relleno con fondo) y se deja un margen pequeño arriba y abajo.
+uint32_t canvasWidth()
+{
+	obs_video_info ovi;
+	return obs_get_video_info(&ovi) && ovi.base_width ? ovi.base_width : 1920;
+}
+
+uint32_t tickerHeight(const QJsonObject &config)
+{
+	const double size = config.value("size").toInt(22);
+	const double line = size * 1.35 + (config.value("background").toBool() ? 10 : 0);
+	const double pad = std::max(4.0, std::round(size * 0.2));
+	return uint32_t(std::ceil(line + 2 * pad));
+}
+
+bool isHorizontal(const OverlaySource *s)
+{
+	return !s->viewers && s->config.value("layout").toString() == "horizontal";
+}
+
 obs_data_t *browserSettings(const OverlaySource *s)
 {
 	obs_data_t *bs = obs_data_create();
@@ -281,6 +302,10 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"hspacing", (int)obs_data_get_int(settings, "hspacing")},
 		{"preview", obs_data_get_bool(settings, "preview")},
 	};
+	if (isHorizontal(s)) {
+		s->width = canvasWidth();
+		s->height = tickerHeight(s->config);
+	}
 }
 
 const char *ov_get_name(void *)
@@ -380,58 +405,20 @@ void vw_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "preview", true);
 }
 
-// Alto justo para una línea de la cinta horizontal: la línea mide 1,35 × la letra (+10 px de
-// relleno con fondo) y se deja un margen pequeño arriba y abajo.
-long long tickerHeight(obs_data_t *settings)
-{
-	const double size = double(obs_data_get_int(settings, "font_size"));
-	const double line = size * 1.35 + (obs_data_get_bool(settings, "background") ? 10 : 0);
-	const double pad = std::max(4.0, std::round(size * 0.2));
-	return (long long)std::ceil(line + 2 * pad);
-}
-
-// Al pasar a horizontal la fuente toma el ancho del lienzo y el alto justo de una línea (y se
-// reajusta si cambia la letra o el fondo); al volver a vertical recupera el tamaño anterior.
-// "fitted" recuerda lo último ajustado para no pisar el tamaño al abrir las propiedades.
-bool fitSize(obs_data_t *settings)
-{
-	const bool horizontal = strcmp(obs_data_get_string(settings, "layout"), "horizontal") == 0;
-	const std::string fitted = horizontal ? "horizontal:" + std::to_string(obs_data_get_int(settings, "font_size")) +
-							":" + (obs_data_get_bool(settings, "background") ? "bg" : "")
-					      : "vertical";
-	std::string previous = obs_data_get_string(settings, "fitted");
-	if (previous.empty())
-		previous = "vertical";
-	if (fitted == previous)
-		return false;
-	const bool wasHorizontal = previous.rfind("horizontal", 0) == 0;
-	if (horizontal) {
-		if (!wasHorizontal) {
-			obs_data_set_int(settings, "vertical_width", obs_data_get_int(settings, "width"));
-			obs_data_set_int(settings, "vertical_height", obs_data_get_int(settings, "height"));
-			obs_video_info ovi;
-			if (obs_get_video_info(&ovi))
-				obs_data_set_int(settings, "width", ovi.base_width);
-		}
-		obs_data_set_int(settings, "height", tickerHeight(settings));
-	} else if (obs_data_has_user_value(settings, "vertical_width")) {
-		obs_data_set_int(settings, "width", obs_data_get_int(settings, "vertical_width"));
-		obs_data_set_int(settings, "height", obs_data_get_int(settings, "vertical_height"));
-	}
-	obs_data_set_string(settings, "fitted", fitted.c_str());
-	return true;
-}
-
-bool ov_fit_changed(obs_properties_t *, obs_property_t *, obs_data_t *settings)
-{
-	return fitSize(settings);
-}
-
-// En horizontal no se usan "apilar", "ocultar después de" ni el máximo; la velocidad solo en horizontal.
+// En horizontal no se usan "apilar", "ocultar después de", el máximo ni el tamaño (es automático);
+// la velocidad solo en horizontal.
 bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	const bool horizontal = strcmp(obs_data_get_string(settings, "layout"), "horizontal") == 0;
-	fitSize(settings);
+	// Versiones de prueba anteriores guardaban aquí el tamaño vertical al pasar a horizontal.
+	if (!horizontal && obs_data_has_user_value(settings, "vertical_width")) {
+		obs_data_set_int(settings, "width", obs_data_get_int(settings, "vertical_width"));
+		obs_data_set_int(settings, "height", obs_data_get_int(settings, "vertical_height"));
+		for (const char *key : {"vertical_width", "vertical_height", "fitted"})
+			obs_data_erase(settings, key);
+	}
+	obs_property_set_visible(obs_properties_get(props, "width"), !horizontal);
+	obs_property_set_visible(obs_properties_get(props, "height"), !horizontal);
 	obs_property_set_visible(obs_properties_get(props, "speed"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "hspacing"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "spacing"), !horizontal);
@@ -471,7 +458,6 @@ obs_properties_t *ov_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
 	obs_property_int_set_suffix(size, " px");
-	obs_property_set_modified_callback(size, ov_fit_changed);
 	obs_property_t *fade = obs_properties_add_int(props, "fade", obs_module_text("Source.Fade"), 0, 600, 1);
 	obs_property_int_set_suffix(fade, " s");
 	obs_property_set_long_description(fade, obs_module_text("Source.Fade.Help"));
@@ -483,9 +469,7 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
 	obs_properties_add_bool(props, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(props, "badges", obs_module_text("Source.Badges"));
-	obs_property_t *background =
-		obs_properties_add_bool(props, "background", obs_module_text("Source.Background"));
-	obs_property_set_modified_callback(background, ov_fit_changed);
+	obs_properties_add_bool(props, "background", obs_module_text("Source.Background"));
 	obs_property_t *opacity =
 		obs_properties_add_int_slider(props, "opacity", obs_module_text("Source.Opacity"), 0, 100, 5);
 	obs_property_int_set_suffix(opacity, " %");
@@ -621,6 +605,16 @@ void register_overlay_source()
 			sendConfig(s);
 	});
 	QObject::connect(heartbeat, &QTimer::timeout, &manager, pushViewers);
+	// La cinta horizontal sigue al lienzo si cambia su resolución.
+	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] {
+		const uint32_t canvas = canvasWidth();
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		for (OverlaySource *s : sources)
+			if (isHorizontal(s) && s->width != canvas) {
+				s->width = canvas;
+				resizeBrowser(s);
+			}
+	});
 	heartbeat->start();
 
 	obs_source_info info = {};
