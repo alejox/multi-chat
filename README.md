@@ -21,7 +21,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 🧩 **Dock "Multichat"** | Todos los mensajes juntos con el logo de cada plataforma, insignias (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, suscripciones y regalos de TikTok. |
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en vivo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
-| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Para quitar uno, pulsa la ✕ a su derecha. |
+| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto. Para quitar uno, pulsa la ✕ a su derecha. |
 | 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Se configura en sus Propiedades: disposición, velocidad, tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
 | 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en los recuadros de espectadores y de fecha y hora. |
@@ -31,15 +31,47 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 
 ## 📦 Instalar
 
-Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y **cierra OBS antes**.
+Requiere **OBS Studio 33 o superior** (Windows 10/11 o macOS 13+). Con una versión anterior de OBS, el plugin no carga y OBS avisa de que «no se han podido cargar» los plugins: actualiza OBS primero.
 
-| | Windows (OBS 33) | macOS (OBS 33) |
-|---|---|---|
-| **Archivo** | `obs-multichat-<versión>-windows-x64.zip` | `obs-multichat-<versión>-macos.zip` |
-| **1** | Descomprímelo (clic derecho → **Extraer todo**): quedan las carpetas `obs-plugins` y `data` | Descomprímelo: queda `obs-multichat.plugin` |
-| **2** | Copia esas dos carpetas dentro de `C:\Program Files\obs-studio\` y acepta reemplazar y el permiso de administrador | Cópialo a `~/Library/Application Support/obs-studio/plugins/` |
-| **3** | — | En la Terminal, una vez: `xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin` |
-| **4** | Abre OBS | Abre OBS |
+Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y **cierra OBS antes de instalar**.
+
+### Windows
+
+Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**, una carpeta por plugin (ya no dentro de `C:\Program Files\obs-studio`).
+
+1. Descarga `obs-multichat-<versión>-windows-x64.zip` y descomprímelo (clic derecho → **Extraer todo**). Quedan la carpeta `obs-multichat` y el archivo `Instalar Multichat.bat`.
+2. Haz doble clic en **`Instalar Multichat.bat`** y acepta el permiso de administrador. Copia el plugin a `C:\ProgramData\obs-studio\plugins\obs-multichat` y borra la copia antigua de `C:\Program Files\obs-studio`, si la había.
+3. Abre OBS.
+
+<details>
+<summary>Instalarlo a mano</summary>
+
+1. Abre `C:\ProgramData\obs-studio\plugins` (escríbelo en la barra del Explorador; `ProgramData` es una carpeta oculta). Si no existe la carpeta `plugins`, créala.
+2. Copia ahí la carpeta `obs-multichat` del zip. Debe quedar así:
+
+   ```
+   C:\ProgramData\obs-studio\plugins\obs-multichat\
+   ├── obs-multichat.dll
+   └── data\
+       ├── manifest.json
+       ├── locale\
+       └── overlay\
+   ```
+
+3. Si instalaste una versión anterior en `C:\Program Files\obs-studio`, borra `obs-plugins\64bit\obs-multichat.dll` y la carpeta `data\obs-plugins\obs-multichat`: OBS 33 la marca como *Legacy* y OBS 34 ya no la carga.
+</details>
+
+### macOS
+
+1. Descarga `obs-multichat-<versión>-macos.zip` y descomprímelo: queda `obs-multichat.plugin`.
+2. Cópialo a `~/Library/Application Support/obs-studio/plugins/` (en el Finder: **Ir → Ir a la carpeta…**). Si ya había una versión, reemplázala.
+3. En la Terminal, una vez: `xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin`
+4. Abre OBS.
+
+### Comprobar y actualizar
+
+- En **Herramientas → Gestor de plugins** (OBS 33) aparece **Multichat** con su versión.
+- Cuando hay una versión nueva, el dock **Multichat** muestra un aviso con el botón **Descargar**. Instálala igual que la primera vez (en Windows, con `Instalar Multichat.bat`).
 
 > [!TIP]
 > Si ya usabas la versión anterior en Python (`obs_multichat.py`), quítala de **Herramientas → Scripts**.
@@ -89,7 +121,7 @@ Pruebas de los parsers (sin OBS ni red, solo Qt 6 Core):
 cmake -S tests -B build_tests && cmake --build build_tests && ctest --test-dir build_tests
 ```
 
-Cada push compila en GitHub Actions para Windows y macOS (`.github/workflows/build.yml`). Para publicar una versión, sube `version` en `buildspec.json` y empuja el tag `v<versión>`.
+Cada push compila en GitHub Actions para Windows y macOS (`.github/workflows/build.yml`). Para publicar una versión, sube `version` en `buildspec.json` y en `data/manifest.json` (CI comprueba que coincidan) y súbelo a `main`: el flujo *Publicar versión* crea el tag `v<versión>` y la Release con los zips. También se puede empujar el tag a mano o lanzar el flujo desde Actions.
 
 ### Estructura
 
@@ -99,7 +131,9 @@ src/chat-manager.*         detección en vivo / multistream y ciclo de vida de l
 src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, demo
 src/net/                   red del sistema: WinHTTP (Windows) y NSURLSession (macOS)
-src/ui/                    dock, ventana de configuración, caché de emotes
+src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
+src/update-checker.*       aviso de versión nueva (Releases de GitHub)
+packaging/windows/         instalador de Windows (Instalar Multichat.bat)
 data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
 ```
