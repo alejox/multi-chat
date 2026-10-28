@@ -7,11 +7,11 @@
      evento "multichat" (javascript_event de obs-browser):
        {type: "config", config: {...}} · {type: "message", message: {...}} · {type: "clear"} -->
 <style>
-  :root { --fs: 22px; --bg-alpha: .6; }
+  :root { --fs: 22px; --bg-alpha: .6; --gap: 5px; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body { color: #fff; font: 600 var(--fs)/1.35 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
     text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; }
-  #list { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; gap: 5px; }
+  #list { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; gap: var(--gap); }
   body.top #list { justify-content: flex-start; }
   .msg { overflow-wrap: anywhere; animation: in .25s ease-out; transition: opacity .6s, transform .6s; }
   .msg.out { opacity: 0; transform: translateX(-12px); }
@@ -47,7 +47,7 @@ const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB',
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok'], icons: true, badges: true,
-  background: false, opacity: 60, align: 'bottom', layout: 'vertical', speed: 120, preview: true, streaming: false };
+  background: false, opacity: 60, align: 'bottom', layout: 'vertical', speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
 let lastReal = 0;
 const seen = new Set();
 const list = document.getElementById('list');
@@ -134,7 +134,6 @@ function add(m) {
 
 // Avance del modo horizontal. Si se acumulan mensajes fuera de pantalla, acelera para no
 // quedarse atrás del chat.
-const GAP = 48;
 let lastFrame = 0;
 function tick(now) {
   const dt = lastFrame ? Math.min(now - lastFrame, 100) / 1000 : 0;
@@ -148,8 +147,8 @@ function tick(now) {
     let edge = -Infinity;
     for (const row of rows) {
       row.x = Math.max(row.x - step, edge);
-      edge = row.x + row.offsetWidth + GAP;
-      if (edge - GAP < 0) row.remove();
+      edge = row.x + row.offsetWidth + config.hspacing;
+      if (edge - config.hspacing < 0) row.remove();
       else row.style.transform = `translate(${row.x}px, -50%)`;
     }
   }
@@ -164,6 +163,7 @@ function applyConfig(c) {
   document.body.classList.toggle('h', config.layout === 'horizontal');
   document.documentElement.style.setProperty('--fs', config.size + 'px');
   document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
+  document.documentElement.style.setProperty('--gap', config.spacing + 'px');
   document.body.classList.toggle('bg', !!config.background);
   document.body.classList.toggle('top', config.align === 'top');
   document.body.classList.toggle('noicons', !config.icons);
