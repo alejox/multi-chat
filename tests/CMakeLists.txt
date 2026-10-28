@@ -21,6 +21,7 @@ add_executable(
   ${src}/chat/twitch.cpp
   ${src}/chat/kick.cpp
   ${src}/chat/youtube.cpp
+  ${src}/chat/tiktok.cpp
 )
 target_link_libraries(test-chat PRIVATE Qt6::Core Qt6::Test)
 if(MSVC)

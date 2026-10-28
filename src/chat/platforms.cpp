@@ -16,8 +16,14 @@ LiveResult checkLive(const SourceInfo &s)
 		return kick::checkLive(s.channel);
 	if (s.platform == "youtube")
 		return youtube::checkLive(s);
+	if (s.platform == "tiktok")
+		return tiktok::checkLive(s.channel);
 	if (s.platform == "demo")
-		return LiveResult{1, {}};
+	{
+		LiveResult r;
+		r.live = 1;
+		return r;
+	}
 	return {};
 }
 
@@ -29,6 +35,8 @@ std::shared_ptr<Connector> createConnector(const SourceInfo &s, Connector::PostF
 		return kick::create(s, std::move(post), std::move(report));
 	if (s.platform == "youtube")
 		return youtube::create(s, std::move(post), std::move(report));
+	if (s.platform == "tiktok")
+		return tiktok::create(s, std::move(post), std::move(report));
 	return demo::create(s, std::move(post), std::move(report));
 }
 
@@ -59,6 +67,20 @@ bool youtubeChannel(const QString &channel, SourceInfo &out)
 	return true;
 }
 
+// Usuario de TikTok: letras, números, "_" y ".".
+bool tiktokChannel(QString user, SourceInfo &out, QString &error)
+{
+	if (user.startsWith('@'))
+		user.remove(0, 1);
+	static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9_.]{2,24}$"));
+	if (!valid.match(user).hasMatch()) {
+		error = QStringLiteral("usuario de TikTok no válido: %1").arg(user);
+		return false;
+	}
+	out = make("tiktok", '@' + user.toLower());
+	return true;
+}
+
 } // namespace
 
 bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
@@ -69,7 +91,7 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 		return false;
 	}
 
-	// URLs: twitch.tv/canal, kick.com/canal, youtube.com/@canal, youtube.com/watch?v=...
+	// URLs: twitch.tv/canal, kick.com/canal, youtube.com/@canal, youtube.com/watch?v=..., tiktok.com/@usuario
 	static const QRegularExpression scheme(QStringLiteral("^https?://(www\\.|m\\.)?"),
 					       QRegularExpression::CaseInsensitiveOption);
 	QString url = raw;
@@ -84,6 +106,8 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 		out = make("kick", seg[1].toLower());
 		return true;
 	}
+	if (host == "tiktok.com" && seg.size() > 1 && seg[1].startsWith('@'))
+		return tiktokChannel(seg[1], out, error);
 	if (host == "youtube.com" || host == "youtu.be") {
 		if (!youtube::parseVideoId(url).isEmpty())
 			return youtubeChannel(url, out);
@@ -118,11 +142,13 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 	}
 	if (platform == "youtube")
 		return youtubeChannel(channel, out);
+	if (platform == "tiktok" || platform == "tt")
+		return tiktokChannel(channel, out, error);
 	if (platform == "demo") {
 		out = make("demo", channel);
 		return true;
 	}
-	error = QStringLiteral("plataforma no soportada: %1 (usa twitch, youtube o kick)").arg(platform);
+	error = QStringLiteral("plataforma no soportada: %1 (usa twitch, youtube, kick o tiktok)").arg(platform);
 	return false;
 }
 
@@ -148,6 +174,8 @@ protected:
 			{"youtube", "Canal Oficial", "", "owner"},
 			{"kick", "kicker_mx", "#53FC18", ""},
 			{"kick", "zeta_arg", "#FF69B4", "subscriber"},
+			{"tiktok", "vale.tok", "", ""},
+			{"tiktok", "rodri_live", "", "moderator"},
 		};
 		static const char *lines[] = {
 			"¡Holaaa desde Buenos Aires!",

@@ -189,7 +189,7 @@ LiveResult checkLive(const QString &channel)
 	for (QChar c : channel.toLower())
 		if (c.isLetterOrNumber() || c == '_')
 			login += c;
-	QJsonObject query{{"query", QStringLiteral("query{user(login:\"%1\"){stream{id}}}").arg(login)}};
+	QJsonObject query{{"query", QStringLiteral("query{user(login:\"%1\"){stream{id viewersCount}}}").arg(login)}};
 	net::Response res = net::postJson("https://gql.twitch.tv/gql",
 					  QJsonDocument(query).toJson(QJsonDocument::Compact).toStdString(),
 					  {{"Client-Id", kGqlClientId}});
@@ -203,7 +203,10 @@ LiveResult checkLive(const QString &channel)
 				   .toObject();
 	if (user.isEmpty())
 		return r;
-	r.live = user.value("stream").isObject() ? 1 : 0;
+	const QJsonValue stream = user.value("stream");
+	r.live = stream.isObject() ? 1 : 0;
+	if (stream.isObject())
+		r.viewers = stream.toObject().value("viewersCount").toInt(-1);
 	return r;
 }
 

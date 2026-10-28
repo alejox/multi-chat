@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Multichat · espectadores</title>
+<!-- La fuente "Multichat (espectadores)" carga esta página y le manda con el evento
+     "multichat" (javascript_event de obs-browser):
+       {type: "config", config: {...}} · {type: "viewers", items: [{platform, key, name, viewers}], total}
+     El plugin elige los canales y da a la fuente el tamaño aproximado del recuadro; aquí se
+     escala el recuadro para que la llene justo. -->
+<style>
+  :root { --pad-y: 10px; --pad-x: 17px; --fs: 28px; --bg-rgb: 0, 0, 0; --bg-alpha: .6; --bg-radius: 12px; --bg-bw: 0px; --bg-brgb: 255, 255, 255; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body { color: #fff; font: 700 var(--fs)/1.2 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
+    text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; font-variant-numeric: tabular-nums; }
+  #box { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: inline-flex; align-items: center; gap: .3em .9em;
+    padding: var(--pad-y) var(--pad-x); border-radius: .45em; transition: opacity .4s; }
+  body.column #box { flex-direction: column; align-items: flex-start; }
+  body.bg #box { background: rgba(var(--bg-rgb), var(--bg-alpha)); border-radius: var(--bg-radius);
+    border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
+  body.empty #box { opacity: 0; }
+  .item { display: inline-flex; align-items: center; gap: .35em; white-space: nowrap; }
+  .pf { display: inline-block; filter: drop-shadow(0 1px 2px #000a); }
+  .pf svg { width: 1.1em; height: 1.1em; display: block; }
+  .name { font-weight: 600; font-size: .6em; opacity: .85; }
+  .total { padding-left: .9em; border-left: 2px solid #fff5; }
+  body.column .total { padding: .25em 0 0; border-left: 0; border-top: 2px solid #fff5; align-self: stretch; }
+  .eye { width: 1.1em; height: 1.1em; }
+  .nonames .name { display: none; }
+</style>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="empty">
+<div id="box"></div>
+<script src="icons.js"></script>
+<script>
+const EYE = '<svg class="eye" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3.3" fill="#fff"/></svg>';
+
+let config = { size: 28, layout: 'row', names: false, background: true, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 12, bgBorderWidth: 0, bgBorderColor: '#ffffff' };
+let items = [];
+let total = -1;
+const box = document.getElementById('box');
+
+// Igual que formatViewers() del plugin: 1.234 · 12.5K · 1.2M
+function format(n) {
+  if (n < 0) return '—';
+  if (n < 10000) return n.toLocaleString();
+  if (n < 1e6) return (n / 1000).toFixed(n < 100000 ? 1 : 0).replace(/\.0$/, '') + 'K';
+  return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+}
+
+// Los números cambian con una pequeña animación en lugar de saltar.
+const shown = new Map();
+function animate(node, key, target) {
+  const from = shown.has(key) ? shown.get(key) : target;
+  shown.set(key, target);
+  if (from < 0 || target < 0 || from === target) { node.textContent = format(target); return; }
+  const start = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - start) / 800);
+    node.textContent = format(Math.round(from + (target - from) * (1 - Math.pow(1 - t, 3))));
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function item(icon, key, viewers, name) {
+  const row = document.createElement('span');
+  row.className = 'item';
+  const pf = document.createElement('span');
+  pf.className = 'pf';
+  pf.innerHTML = icon;
+  const count = document.createElement('span');
+  animate(count, key, viewers);
+  row.append(pf, count);
+  if (name) {
+    const n = document.createElement('span');
+    n.className = 'name';
+    n.textContent = name;
+    row.appendChild(n);
+  }
+  return row;
+}
+
+// El recuadro llena la fuente: se escala a lo que permita el ancho o el alto.
+function fit() {
+  box.style.transform = '';
+  const w = box.offsetWidth, h = box.offsetHeight;
+  if (!w || !h) return;
+  box.style.transform = `scale(${Math.min(innerWidth / w, innerHeight / h)})`;
+}
+addEventListener('resize', fit);
+
+let lastRender = '';
+function render() {
+  // El plugin reenvía lo mismo cada pocos segundos: solo se rehace si algo cambió.
+  const key = JSON.stringify([items, total, config]);
+  if (key === lastRender) return;
+  lastRender = key;
+  box.textContent = '';
+  for (const s of items)
+    box.appendChild(item(ICONS[s.platform] || '', s.key, s.viewers, s.name));
+  if (total >= 0) {
+    const t = item(EYE, 'total', total);
+    t.classList.add('total');
+    box.appendChild(t);
+  }
+  document.body.classList.toggle('empty', !items.length);
+  fit();
+}
+
+function applyConfig(c) {
+  config = { ...config, ...c };
+  document.documentElement.style.setProperty('--fs', config.size + 'px');
+  applyBoxStyle(config, 'bg');
+  document.documentElement.style.setProperty('--pad-y', (config.padY ?? 10) + 'px');
+  document.documentElement.style.setProperty('--pad-x', (config.padX ?? 17) + 'px');
+  document.documentElement.dataset.style = config.style || 'solid';
+  document.body.classList.toggle('bg', !!config.background);
+  document.body.classList.toggle('column', config.layout === 'column');
+  document.body.classList.toggle('nonames', !config.names);
+  render();
+}
+
+window.addEventListener('multichat', e => {
+  const data = e.detail || {};
+  if (data.type === 'config') applyConfig(data.config || {});
+  else if (data.type === 'viewers') {
+    items = data.items || [];
+    total = typeof data.total === 'number' ? data.total : -1;
+    render();
+  }
+});
+
+applyConfig({});
+</script>
+</body>
+</html>

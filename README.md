@@ -2,7 +2,7 @@
 
 # 💬 Multichat para OBS
 
-**Los chats de Twitch, YouTube y Kick juntos en un dock de OBS y en tu escena. Detecta cuándo haces multistream y conecta solo los chats de las plataformas donde estás en vivo.**
+**Los chats de Twitch, YouTube, Kick y TikTok juntos en un dock de OBS y en tu escena. Detecta cuándo haces multistream y conecta solo los chats de las plataformas donde estás en vivo.**
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
@@ -12,16 +12,20 @@
 
 ---
 
-Plugin nativo para OBS Studio 33: no necesita Python, cuentas, claves de API ni servidores aparte.
+Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 
 ## ✨ Funciones
 
 | | |
 |---|---|
-| 🧩 **Dock "Multichat"** | Todos los mensajes juntos con el logo de cada plataforma, insignias (MOD, VIP, SUB, HOST), emotes, Super Chats, bits y suscripciones. |
+| 🧩 **Dock "Multichat"** | Todos los mensajes juntos con el logo de cada plataforma, insignias (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, suscripciones y regalos de TikTok. |
+| 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en vivo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
-| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. Se configura en sus Propiedades: tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
+| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Para quitar uno, pulsa la ✕ a su derecha. |
+| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Se configura en sus Propiedades: disposición, velocidad, tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
+| 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
+| 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en los recuadros de espectadores y de fecha y hora. |
+| 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en vivo, y el total. En fila o en columna, con o sin el nombre del canal. |
 | 🙈 **Filtrar** | Clic en un canal del dock para ocultar o mostrar sus mensajes. |
 | 🧪 **Mensajes de prueba** | Para ver el dock y colocar el overlay sin estar en directo. Nunca salen mientras transmites. |
 
@@ -44,14 +48,16 @@ Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y 
 
 1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube.
 2. **Docks → Multichat** para ver el chat dentro de OBS.
-3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**.
+3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha.
+4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
+5. Para la fecha y la hora sueltas: **Fuentes → + → Multichat (fecha y hora)**.
 
 ### Cuándo se conecta cada chat
 
 | Modo | Comportamiento |
 |---|---|
 | **Automático** (por defecto) | Comprueba cada minuto qué canales están en vivo y conecta solo esos chats. Al empezar a transmitir lo comprueba cada 15 s durante 3 minutos. Si no se puede saber el estado de un canal, lo conecta mientras OBS esté transmitiendo. |
-| **Siempre conectado** | Conecta todos los chats aunque no estés en directo. En YouTube espera a que empiece el directo. |
+| **Siempre conectado** | Conecta todos los chats aunque no estés en directo. En YouTube y TikTok espera a que empiece el directo. |
 
 Funciona con cualquier forma de hacer multistream (Restream, *Multiple RTMP outputs*, Aitum Multistream…), porque consulta a cada plataforma directamente. Si el servicio de emisión de OBS es Restream, Castr o StreamYard, también se marca como multistream.
 
@@ -60,9 +66,9 @@ Funciona con cualquier forma de hacer multistream (Restream, *Multiple RTMP outp
 - **Twitch:** conexión IRC anónima, de solo lectura.
 - **YouTube:** lee el chat público del directo, sin clave de API. Con `@canal` busca solo el directo activo.
 - **Kick:** a veces Kick bloquea la consulta que da el ID del chat. Si el canal queda en error, añádelo con el ID: `micanal#123456`. Para verlo, abre `https://kick.com/api/v2/channels/micanal` en el navegador y busca `"chatroom":{"id":…}`.
-- **TikTok** aún no está soportado: su chat necesita un servicio de firma de terceros.
+- **TikTok:** escribe tu usuario (`@micanal`) o pega la URL. TikTok exige firmar la conexión al chat, así que el plugin usa [Euler Stream](https://www.eulerstream.com), un servicio externo gratuito y sin cuenta que limita las conexiones por día. Si se pasa del límite, el chat queda en error y se reintenta a los 10 minutos. Muestra los comentarios y los regalos.
 
-YouTube y Kick no tienen una API pública oficial para leer el chat sin cuenta: si cambian su web, puede que haya que actualizar el plugin.
+YouTube, Kick y TikTok no tienen una API pública oficial para leer el chat sin cuenta: si cambian su web, puede que haya que actualizar el plugin.
 
 ## 🛠️ Compilar
 
@@ -90,11 +96,11 @@ Cada push compila en GitHub Actions para Windows y macOS (`.github/workflows/bui
 ```
 src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
 src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
-src/overlay-source.cpp     fuente "Multichat" (fuente de navegador privada)
-src/chat/                  conectores y parsers: twitch, youtube, kick, demo
+src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
+src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, demo
 src/net/                   red del sistema: WinHTTP (Windows) y NSURLSession (macOS)
 src/ui/                    dock, ventana de configuración, caché de emotes
-data/overlay/index.html    página del overlay
+data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
 ```
 

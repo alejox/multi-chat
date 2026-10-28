@@ -7,6 +7,7 @@
 
 #include <obs-module.h>
 
+#include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
 #include <QFile>
@@ -68,8 +69,13 @@ QColor blend(const QColor &a, const QColor &b, float t)
 
 ChatView::ChatView(QWidget *parent) : QTextBrowser(parent)
 {
+	// Los enlaces del chat se abren en el navegador; solo http y https.
 	setOpenLinks(false);
 	setOpenExternalLinks(false);
+	connect(this, &QTextBrowser::anchorClicked, this, [](const QUrl &url) {
+		if (url.scheme() == "http" || url.scheme() == "https")
+			QDesktopServices::openUrl(url);
+	});
 	setFrameShape(QFrame::NoFrame);
 	setUndoRedoEnabled(false);
 	document()->setMaximumBlockCount(kMaxMessages);
@@ -157,7 +163,8 @@ QString ChatView::html(const QJsonObject &m) const
 					       .arg(emoteSize_)
 					       .arg(p.value("name").toString().toHtmlEscaped());
 			else
-				out += p.value("text").toString().toHtmlEscaped();
+				out += chat::linkifyHtml(p.value("text").toString(),
+							 palette().color(QPalette::Link).name());
 		}
 		out += QStringLiteral("</span>");
 	}
@@ -268,7 +275,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	bold.setBold(true);
 	bannerText_->setFont(bold);
 	bannerLayout->addWidget(bannerText_);
-	for (int i = 0; i < 3; ++i) {
+	for (int i = 0; i < 4; ++i) {
 		auto *icon = new QLabel(banner_);
 		bannerLayout->addWidget(icon);
 		bannerIcons_ << icon;
@@ -331,17 +338,21 @@ void ChatDock::updateState(const QJsonObject &state)
 	const QJsonArray live = state.value("livePlatforms").toArray();
 	const qreal dpr = devicePixelRatioF();
 
-	// Estado general.
+	// Estado general, con el total de espectadores de todas las plataformas.
+	const int viewers = state.value("viewers").toInt(-1);
+	const QString viewersText =
+		viewers >= 0 ? QString::fromUtf8("  ·  👁 ") + ui::formatCount(viewers) : QString();
 	if (state.value("streaming").toBool()) {
 		const QString service = state.value("service").toString();
 		status_->setText(QString::fromUtf8("● ") + ui::T("Dock.OnAir") +
-				 (service.isEmpty() ? QString() : QStringLiteral(" · ") + service));
+				 (service.isEmpty() ? QString() : QStringLiteral(" · ") + service) + viewersText);
 		status_->setStyleSheet("color: #ff4d4d; font-weight: bold;");
 	} else {
 		QStringList names;
 		for (const QJsonValue p : live)
 			names << chat::platformName(p.toString());
-		status_->setText(names.isEmpty() ? ui::T("Dock.OffAir") : ui::T("Dock.LiveOn").arg(names.join(", ")));
+		status_->setText(names.isEmpty() ? ui::T("Dock.OffAir")
+						 : ui::T("Dock.LiveOn").arg(names.join(", ")) + viewersText);
 		status_->setStyleSheet(QString());
 	}
 
@@ -369,14 +380,18 @@ void ChatDock::updateState(const QJsonObject &state)
 		chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		chip->setIcon(ui::statusIcon(platform, status, 16, dpr));
 		chip->setIconSize(QSize(16, 16));
+		const int chipViewers = s.value("viewers").toInt(-1);
 		chip->setText(s.value("channel").toString() +
-			      (s.value("live").toInt() == 1 ? QString::fromUtf8("  🔴") : QString()));
+			      (s.value("live").toInt() == 1 ? QString::fromUtf8("  🔴") : QString()) +
+			      (chipViewers >= 0 ? QString::fromUtf8(" 👁 ") + ui::formatCount(chipViewers) : QString()));
 		chip->setCheckable(true);
 		chip->setChecked(!hidden_.contains(key));
 		QString tip = chat::platformName(platform) + " · " + s.value("channel").toString() + "\n" +
 			      ui::T(("Status." + status).toUtf8().constData());
 		const int liveState = s.value("live").toInt();
 		tip += " · " + ui::T(liveState == 1 ? "Live.Yes" : liveState == 0 ? "Live.No" : "Live.Unknown");
+		if (chipViewers >= 0)
+			tip += " · " + ui::T("Dock.Viewers").arg(ui::formatCount(chipViewers));
 		if (!s.value("detail").toString().isEmpty())
 			tip += "\n" + s.value("detail").toString();
 		tip += "\n" + ui::T("Dock.ChipHint");

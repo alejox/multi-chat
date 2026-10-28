@@ -45,6 +45,7 @@ target_sources(
     src/chat/twitch.cpp
     src/chat/kick.cpp
     src/chat/youtube.cpp
+    src/chat/tiktok.cpp
     src/net/net.hpp
     src/ui/chat-dock.cpp
     src/ui/chat-dock.hpp

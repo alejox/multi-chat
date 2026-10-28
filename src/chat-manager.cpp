@@ -33,7 +33,7 @@ QString configPath()
 
 int platformOrder(const QString &p)
 {
-	static const QStringList order = {"twitch", "youtube", "kick", "demo"};
+	static const QStringList order = {"twitch", "youtube", "kick", "tiktok", "demo"};
 	return int(order.indexOf(p));
 }
 
@@ -249,14 +249,14 @@ void ChatManager::tick()
 	if (shutdown_)
 		return;
 	const qint64 now = nowMs();
-	const qint64 interval = now < boostUntil_ ? 15000 : 60000;
 	QPointer<ChatManager> self(this);
 
 	for (auto &sp : sources_) {
 		Source &s = *sp;
 		if (!s.checking && now >= s.nextCheck) {
+			// En vivo se consulta cada 30 s para tener los espectadores al día.
 			s.checking = true;
-			s.nextCheck = now + interval;
+			s.nextCheck = now + (now < boostUntil_ ? 15000 : s.live == 1 ? 30000 : 60000);
 			const chat::SourceInfo info = s.info;
 			pool_.start([self, info] {
 				chat::LiveResult r = chat::checkLive(info);
@@ -268,6 +268,7 @@ void ChatManager::tick()
 						if (Source *src = self->find(info.key, 0)) {
 							src->checking = false;
 							src->live = r.live;
+							src->viewers = r.live == 1 ? r.viewers : -1;
 							if (src->info.platform == "youtube" && !src->info.videoFixed)
 								src->info.extra = r.videoId;
 							self->tick();
@@ -290,12 +291,16 @@ QJsonObject ChatManager::state() const
 {
 	QJsonArray sources;
 	QStringList live;
+	int viewers = -1;
 	for (const auto &s : sources_) {
+		if (s->viewers >= 0 && s->info.platform != "demo")
+			viewers = std::max(viewers, 0) + s->viewers;
 		sources.append(QJsonObject{
 			{"key", s->info.key},
 			{"platform", s->info.platform},
 			{"channel", s->info.channel},
 			{"live", s->live},
+			{"viewers", s->viewers},
 			{"status", s->status},
 			{"detail", s->detail},
 		});
@@ -313,6 +318,7 @@ QJsonObject ChatManager::state() const
 		{"service", service_},
 		{"multistream", live.size() > 1 || (streaming_ && multiService)},
 		{"livePlatforms", QJsonArray::fromStringList(live)},
+		{"viewers", viewers},
 		{"sources", sources},
 		{"errors", QJsonArray::fromStringList(errors_)},
 	};

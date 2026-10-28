@@ -5,14 +5,48 @@
 
 #include <QJsonDocument>
 #include <QRegularExpression>
+#include <QUuid>
 
 namespace chat {
 namespace kick {
 
 namespace {
 
-const char *const kPusherUrl = "wss://ws-us2.pusher.com/app/32cbd69e4b950bf97679"
-			       "?protocol=7&client=js&version=8.4.0&flash=false";
+// Kick cambia la clave de Pusher sin avisar: se pide a su API y esta queda de reserva.
+const char *const kFallbackKey = "34bf7a0ff419a2a775b9";
+const char *const kFallbackCluster = "us2";
+
+QString pusherUrl(const QString &key, const QString &cluster)
+{
+	return QStringLiteral("wss://ws-%1.pusher.com/app/%2?protocol=7&client=js&version=8.4.0&flash=false")
+		.arg(cluster, key);
+}
+
+// Pregunta a Kick qué clave de Pusher usa ahora (lo mismo que hace su web).
+QString resolvePusherUrl()
+{
+	const QJsonObject body{
+		{"client", QJsonObject{{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"type", "web"}}},
+		{"capabilities",
+		 QJsonObject{{"accepted_providers", QJsonArray{QJsonObject{{"provider", "pusher"}}}}}},
+	};
+	net::Response res = net::postJson("https://web.kick.com/api/v1/realtime/connection",
+					  QJsonDocument(body).toJson(QJsonDocument::Compact).toStdString(),
+					  {{"Accept", "application/json"}});
+	if (res.ok()) {
+		const QJsonObject data =
+			QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object().value("data").toObject();
+		for (const QJsonValue c : data.value("connections").toArray()) {
+			const QJsonObject conn = c.toObject();
+			const QJsonObject cred = conn.value("credentials").toObject();
+			const QString key = cred.value("app_key").toString();
+			const QString cluster = cred.value("cluster").toString();
+			if (conn.value("provider").toString() == "pusher" && !key.isEmpty() && !cluster.isEmpty())
+				return pusherUrl(key, cluster);
+		}
+	}
+	return pusherUrl(kFallbackKey, kFallbackCluster);
+}
 
 QString emoteUrl(const QString &id)
 {
@@ -89,8 +123,12 @@ LiveResult checkLive(const QString &channel)
 	LiveResult r;
 	QString error;
 	QJsonObject info = channelInfo(channel, error);
-	if (!info.isEmpty())
-		r.live = info.value("livestream").isObject() ? 1 : 0;
+	if (!info.isEmpty()) {
+		const QJsonValue stream = info.value("livestream");
+		r.live = stream.isObject() ? 1 : 0;
+		if (stream.isObject())
+			r.viewers = stream.toObject().value("viewer_count").toInt(-1);
+	}
 	return r;
 }
 
@@ -116,7 +154,9 @@ protected:
 							     source_.channel));
 		}
 
-		auto ws = openSocket(kPusherUrl, {{"Origin", "https://kick.com"}});
+		if (url_.isEmpty())
+			url_ = resolvePusherUrl();
+		auto ws = openSocket(url_.toStdString(), {{"Origin", "https://kick.com"}});
 		QJsonObject subscribe{{"event", "pusher:subscribe"},
 				      {"data",
 				       QJsonObject{{"auth", ""}, {"channel", "chatrooms." + chatroom_ + ".v2"}}}};
@@ -127,6 +167,7 @@ protected:
 			if (ws->receive(raw) == net::WebSocket::Result::Closed) {
 				if (stopped())
 					return;
+				url_.clear();
 				throw ChatError("Kick cerró la conexión");
 			}
 			const QJsonObject evt = QJsonDocument::fromJson(QByteArray::fromStdString(raw)).object();
@@ -136,9 +177,14 @@ protected:
 			} else if (name == "pusher_internal:subscription_succeeded") {
 				report_("connected", QString());
 			} else if (name == "pusher:error") {
-				throw ChatError(
-					"Pusher: " +
-					QString::fromUtf8(QJsonDocument(evt.value("data").toObject()).toJson()));
+				url_.clear(); // quizá cambió la clave: se vuelve a pedir al reconectar
+				QJsonValue data = evt.value("data");
+				const QJsonObject err = data.isString()
+								? QJsonDocument::fromJson(data.toString().toUtf8()).object()
+								: data.toObject();
+				throw ChatError(QStringLiteral("Pusher %1: %2")
+							.arg(err.value("code").toInt())
+							.arg(err.value("message").toString()));
 			} else if (name == "App\\Events\\ChatMessageEvent") {
 				QJsonValue data = evt.value("data");
 				QJsonObject obj = data.isString()
@@ -151,6 +197,7 @@ protected:
 
 private:
 	QString chatroom_; // se conserva entre reconexiones
+	QString url_;      // ídem, salvo si Pusher la rechaza
 };
 
 std::shared_ptr<Connector> create(const SourceInfo &s, Connector::PostFn post, Connector::ReportFn report)
