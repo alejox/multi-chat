@@ -7,20 +7,20 @@
      evento "multichat" (javascript_event de obs-browser):
        {type: "config", config: {...}} · {type: "message", message: {...}} · {type: "clear"} -->
 <style>
-  :root { --fs: 22px; --gap: 5px; --bg-rgb: 0, 0, 0; --bg-alpha: .6; --bg-radius: 9px; --bg-bw: 0px; --bg-brgb: 255, 255, 255;
+  :root { --fs: 22px; --gap: 5px; --pad-y: 6px; --pad-x: 10px; --msg-py: 5px; --msg-px: 11px; --bg-rgb: 0, 0, 0; --bg-alpha: .6; --bg-radius: 9px; --bg-bw: 0px; --bg-brgb: 255, 255, 255;
     --panel-rgb: 0, 0, 0; --panel-alpha: .5; --panel-radius: 0px; --panel-bw: 0px; --panel-brgb: 255, 255, 255; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body { color: #fff; font: 600 var(--fs)/1.35 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
     text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; }
-  #list { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px; }
+  #list { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--pad-y) var(--pad-x); }
   /* Margen y no gap: así el espaciado puede ser negativo (los mensajes se solapan). */
   .msg + .msg { margin-top: var(--gap); }
   body.top #list { justify-content: flex-start; }
   .msg { position: relative; overflow-wrap: anywhere; animation: in .25s ease-out; transition: opacity .6s, transform .6s; }
   .msg.out { opacity: 0; transform: translateX(-12px); }
-  body.bg .msg { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: 5px 11px; border-radius: var(--bg-radius);
+  body.bg .msg { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: var(--msg-py) var(--msg-px); border-radius: var(--bg-radius);
     border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
-  .msg.hl { border-left: 4px solid var(--pc); padding-left: 9px; }
+  .msg.hl { border-left: 4px solid var(--pc); padding-left: max(0px, calc(var(--msg-px) - 2px)); }
   body.bg .msg.hl { background: color-mix(in srgb, var(--pc) 30%, rgba(var(--bg-rgb), var(--bg-alpha))); }
   .sys { font-size: .8em; opacity: .85; font-style: italic; }
   .pf { display: inline-block; vertical-align: -.15em; margin-right: .3em; filter: drop-shadow(0 1px 2px #000a); }
@@ -40,18 +40,18 @@
     border-radius: var(--panel-radius); border: var(--panel-bw) solid rgb(var(--panel-brgb)); }
   body.panel #panel { display: block; }
   /* Horizontal: una sola línea que avanza de derecha a izquierda. */
-  body.h #list { display: block; padding: 0; overflow: hidden; }
+  body.h #list { display: block; padding: 0; overflow: hidden; left: var(--pad-x); right: var(--pad-x); }
   body.h .msg { position: absolute; left: 0; top: 50%; white-space: nowrap; overflow-wrap: normal;
     animation: none; transition: none; will-change: transform; }
   body.h .sys { display: inline; margin-right: .5em; }
   body.h .msg + .msg { margin-top: 0; }
   /* Fecha y hora fijas al final de la cinta; los mensajes se cortan antes de llegar. */
-  #clock { display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%); align-items: center;
+  #clock { display: none; position: absolute; right: var(--pad-x); top: 50%; transform: translateY(-50%); align-items: center;
     gap: .45em; padding: 0 .45em 0 .35em; white-space: nowrap; font-weight: 800; letter-spacing: .02em;
     font-variant-numeric: tabular-nums; }
   body.h.clock #clock { display: flex; }
   #clock .bar { width: .18em; height: 1.15em; background: #fff; box-shadow: 0 0 3px #000c; }
-  body.bg #clock { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: 5px 11px; border-radius: var(--bg-radius);
+  body.bg #clock { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: var(--msg-py) var(--msg-px); border-radius: var(--bg-radius);
     border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
   @keyframes in { from { opacity: 0; transform: translateY(8px); } }
 </style>
@@ -68,7 +68,7 @@ const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A6
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok'], icons: true, badges: true,
   background: false, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 9, bgBorderWidth: 0, bgBorderColor: '#ffffff',
-  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
+  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, preview: true, streaming: false };
 let lastReal = 0;
 const seen = new Set();
 const list = document.getElementById('list');
@@ -168,7 +168,7 @@ function tick(now) {
     let step, targets = null;
     if (config.scroll === 'message') {
       targets = [];
-      let right = width - Math.round(config.size * 0.4);
+      let right = width; // la cinta ya deja el margen a los lados
       for (let i = rows.length - 1; i >= 0; i--) {
         targets[i] = right - rows[i].offsetWidth;
         right = targets[i] - config.hspacing;
@@ -204,7 +204,8 @@ function updateClock() {
     .replace(/\./g, '').replace(/\sde\s/g, ' ').toUpperCase();
   const time = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
   clockText.textContent = `${date} ${time}`;
-  list.style.right = clock.offsetWidth + 'px';
+  // Entre el último mensaje y el reloj, el mismo espacio que entre mensajes.
+  list.style.right = `calc(${clock.offsetWidth}px + var(--pad-x) + ${Math.max(0, config.hspacing)}px)`;
 }
 setInterval(updateClock, 1000);
 
@@ -219,6 +220,10 @@ function applyConfig(c) {
   applyBoxStyle(config, 'panel');
   document.documentElement.dataset.style = config.style || 'solid';
   root.setProperty('--gap', config.spacing + 'px');
+  root.setProperty('--pad-y', config.padY + 'px');
+  root.setProperty('--pad-x', config.padX + 'px');
+  root.setProperty('--msg-py', config.msgPadY + 'px');
+  root.setProperty('--msg-px', config.msgPadX + 'px');
   document.body.classList.toggle('panel', !!config.panel);
   document.body.classList.toggle('bg', !!config.background);
   document.body.classList.toggle('top', config.align === 'top');
