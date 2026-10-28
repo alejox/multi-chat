@@ -34,23 +34,31 @@
   .emote { height: 1.6em; vertical-align: middle; margin: -.3em .05em; }
   .noicons .pf, .nobadges .badge { display: none; }
   /* Horizontal: una sola línea que avanza de derecha a izquierda. */
-  body.h #list { display: block; padding: 0; }
+  body.h #list { display: block; padding: 0; overflow: hidden; }
   body.h .msg { position: absolute; left: 0; top: 50%; white-space: nowrap; overflow-wrap: normal;
     animation: none; transition: none; will-change: transform; }
   body.h .sys { display: inline; margin-right: .5em; }
   body.h .msg + .msg { margin-top: 0; }
+  /* Fecha y hora fijas al final de la cinta; los mensajes se cortan antes de llegar. */
+  #clock { display: none; position: absolute; right: 0; top: 50%; transform: translateY(-50%); align-items: center;
+    gap: .45em; padding: 0 .45em 0 .35em; white-space: nowrap; font-weight: 800; letter-spacing: .02em;
+    font-variant-numeric: tabular-nums; }
+  body.h.clock #clock { display: flex; }
+  #clock .bar { width: .18em; height: 1.15em; background: #fff; box-shadow: 0 0 3px #000c; }
+  body.bg #clock { background: rgba(0, 0, 0, var(--bg-alpha)); padding: 5px 11px; border-radius: 9px; text-shadow: none; }
   @keyframes in { from { opacity: 0; transform: translateY(8px); } }
 </style>
 </head>
 <body>
 <div id="list"></div>
+<div id="clock"><span class="bar"></span><span id="clock-text"></span></div>
 <script src="icons.js"></script>
 <script>
 const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MIEMBRO', verified: '✓', staff: 'STAFF' };
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok'], icons: true, badges: true,
-  background: false, opacity: 60, align: 'bottom', layout: 'vertical', scroll: 'continuous', speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
+  background: false, opacity: 60, align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, speed: 120, spacing: 5, hspacing: 48, preview: true, streaming: false };
 let lastReal = 0;
 const seen = new Set();
 const list = document.getElementById('list');
@@ -173,6 +181,23 @@ function tick(now) {
 }
 requestAnimationFrame(tick);
 
+// "28 OCT 2026 04:20" en el idioma del sistema, con hora de 24 h.
+const clock = document.getElementById('clock');
+const clockText = document.getElementById('clock-text');
+function updateClock() {
+  if (!(config.clock && config.layout === 'horizontal')) {
+    list.style.right = '';
+    return;
+  }
+  const now = new Date();
+  const date = now.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+    .replace(/\./g, '').replace(/\sde\s/g, ' ').toUpperCase();
+  const time = now.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  clockText.textContent = `${date} ${time}`;
+  list.style.right = clock.offsetWidth + 'px';
+}
+setInterval(updateClock, 1000);
+
 function applyConfig(c) {
   const { layout, scroll } = config;
   config = { ...config, ...c };
@@ -185,6 +210,8 @@ function applyConfig(c) {
   document.body.classList.toggle('top', config.align === 'top');
   document.body.classList.toggle('noicons', !config.icons);
   document.body.classList.toggle('nobadges', !config.badges);
+  document.body.classList.toggle('clock', !!config.clock);
+  updateClock();
 }
 
 window.addEventListener('multichat', e => {

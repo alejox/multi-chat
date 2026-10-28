@@ -358,6 +358,7 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"spacing", (int)obs_data_get_int(settings, "spacing")},
 		{"hspacing", (int)obs_data_get_int(settings, "hspacing")},
 		{"scroll", obs_data_get_string(settings, "scroll")},
+		{"clock", obs_data_get_bool(settings, "clock")},
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
 		{"preview", obs_data_get_bool(settings, "preview")},
 	};
@@ -486,6 +487,7 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "height"), manualSize);
 	obs_property_set_visible(obs_properties_get(props, "fit_canvas"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "scroll"), horizontal);
+	obs_property_set_visible(obs_properties_get(props, "clock"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "speed"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "hspacing"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "spacing"), !horizontal);
@@ -519,6 +521,7 @@ obs_properties_t *ov_properties(void *)
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Continuous"), "continuous");
 	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Message"), "message");
+	obs_properties_add_bool(props, "clock", obs_module_text("Source.Clock"));
 	obs_property_t *speed =
 		obs_properties_add_int_slider(props, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
 	obs_property_int_set_suffix(speed, " px/s");
