@@ -54,7 +54,7 @@ jobs:
           test -n "$plugin"
           codesign --verify --deep --strict --verbose=2 "$plugin"
           lipo -archs "$plugin/Contents/MacOS/obs-multichat"
-          for file in locale/es-ES.ini locale/en-US.ini overlay/index.html overlay/viewers.html overlay/clock.html overlay/icons.js; do
+          for file in locale/es-ES.ini locale/en-US.ini overlay/index.html overlay/viewers.html overlay/clock.html overlay/styles.css overlay/icons.js; do
             test -f "$plugin/Contents/Resources/$file" || { echo "Falta $file"; exit 1; }
           done
           mkdir -p dist
@@ -97,7 +97,7 @@ jobs:
           Expand-Archive $zip.FullName -DestinationPath $dir
           foreach ($file in 'obs-plugins\64bit\obs-multichat.dll', 'data\obs-plugins\obs-multichat\overlay\index.html',
                             'data\obs-plugins\obs-multichat\overlay\viewers.html', 'data\obs-plugins\obs-multichat\overlay\icons.js',
-                            'data\obs-plugins\obs-multichat\overlay\clock.html',
+                            'data\obs-plugins\obs-multichat\overlay\clock.html', 'data\obs-plugins\obs-multichat\overlay\styles.css',
                             'data\obs-plugins\obs-multichat\locale\es-ES.ini', 'data\obs-plugins\obs-multichat\locale\en-US.ini') {
             if (-not (Test-Path (Join-Path $dir $file))) { throw "Falta $file en el zip" }
           }

@@ -8,22 +8,25 @@
      El plugin da a la fuente el tamaño aproximado del recuadro; aquí se escala el recuadro
      para que la llene justo. -->
 <style>
-  :root { --fs: 32px; --bg-alpha: .6; }
+  :root { --fs: 32px; --bg-rgb: 0, 0, 0; --bg-alpha: .6; --bg-radius: 12px; --bg-bw: 0px; --bg-brgb: 255, 255, 255; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body { color: #fff; font: 800 var(--fs)/1.2 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
     text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
   #box { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: inline-flex; align-items: center;
     gap: .45em; padding: .35em .6em; border-radius: .45em; white-space: nowrap; }
-  body.bg #box { background: rgba(0, 0, 0, var(--bg-alpha)); text-shadow: none; }
+  body.bg #box { background: rgba(var(--bg-rgb), var(--bg-alpha)); border-radius: var(--bg-radius);
+    border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
   .bar { width: .18em; height: 1.15em; background: #fff; box-shadow: 0 0 3px #000c; }
   body.bg .bar { box-shadow: none; }
   .nobar .bar { display: none; }
 </style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div id="box"><span class="bar"></span><span id="text"></span></div>
+<script src="icons.js"></script>
 <script>
-let config = { size: 32, date: true, time: true, seconds: false, hour24: true, bar: true, background: true, opacity: 60 };
+let config = { size: 32, date: true, time: true, seconds: false, hour24: true, bar: true, background: true, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 12, bgBorderWidth: 0, bgBorderColor: '#ffffff' };
 const box = document.getElementById('box');
 const text = document.getElementById('text');
 
@@ -63,7 +66,8 @@ window.addEventListener('multichat', e => {
   if (data.type !== 'config') return;
   config = { ...config, ...(data.config || {}) };
   document.documentElement.style.setProperty('--fs', config.size + 'px');
-  document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
+  applyBoxStyle(config, 'bg');
+  document.documentElement.dataset.style = config.style || 'solid';
   document.body.classList.toggle('bg', !!config.background);
   document.body.classList.toggle('nobar', !config.bar);
   last = '';

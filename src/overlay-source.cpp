@@ -130,6 +130,14 @@ QString formatViewers(int n)
 	return QString::number(n / 1000000.0, 'f', 1).remove(QRegularExpression("\\.0$")) + 'M';
 }
 
+// Lo que suma el borde del recuadro a cada dimensión (los estilos con borde propio usan hasta 2 px).
+double boxBorder(const OverlaySource *s)
+{
+	if (!s->config.value("background").toBool())
+		return 0;
+	return 2.0 * std::max(2, s->config.value("bgBorderWidth").toInt());
+}
+
 // Tamaño del recuadro con las medidas de viewers.html (en em = tamaño de letra). La página
 // luego escala el recuadro para que llene la fuente justo, así que basta con aproximarlo.
 QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int total)
@@ -172,7 +180,8 @@ QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int 
 			w += em * 1.8 + 2 + totalWidth;
 		h = em * 1.9;
 	}
-	return QSize(std::min(4096, int(std::ceil(w))), std::min(4096, int(std::ceil(h))));
+	const double border = boxBorder(s);
+	return QSize(std::min(4096, int(std::ceil(w + border))), std::min(4096, int(std::ceil(h + border))));
 }
 
 QJsonObject viewersPayload(const QList<ViewerItem> &items, int total)
@@ -240,7 +249,8 @@ QSize clockBoxSize(const OverlaySource *s)
 	double w = em * 1.2 + QFontMetricsF(font).horizontalAdvance(text) + em * 0.02 * double(text.size());
 	if (c.value("bar").toBool())
 		w += em * 0.63;
-	return QSize(std::min(4096, int(std::ceil(w))), int(std::ceil(em * 1.9)));
+	const double border = boxBorder(s);
+	return QSize(std::min(4096, int(std::ceil(w + border))), int(std::ceil(em * 1.9 + border)));
 }
 
 void refreshClock(OverlaySource *s)
@@ -279,7 +289,9 @@ uint32_t canvasWidth()
 uint32_t tickerHeight(const QJsonObject &config)
 {
 	const double size = config.value("size").toInt(22);
-	const double line = size * 1.35 + (config.value("background").toBool() ? 10 : 0);
+	// Con fondo: relleno de 10 px y el borde (los estilos con borde propio usan hasta 2 px).
+	const double border = std::max(2, config.value("bgBorderWidth").toInt());
+	const double line = size * 1.35 + (config.value("background").toBool() ? 10 + 2 * border : 0);
 	const double pad = std::max(4.0, std::round(size * 0.2));
 	return uint32_t(std::ceil(line + 2 * pad));
 }
@@ -376,6 +388,93 @@ void resizeBrowser(OverlaySource *s)
 	obs_data_release(bs);
 }
 
+// Color de una propiedad de OBS (0xAABBGGRR) como "#rrggbb".
+QString hexColor(obs_data_t *settings, const char *key)
+{
+	const auto c = uint32_t(obs_data_get_int(settings, key));
+	return QStringLiteral("#%1%2%3")
+		.arg(c & 0xff, 2, 16, QLatin1Char('0'))
+		.arg((c >> 8) & 0xff, 2, 16, QLatin1Char('0'))
+		.arg((c >> 16) & 0xff, 2, 16, QLatin1Char('0'));
+}
+
+// Estilo de un fondo (color, opacidad, redondeo y borde). prefix: "" para el fondo de los
+// mensajes o del recuadro, "panel_" para el fondo general del chat.
+void readBoxStyle(QJsonObject &config, obs_data_t *settings, const std::string &prefix, const QString &js)
+{
+	const std::string color = prefix.empty() ? "bg_color" : prefix + "color";
+	config.insert(js + "Color", hexColor(settings, color.c_str()));
+	config.insert(js + "Opacity", (int)obs_data_get_int(settings, (prefix + "opacity").c_str()));
+	config.insert(js + "Radius", (int)obs_data_get_int(settings, (prefix + "radius").c_str()));
+	config.insert(js + "BorderWidth", (int)obs_data_get_int(settings, (prefix + "border_width").c_str()));
+	config.insert(js + "BorderColor", hexColor(settings, (prefix + "border_color").c_str()));
+}
+
+void boxStyleDefaults(obs_data_t *settings, const std::string &prefix, int opacity, int radius)
+{
+	const std::string color = prefix.empty() ? "bg_color" : prefix + "color";
+	obs_data_set_default_int(settings, color.c_str(), 0xFF000000);
+	obs_data_set_default_int(settings, (prefix + "opacity").c_str(), opacity);
+	obs_data_set_default_int(settings, (prefix + "radius").c_str(), radius);
+	obs_data_set_default_int(settings, (prefix + "border_width").c_str(), 0);
+	obs_data_set_default_int(settings, (prefix + "border_color").c_str(), 0xFFFFFFFF);
+}
+
+void addBoxStyle(obs_properties_t *props, const std::string &prefix)
+{
+	// Textos "Style.*" para el fondo de los mensajes o del recuadro, "Panel.*" para el general.
+	const std::string group = prefix.empty() ? "Style." : "Panel.";
+	auto text = [&](const char *name) { return obs_module_text((group + name).c_str()); };
+	const std::string color = prefix.empty() ? "bg_color" : prefix + "color";
+	obs_properties_add_color(props, color.c_str(), text("Color"));
+	obs_property_t *opacity =
+		obs_properties_add_int_slider(props, (prefix + "opacity").c_str(), text("Opacity"), 0, 100, 5);
+	obs_property_int_set_suffix(opacity, " %");
+	obs_property_t *radius =
+		obs_properties_add_int_slider(props, (prefix + "radius").c_str(), text("Radius"), 0, 100, 1);
+	obs_property_int_set_suffix(radius, " px");
+	obs_property_t *border =
+		obs_properties_add_int_slider(props, (prefix + "border_width").c_str(), text("Border"), 0, 20, 1);
+	obs_property_int_set_suffix(border, " px");
+	obs_properties_add_color(props, (prefix + "border_color").c_str(), text("BorderColor"));
+}
+
+// Estilos de fondo de data/overlay/styles.css (los mismos que music-now-playing).
+void addStyleList(obs_properties_t *props)
+{
+	obs_property_t *style = obs_properties_add_list(props, "style", obs_module_text("Style"),
+							OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	for (const char *id : {"solid", "glass", "pill", "macos", "minimal", "line", "synthwave", "neoncity", "cyber",
+			       "retro", "glitch"})
+		obs_property_list_add_string(style, obs_module_text(("Style." + std::string(id)).c_str()), id);
+	obs_property_set_long_description(style, obs_module_text("Style.Help"));
+}
+
+// Solo se ven los controles que afectan al estilo elegido: el color en Sólido y en los de
+// cristal (es su tinte), el redondeo salvo en Píldora y Cyberpunk, y el borde en Sólido.
+void showBoxStyle(obs_properties_t *props, obs_data_t *settings, const std::string &prefix, bool visible)
+{
+	const std::string style = obs_data_get_string(settings, "style");
+	const bool tinted = style == "solid" || style == "glass" || style == "pill" || style == "macos";
+	const bool rounded = style != "pill" && style != "cyber";
+	const std::string color = prefix.empty() ? "bg_color" : prefix + "color";
+	auto show = [&](const std::string &key, bool on) {
+		obs_property_set_visible(obs_properties_get(props, key.c_str()), visible && on);
+	};
+	show(color, tinted);
+	show(prefix + "opacity", true);
+	show(prefix + "radius", rounded);
+	show(prefix + "border_width", style == "solid");
+	show(prefix + "border_color", style == "solid");
+}
+
+// Los controles del fondo solo se ven con su casilla activada.
+bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
+	return true;
+}
+
 void readSettings(OverlaySource *s, obs_data_t *settings)
 {
 	if (s->kind == Kind::Chat) { // espectadores y reloj calculan su tamaño solos
@@ -395,8 +494,9 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 			{"hour24", obs_data_get_bool(settings, "hour24")},
 			{"bar", obs_data_get_bool(settings, "bar")},
 			{"background", obs_data_get_bool(settings, "background")},
-			{"opacity", (int)obs_data_get_int(settings, "opacity")},
+			{"style", obs_data_get_string(settings, "style")},
 		};
+		readBoxStyle(s->config, settings, "", "bg");
 		return;
 	}
 	if (s->kind == Kind::Viewers) {
@@ -407,9 +507,10 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 			{"names", obs_data_get_bool(settings, "names")},
 			{"platforms", platforms},
 			{"background", obs_data_get_bool(settings, "background")},
-			{"opacity", (int)obs_data_get_int(settings, "opacity")},
+			{"style", obs_data_get_string(settings, "style")},
 			{"preview", obs_data_get_bool(settings, "preview")},
 		};
+		readBoxStyle(s->config, settings, "", "bg");
 		return;
 	}
 	s->config = QJsonObject{
@@ -420,7 +521,8 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"icons", obs_data_get_bool(settings, "icons")},
 		{"badges", obs_data_get_bool(settings, "badges")},
 		{"background", obs_data_get_bool(settings, "background")},
-		{"opacity", (int)obs_data_get_int(settings, "opacity")},
+		{"panel", obs_data_get_bool(settings, "panel")},
+		{"style", obs_data_get_string(settings, "style")},
 		{"align", obs_data_get_string(settings, "align")},
 		{"layout", obs_data_get_string(settings, "layout")},
 		{"speed", (int)obs_data_get_int(settings, "speed")},
@@ -431,6 +533,8 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
 		{"preview", obs_data_get_bool(settings, "preview")},
 	};
+	readBoxStyle(s->config, settings, "", "bg");
+	readBoxStyle(s->config, settings, "panel_", "panel");
 	if (fitsCanvas(s)) {
 		s->width = canvasWidth();
 		s->height = tickerHeight(s->config);
@@ -518,7 +622,10 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "icons", true);
 	obs_data_set_default_bool(settings, "badges", true);
 	obs_data_set_default_bool(settings, "background", false);
-	obs_data_set_default_int(settings, "opacity", 60);
+	obs_data_set_default_string(settings, "style", "solid");
+	boxStyleDefaults(settings, "", 60, 9);
+	obs_data_set_default_bool(settings, "panel", false);
+	boxStyleDefaults(settings, "panel_", 50, 0);
 	obs_data_set_default_string(settings, "align", "bottom");
 	obs_data_set_default_string(settings, "layout", "vertical");
 	obs_data_set_default_int(settings, "speed", 120);
@@ -538,7 +645,8 @@ void vw_defaults(obs_data_t *settings)
 	for (const char *p : {"show_twitch", "show_youtube", "show_kick", "show_tiktok"})
 		obs_data_set_default_bool(settings, p, true);
 	obs_data_set_default_bool(settings, "background", true);
-	obs_data_set_default_int(settings, "opacity", 60);
+	obs_data_set_default_string(settings, "style", "solid");
+	boxStyleDefaults(settings, "", 60, 12);
 	obs_data_set_default_bool(settings, "preview", true);
 }
 
@@ -566,6 +674,8 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "align"), !horizontal);
 	obs_property_set_visible(obs_properties_get(props, "fade"), !horizontal);
 	obs_property_set_visible(obs_properties_get(props, "max"), !horizontal);
+	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
+	showBoxStyle(props, settings, "panel_", obs_data_get_bool(settings, "panel"));
 	return true;
 }
 
@@ -618,10 +728,14 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
 	obs_properties_add_bool(props, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(props, "badges", obs_module_text("Source.Badges"));
-	obs_properties_add_bool(props, "background", obs_module_text("Source.Background"));
-	obs_property_t *opacity =
-		obs_properties_add_int_slider(props, "opacity", obs_module_text("Source.Opacity"), 0, 100, 5);
-	obs_property_int_set_suffix(opacity, " %");
+	addStyleList(props);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), ov_layout_changed);
+	obs_property_set_modified_callback(
+		obs_properties_add_bool(props, "background", obs_module_text("Source.Background")), ov_layout_changed);
+	addBoxStyle(props, "");
+	obs_property_set_modified_callback(obs_properties_add_bool(props, "panel", obs_module_text("Source.Panel")),
+					   ov_layout_changed);
+	addBoxStyle(props, "panel_");
 
 	obs_property_t *align = obs_properties_add_list(props, "align", obs_module_text("Source.Align"),
 							OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -653,10 +767,11 @@ obs_properties_t *vw_properties(void *)
 	obs_properties_add_bool(props, "show_youtube", obs_module_text("Source.ShowYouTube"));
 	obs_properties_add_bool(props, "show_kick", obs_module_text("Source.ShowKick"));
 	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
-	obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background"));
-	obs_property_t *opacity =
-		obs_properties_add_int_slider(props, "opacity", obs_module_text("Source.Opacity"), 0, 100, 5);
-	obs_property_int_set_suffix(opacity, " %");
+	addStyleList(props);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
+	obs_property_set_modified_callback(
+		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), box_changed);
+	addBoxStyle(props, "");
 
 	obs_properties_add_bool(props, "preview", obs_module_text("Viewers.Preview"));
 	return props;
@@ -676,7 +791,8 @@ void ck_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "hour24", true);
 	obs_data_set_default_bool(settings, "bar", true);
 	obs_data_set_default_bool(settings, "background", false);
-	obs_data_set_default_int(settings, "opacity", 60);
+	obs_data_set_default_string(settings, "style", "solid");
+	boxStyleDefaults(settings, "", 60, 12);
 }
 
 obs_properties_t *ck_properties(void *)
@@ -690,10 +806,11 @@ obs_properties_t *ck_properties(void *)
 	obs_properties_add_bool(props, "seconds", obs_module_text("Clock.Seconds"));
 	obs_properties_add_bool(props, "hour24", obs_module_text("Clock.Hour24"));
 	obs_properties_add_bool(props, "bar", obs_module_text("Clock.Bar"));
-	obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background"));
-	obs_property_t *opacity =
-		obs_properties_add_int_slider(props, "opacity", obs_module_text("Source.Opacity"), 0, 100, 5);
-	obs_property_int_set_suffix(opacity, " %");
+	addStyleList(props);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
+	obs_property_set_modified_callback(
+		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), box_changed);
+	addBoxStyle(props, "");
 	return props;
 }
 
