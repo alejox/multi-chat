@@ -22,7 +22,8 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en vivo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
 | ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. Se configura en sus Propiedades: tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
+| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Se configura en sus Propiedades: disposición, velocidad, tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
+| 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en vivo, y el total. En fila o en columna, con o sin el nombre del canal. |
 | 🙈 **Filtrar** | Clic en un canal del dock para ocultar o mostrar sus mensajes. |
 | 🧪 **Mensajes de prueba** | Para ver el dock y colocar el overlay sin estar en directo. Nunca salen mientras transmites. |
 
@@ -45,7 +46,8 @@ Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y 
 
 1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube.
 2. **Docks → Multichat** para ver el chat dentro de OBS.
-3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**.
+3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal* y dale a la fuente forma de franja (por ejemplo 1920 × 60).
+4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
 
 ### Cuándo se conecta cada chat
 
@@ -91,11 +93,11 @@ Cada push compila en GitHub Actions para Windows y macOS (`.github/workflows/bui
 ```
 src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
 src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
-src/overlay-source.cpp     fuente "Multichat" (fuente de navegador privada)
+src/overlay-source.cpp     fuentes "Multichat" y "Multichat (espectadores)" (fuentes de navegador privadas)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, demo
 src/net/                   red del sistema: WinHTTP (Windows) y NSURLSession (macOS)
 src/ui/                    dock, ventana de configuración, caché de emotes
-data/overlay/index.html    página del overlay
+data/overlay/              páginas del chat (index.html) y de los espectadores (viewers.html)
 data/locale/               textos en español e inglés
 ```
 

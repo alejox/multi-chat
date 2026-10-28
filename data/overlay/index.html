@@ -31,26 +31,23 @@
   .body { font-weight: 500; }
   .emote { height: 1.6em; vertical-align: middle; margin: -.3em .05em; }
   .noicons .pf, .nobadges .badge { display: none; }
+  /* Horizontal: una sola línea que avanza de derecha a izquierda. */
+  body.h #list { display: block; padding: 0; }
+  body.h .msg { position: absolute; left: 0; top: 50%; white-space: nowrap; overflow-wrap: normal;
+    animation: none; transition: none; will-change: transform; }
+  body.h .sys { display: inline; margin-right: .5em; }
   @keyframes in { from { opacity: 0; transform: translateY(8px); } }
 </style>
 </head>
 <body>
 <div id="list"></div>
+<script src="icons.js"></script>
 <script>
-const PLATFORMS = {
-  twitch: '#9146FF', youtube: '#FF0033', kick: '#53FC18', tiktok: '#FE2C55',
-};
-const ICONS = {
-  twitch: '<svg viewBox="0 0 24 24"><path fill="#9146FF" d="M4.3 1 2.5 5.6V20h5v3h2.8l3-3h4.1L23 14.4V1H4.3Z"/><path fill="#fff" d="M5.2 3.2h15.5v11H5.2z"/><path fill="#9146FF" d="M15.8 6.6h2v5.8h-2zm-5.4 0h2v5.8h-2z"/></svg>',
-  youtube: '<svg viewBox="0 0 24 24"><rect x="1" y="4.5" width="22" height="15" rx="4.5" fill="#FF0033"/><path fill="#fff" d="m10 8.6 5.8 3.4-5.8 3.4z"/></svg>',
-  kick: '<svg viewBox="0 0 24 24"><rect x="1" y="1" width="22" height="22" rx="5" fill="#53FC18"/><path fill="#0b0b0b" d="M6.5 5.5h3.6v3.6h1.8V7.3h1.8V5.5h3.6V11h-1.8v2h1.8v5.5h-3.6v-1.8h-1.8v-1.8h-1.8v3.6H6.5z"/></svg>',
-  tiktok: '<svg viewBox="0 0 24 24"><defs><path id="tt" d="M12.2 5h2.2c.4 2.3 2.2 3.6 4.2 3.7V11c-1.6 0-3.1-.6-4.2-1.6v6.1a4.3 4.3 0 1 1-4.3-4.3v2.2a2.1 2.1 0 1 0 2.1 2.1z"/></defs><rect x="1" y="1" width="22" height="22" rx="5" fill="#0b0b0b"/><use href="#tt" fill="#25F4EE" x="-.8" y="-.8"/><use href="#tt" fill="#FE2C55" x=".8" y=".8"/><use href="#tt" fill="#fff"/></svg>',
-};
 const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MIEMBRO', verified: '✓', staff: 'STAFF' };
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok'], icons: true, badges: true,
-  background: false, opacity: 60, align: 'bottom', preview: true, streaming: false };
+  background: false, opacity: 60, align: 'bottom', layout: 'vertical', speed: 120, preview: true, streaming: false };
 let lastReal = 0;
 const seen = new Set();
 const list = document.getElementById('list');
@@ -123,14 +120,48 @@ function add(m) {
     if (seen.size > 2000) seen.clear();
   }
   const row = render(m);
+  if (config.layout === 'horizontal') {
+    row.x = list.clientWidth; // entra por la derecha; tick() lo pone detrás del anterior
+    row.style.transform = `translate(${row.x}px, -50%)`;
+    list.appendChild(row);
+    return;
+  }
   list.appendChild(row);
   const shown = [...list.children].filter(c => !c.classList.contains('out'));
   for (const old of shown.slice(0, Math.max(0, shown.length - config.max))) remove(old);
   if (config.fade > 0) setTimeout(() => remove(row), config.fade * 1000);
 }
 
+// Avance del modo horizontal. Si se acumulan mensajes fuera de pantalla, acelera para no
+// quedarse atrás del chat.
+const GAP = 48;
+let lastFrame = 0;
+function tick(now) {
+  const dt = lastFrame ? Math.min(now - lastFrame, 100) / 1000 : 0;
+  lastFrame = now;
+  if (config.layout === 'horizontal' && list.children.length) {
+    const width = list.clientWidth;
+    const rows = [...list.children];
+    const last = rows[rows.length - 1];
+    const backlog = Math.max(0, last.x + last.offsetWidth - width);
+    const step = config.speed * (1 + backlog / (width * 2)) * dt;
+    let edge = -Infinity;
+    for (const row of rows) {
+      row.x = Math.max(row.x - step, edge);
+      edge = row.x + row.offsetWidth + GAP;
+      if (edge - GAP < 0) row.remove();
+      else row.style.transform = `translate(${row.x}px, -50%)`;
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
 function applyConfig(c) {
+  const layout = config.layout;
   config = { ...config, ...c };
+  if (config.layout !== layout) list.textContent = '';
+  document.body.classList.toggle('h', config.layout === 'horizontal');
   document.documentElement.style.setProperty('--fs', config.size + 'px');
   document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
   document.body.classList.toggle('bg', !!config.background);
