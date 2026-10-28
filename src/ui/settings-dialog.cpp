@@ -188,6 +188,8 @@ private:
 				       "   —   " + ui::T(("Status." + status).toUtf8().constData());
 			if (live == 1)
 				text += QString::fromUtf8("  🔴 ") + ui::T("Live.Yes");
+			if (status == "error" && !detail.isEmpty())
+				text += "\n" + detail;
 			auto *item = new QListWidgetItem(ui::statusIcon(info.platform, status, 18, devicePixelRatioF()),
 							 text, list_);
 			item->setData(Qt::UserRole, entry);
