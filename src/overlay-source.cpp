@@ -1,5 +1,6 @@
-// Fuente "Multichat": muestra el chat en la escena. Por dentro es una fuente de navegador
-// privada con data/overlay/index.html; los mensajes le llegan con javascript_event.
+// Fuentes "Multichat" (el chat en la escena) y "Multichat (espectadores)". Por dentro son
+// fuentes de navegador privadas con data/overlay/index.html y viewers.html; los mensajes y
+// los espectadores les llegan con javascript_event.
 
 #include "overlay-source.hpp"
 #include "chat-manager.hpp"
@@ -15,6 +16,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <cstring>
 #include <atomic>
 #include <mutex>
 #include <set>
@@ -23,6 +25,7 @@
 namespace {
 
 struct OverlaySource {
+	bool viewers = false; // fuente de espectadores en lugar de chat
 	obs_source_t *self = nullptr;
 	obs_source_t *browser = nullptr;
 	QJsonObject config;
@@ -49,11 +52,28 @@ void send(OverlaySource *s, const QJsonObject &payload)
 	calldata_free(&cd);
 }
 
-void sendAll(const QJsonObject &payload)
+// Últimos espectadores enviados: los recibe al momento una fuente nueva.
+QJsonObject lastViewers;
+
+void sendAll(const QJsonObject &payload, bool viewers = false)
 {
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	for (OverlaySource *s : sources)
-		send(s, payload);
+		if (s->viewers == viewers)
+			send(s, payload);
+}
+
+QJsonObject viewersPayload()
+{
+	QJsonArray list;
+	for (const QJsonValue v : ChatManager::instance().state().value("sources").toArray()) {
+		const QJsonObject src = v.toObject();
+		list.append(QJsonObject{{"platform", src.value("platform")},
+					{"channel", src.value("channel")},
+					{"live", src.value("live")},
+					{"viewers", src.value("viewers")}});
+	}
+	return QJsonObject{{"type", "viewers"}, {"sources", list}};
 }
 
 void sendConfig(OverlaySource *s)
@@ -68,7 +88,7 @@ obs_data_t *browserSettings(const OverlaySource *s)
 	obs_data_t *bs = obs_data_create();
 	// En Windows obs_module_file puede dar una ruta relativa: la fuente de navegador
 	// necesita la absoluta.
-	char *page = obs_module_file("overlay/index.html");
+	char *page = obs_module_file(s->viewers ? "overlay/viewers.html" : "overlay/index.html");
 	const QString path = page ? QFileInfo(QString::fromUtf8(page)).absoluteFilePath() : QString();
 	bfree(page);
 	obs_data_set_bool(bs, "is_local_file", true);
@@ -84,12 +104,25 @@ obs_data_t *browserSettings(const OverlaySource *s)
 
 void readSettings(OverlaySource *s, obs_data_t *settings)
 {
-	s->width = (uint32_t)std::max<long long>(100, obs_data_get_int(settings, "width"));
-	s->height = (uint32_t)std::max<long long>(100, obs_data_get_int(settings, "height"));
+	s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
+	s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
 	QJsonArray platforms;
 	for (const char *p : {"twitch", "youtube", "kick", "tiktok"})
 		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
 			platforms.append(p);
+	if (s->viewers) {
+		s->config = QJsonObject{
+			{"size", (int)obs_data_get_int(settings, "font_size")},
+			{"layout", obs_data_get_string(settings, "layout")},
+			{"total", obs_data_get_bool(settings, "total")},
+			{"names", obs_data_get_bool(settings, "names")},
+			{"platforms", platforms},
+			{"background", obs_data_get_bool(settings, "background")},
+			{"opacity", (int)obs_data_get_int(settings, "opacity")},
+			{"preview", obs_data_get_bool(settings, "preview")},
+		};
+		return;
+	}
 	s->config = QJsonObject{
 		{"size", (int)obs_data_get_int(settings, "font_size")},
 		{"fade", (int)obs_data_get_int(settings, "fade")},
@@ -100,6 +133,8 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"background", obs_data_get_bool(settings, "background")},
 		{"opacity", (int)obs_data_get_int(settings, "opacity")},
 		{"align", obs_data_get_string(settings, "align")},
+		{"layout", obs_data_get_string(settings, "layout")},
+		{"speed", (int)obs_data_get_int(settings, "speed")},
 		{"preview", obs_data_get_bool(settings, "preview")},
 	};
 }
@@ -109,9 +144,15 @@ const char *ov_get_name(void *)
 	return obs_module_text("Source.Name");
 }
 
-void *ov_create(obs_data_t *settings, obs_source_t *source)
+const char *vw_get_name(void *)
+{
+	return obs_module_text("Viewers.Name");
+}
+
+void *create(obs_data_t *settings, obs_source_t *source, bool viewers)
 {
 	auto *s = new OverlaySource();
+	s->viewers = viewers;
 	s->self = source;
 	readSettings(s, settings);
 	obs_data_t *bs = browserSettings(s);
@@ -122,7 +163,19 @@ void *ov_create(obs_data_t *settings, obs_source_t *source)
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	sources.insert(s);
 	sendConfig(s);
+	if (viewers && !lastViewers.isEmpty())
+		send(s, lastViewers);
 	return s;
+}
+
+void *ov_create(obs_data_t *settings, obs_source_t *source)
+{
+	return create(settings, source, false);
+}
+
+void *vw_create(obs_data_t *settings, obs_source_t *source)
+{
+	return create(settings, source, true);
 }
 
 void ov_destroy(void *data)
@@ -165,7 +218,35 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "background", false);
 	obs_data_set_default_int(settings, "opacity", 60);
 	obs_data_set_default_string(settings, "align", "bottom");
+	obs_data_set_default_string(settings, "layout", "vertical");
+	obs_data_set_default_int(settings, "speed", 120);
 	obs_data_set_default_bool(settings, "preview", true);
+}
+
+void vw_defaults(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, "width", 800);
+	obs_data_set_default_int(settings, "height", 80);
+	obs_data_set_default_int(settings, "font_size", 28);
+	obs_data_set_default_string(settings, "layout", "row");
+	obs_data_set_default_bool(settings, "total", true);
+	obs_data_set_default_bool(settings, "names", false);
+	for (const char *p : {"show_twitch", "show_youtube", "show_kick", "show_tiktok"})
+		obs_data_set_default_bool(settings, p, true);
+	obs_data_set_default_bool(settings, "background", true);
+	obs_data_set_default_int(settings, "opacity", 60);
+	obs_data_set_default_bool(settings, "preview", true);
+}
+
+// En horizontal no se usan "apilar", "ocultar después de" ni el máximo; la velocidad solo en horizontal.
+bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const bool horizontal = strcmp(obs_data_get_string(settings, "layout"), "horizontal") == 0;
+	obs_property_set_visible(obs_properties_get(props, "speed"), horizontal);
+	obs_property_set_visible(obs_properties_get(props, "align"), !horizontal);
+	obs_property_set_visible(obs_properties_get(props, "fade"), !horizontal);
+	obs_property_set_visible(obs_properties_get(props, "max"), !horizontal);
+	return true;
 }
 
 bool ov_open_settings(obs_properties_t *, obs_property_t *, void *)
@@ -178,6 +259,16 @@ obs_properties_t *ov_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
+
+	obs_property_t *layout = obs_properties_add_list(props, "layout", obs_module_text("Source.Layout"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Vertical"), "vertical");
+	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Horizontal"), "horizontal");
+	obs_property_set_long_description(layout, obs_module_text("Source.Layout.Help"));
+	obs_property_set_modified_callback(layout, ov_layout_changed);
+	obs_property_t *speed =
+		obs_properties_add_int_slider(props, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
+	obs_property_int_set_suffix(speed, " px/s");
 
 	obs_property_t *size =
 		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
@@ -206,6 +297,36 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(props, "preview", obs_module_text("Source.Preview"));
 	obs_properties_add_int(props, "width", obs_module_text("Source.Width"), 100, 4096, 1);
 	obs_properties_add_int(props, "height", obs_module_text("Source.Height"), 100, 4096, 1);
+	return props;
+}
+
+obs_properties_t *vw_properties(void *)
+{
+	obs_properties_t *props = obs_properties_create();
+	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
+
+	obs_property_t *layout = obs_properties_add_list(props, "layout", obs_module_text("Viewers.Layout"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(layout, obs_module_text("Viewers.Layout.Row"), "row");
+	obs_property_list_add_string(layout, obs_module_text("Viewers.Layout.Column"), "column");
+	obs_property_t *size =
+		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 120, 1);
+	obs_property_int_set_suffix(size, " px");
+	obs_properties_add_bool(props, "total", obs_module_text("Viewers.Total"));
+	obs_properties_add_bool(props, "names", obs_module_text("Viewers.Names"));
+
+	obs_properties_add_bool(props, "show_twitch", obs_module_text("Source.ShowTwitch"));
+	obs_properties_add_bool(props, "show_youtube", obs_module_text("Source.ShowYouTube"));
+	obs_properties_add_bool(props, "show_kick", obs_module_text("Source.ShowKick"));
+	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
+	obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background"));
+	obs_property_t *opacity =
+		obs_properties_add_int_slider(props, "opacity", obs_module_text("Source.Opacity"), 0, 100, 5);
+	obs_property_int_set_suffix(opacity, " %");
+
+	obs_properties_add_bool(props, "preview", obs_module_text("Viewers.Preview"));
+	obs_properties_add_int(props, "width", obs_module_text("Source.Width"), 50, 4096, 1);
+	obs_properties_add_int(props, "height", obs_module_text("Source.Height"), 30, 4096, 1);
 	return props;
 }
 
@@ -278,6 +399,15 @@ void register_overlay_source()
 	QObject::connect(&manager, &ChatManager::message, &manager,
 			 [](const QJsonObject &m) { sendAll(QJsonObject{{"type", "message"}, {"message", m}}); });
 	QObject::connect(&manager, &ChatManager::cleared, &manager, [] { sendAll(QJsonObject{{"type", "clear"}}); });
+	auto pushViewers = [] {
+		const QJsonObject payload = viewersPayload();
+		{
+			std::lock_guard<std::mutex> lock(sourcesMutex);
+			lastViewers = payload;
+		}
+		sendAll(payload, true);
+	};
+	QObject::connect(&manager, &ChatManager::stateChanged, &manager, pushViewers);
 
 	// La página puede recargarse (al cambiar el tamaño, al volver a la escena...):
 	// le reenviamos la configuración cada pocos segundos.
@@ -288,6 +418,7 @@ void register_overlay_source()
 		for (OverlaySource *s : sources)
 			sendConfig(s);
 	});
+	QObject::connect(heartbeat, &QTimer::timeout, &manager, pushViewers);
 	heartbeat->start();
 
 	obs_source_info info = {};
@@ -311,4 +442,12 @@ void register_overlay_source()
 	info.enum_active_sources = ov_enum_sources;
 	info.enum_all_sources = ov_enum_sources;
 	obs_register_source(&info);
+
+	obs_source_info viewers = info;
+	viewers.id = "multichat_viewers";
+	viewers.get_name = vw_get_name;
+	viewers.create = vw_create;
+	viewers.get_defaults = vw_defaults;
+	viewers.get_properties = vw_properties;
+	obs_register_source(&viewers);
 }
