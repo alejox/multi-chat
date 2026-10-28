@@ -41,10 +41,13 @@ private slots:
 		QVERIFY(v.videoFixed);
 		QCOMPARE(entry("https://youtu.be/dQw4w9WgXcQ").extra, QString("dQw4w9WgXcQ"));
 		QCOMPARE(entry("youtube.com/live/dQw4w9WgXcQ").extra, QString("dQw4w9WgXcQ"));
+		QCOMPARE(entry("tiktok:@Mi.Canal").key, QString("tiktok:@mi.canal"));
+		QCOMPARE(entry("tiktok:mi_canal").channel, QString("@mi_canal"));
+		QCOMPARE(entry("https://www.tiktok.com/@MiCanal/live").channel, QString("@micanal"));
 
 		SourceInfo s;
 		QString error;
-		for (const char *bad : {"canal", "facebook:x", "twitch:", ""})
+		for (const char *bad : {"canal", "facebook:x", "twitch:", "", "tiktok:mal nombre", "tiktok:@"})
 			QVERIFY2(!parseEntry(bad, s, error), bad);
 	}
 
@@ -128,6 +131,87 @@ private slots:
 		const QString live = fixture(3);
 		QCOMPARE(youtube::liveVideoFromPage(live), QString("dQw4w9WgXcQ"));
 		QVERIFY(youtube::liveVideoFromPage(fixture(4)).isEmpty());
+	}
+	void youtubeViewers()
+	{
+		QCOMPARE(youtube::viewersFromPage(fixture(5)), 1234);
+		QCOMPARE(youtube::viewersFromPage(fixture(6)), 1234);
+		QCOMPARE(youtube::viewersFromPage(fixture(7)), -1); // vídeo grabado
+		QCOMPARE(youtube::viewersFromPage("nada"), -1);
+	}
+
+	void tiktokFetchResult()
+	{
+		using tiktok::ProtoWriter;
+		const QByteArray user = ProtoWriter().bytes(3, "Ana 🌸").bytes(38, "ana.tok").data();
+		const QByteArray chatMsg = ProtoWriter()
+						   .bytes(2, user)
+						   .bytes(3, "hola desde TikTok")
+						   .bytes(18, ProtoWriter().varint(5, 1).data())
+						   .data();
+		const QByteArray gift = ProtoWriter()
+						.bytes(15, ProtoWriter().varint(11, 1).varint(12, 1).bytes(16, "Rosa").data())
+						.varint(5, 5)
+						.bytes(7, user)
+						.data();
+		const QByteArray giftEnd = gift + ProtoWriter().varint(9, 1).data();
+		auto event = [](const char *method, const QByteArray &payload) {
+			return ProtoWriter().bytes(1, method).bytes(2, payload).data();
+		};
+		const QByteArray data = ProtoWriter()
+						.bytes(1, event("WebcastChatMessage", chatMsg))
+						.bytes(1, event("WebcastGiftMessage", gift))
+						.bytes(1, event("WebcastGiftMessage", giftEnd))
+						.bytes(1, event("WebcastMemberMessage", "x"))
+						.bytes(5, "ext")
+						.bytes(7, ProtoWriter().bytes(1, "cursor").bytes(2, "c1").data())
+						.varint(9, 1)
+						.bytes(10, "wss://webcast/ws")
+						.data();
+
+		tiktok::FetchResult r = tiktok::parseFetchResult(data);
+		QCOMPARE(r.events.size(), 4);
+		QCOMPARE(r.internalExt, QString("ext"));
+		QCOMPARE(r.pushServer, QString("wss://webcast/ws"));
+		QVERIFY(r.needAck);
+		QCOMPARE(r.routeParams.size(), 1);
+		QCOMPARE(r.routeParams[0].first, QString("cursor"));
+
+		QJsonObject m = tiktok::toMessage(r.events[0], "@canal");
+		QCOMPARE(m["platform"].toString(), QString("tiktok"));
+		QCOMPARE(m["author"].toString(), QString::fromUtf8("Ana 🌸"));
+		QCOMPARE(m["parts"].toArray()[0].toObject()["text"].toString(), QString("hola desde TikTok"));
+		QCOMPARE(m["badges"].toArray(), QJsonArray({"moderator"}));
+		QVERIFY(tiktok::toMessage(r.events[1], "@canal").isEmpty()); // regalo en racha
+		QJsonObject g = tiktok::toMessage(r.events[2], "@canal");
+		QCOMPARE(g["kind"].toString(), QString("highlight"));
+		QVERIFY(g["system"].toString().contains(QString::fromUtf8("5× Rosa")));
+		QCOMPARE(g["amount"].toString(), QString::fromUtf8("5 💎"));
+		QVERIFY(tiktok::toMessage(r.events[3], "@canal").isEmpty());
+
+		// Datos truncados o basura: no debe colgarse ni salirse del búfer.
+		for (int cut = 0; cut < data.size(); ++cut)
+			tiktok::parseFetchResult(QByteArrayView(data).first(cut));
+		tiktok::parseFetchResult(QByteArray("\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff", 11));
+	}
+
+	void tiktokRoom()
+	{
+		QString room;
+		LiveResult r = tiktok::parseRoom(
+			QJsonDocument::fromJson("{\"data\":{\"user\":{\"roomId\":\"7311\"},\"liveRoom\":{\"status\":2,"
+						"\"liveRoomStats\":{\"userCount\":321}}}}")
+				.object(),
+			room);
+		QCOMPARE(room, QString("7311"));
+		QCOMPARE(r.live, 1);
+		QCOMPARE(r.viewers, 321);
+		r = tiktok::parseRoom(QJsonDocument::fromJson("{\"data\":{\"user\":{\"roomId\":\"7311\"},"
+							      "\"liveRoom\":{\"status\":4}}}")
+					      .object(),
+				      room);
+		QCOMPARE(r.live, 0);
+		QCOMPARE(r.viewers, -1);
 	}
 };
 

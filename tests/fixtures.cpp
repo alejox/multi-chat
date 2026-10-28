@@ -14,6 +14,9 @@ const char *fixture(int index)
 		R"js({"continuations":[{"timedContinuationData":{"continuation":"abc","timeoutMs":4000}}]})js",
 		R"js(<link rel="canonical" href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"> "isLiveNow":true)js",
 		R"js(<link rel="canonical" href="https://www.youtube.com/@x">)js",
+		R"js("viewCount":{"videoViewCountRenderer":{"viewCount":{"runs":[{"text":"1.234"},{"text":" watching now"}]},"isLive":true,"originalViewCount":"1234"}})js",
+		R"js("videoViewCountRenderer":{"viewCount":{"runs":[{"text":"1,234"},{"text":" personas viendo"}]},"isLive":true})js",
+		R"js("videoViewCountRenderer":{"viewCount":{"simpleText":"98.765 visualizaciones"},"originalViewCount":"98765"})js",
 	};
 	return fixtures[index];
 }

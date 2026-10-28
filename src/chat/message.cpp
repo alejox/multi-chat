@@ -47,6 +47,8 @@ QString platformName(const QString &platform)
 		return QStringLiteral("YouTube");
 	if (platform == "kick")
 		return QStringLiteral("Kick");
+	if (platform == "tiktok")
+		return QStringLiteral("TikTok");
 	if (platform == "demo")
 		return QStringLiteral("Demo");
 	return platform;

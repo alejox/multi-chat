@@ -2,6 +2,7 @@
 
 #include <obs-module.h>
 
+#include <QLocale>
 #include <QPainter>
 #include <QPainterPath>
 
@@ -12,6 +13,16 @@ QString T(const char *key)
 	return QString::fromUtf8(obs_module_text(key));
 }
 
+QString formatCount(int count)
+{
+	QLocale locale;
+	if (count < 1000)
+		return locale.toString(count);
+	if (count < 1000000)
+		return locale.toString(count / 1000.0, 'f', count < 10000 ? 1 : 0) + QStringLiteral(" K");
+	return locale.toString(count / 1000000.0, 'f', 1) + QStringLiteral(" M");
+}
+
 QColor platformColor(const QString &platform)
 {
 	if (platform == "twitch")
@@ -20,6 +31,8 @@ QColor platformColor(const QString &platform)
 		return QColor(0xFF, 0x00, 0x33);
 	if (platform == "kick")
 		return QColor(0x53, 0xFC, 0x18);
+	if (platform == "tiktok")
+		return QColor(0xFE, 0x2C, 0x55);
 	return QColor(0x88, 0x88, 0x88);
 }
 
@@ -90,6 +103,27 @@ QPixmap platformIcon(const QString &platform, int size, qreal dpr)
 		k.closeSubpath();
 		p.setBrush(QColor(0x0b, 0x0b, 0x0b));
 		p.drawPath(k);
+	} else if (platform == "tiktok") {
+		p.setBrush(QColor(0x0b, 0x0b, 0x0b));
+		p.drawRoundedRect(QRectF(1, 1, 22, 22), 5, 5);
+		// La nota musical en cian y rosa desplazados, y blanca encima.
+		QPainterPath note;
+		note.moveTo(12.2, 5);
+		note.lineTo(14.4, 5);
+		note.cubicTo(14.8, 7.3, 16.6, 8.6, 18.6, 8.7);
+		note.lineTo(18.6, 11);
+		note.cubicTo(17, 11, 15.5, 10.4, 14.4, 9.4);
+		note.lineTo(14.4, 15.5);
+		note.arcTo(QRectF(5.8, 11.2, 8.6, 8.6), 0, -270);
+		note.lineTo(10.1, 13.4);
+		note.arcTo(QRectF(8, 13.4, 4.2, 4.2), 90, 270);
+		note.closeSubpath();
+		p.setBrush(QColor(0x25, 0xF4, 0xEE));
+		p.drawPath(note.translated(-0.8, -0.8));
+		p.setBrush(platformColor(platform));
+		p.drawPath(note.translated(0.8, 0.8));
+		p.setBrush(Qt::white);
+		p.drawPath(note);
 	} else {
 		p.setBrush(platformColor(platform));
 		p.drawEllipse(QRectF(2, 2, 20, 20));

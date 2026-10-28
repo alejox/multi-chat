@@ -76,22 +76,30 @@ QStringList badges(const QJsonObject &renderer)
 	return out;
 }
 
-QString findLiveVideo(const QString &channel)
+QString findLiveVideo(const QString &channel, int *viewers = nullptr)
 {
 	net::Response res = net::get((channelUrl(channel) + "/live").toStdString(), kCookies);
 	if (!res.ok())
 		throw ChatError(
 			QStringLiteral("YouTube respondió %1")
 				.arg(res.status ? QString::number(res.status) : QString::fromStdString(res.error)));
-	return liveVideoFromPage(QString::fromUtf8(res.body));
+	const QString html = QString::fromUtf8(res.body);
+	const QString video = liveVideoFromPage(html);
+	if (viewers && !video.isEmpty())
+		*viewers = viewersFromPage(html);
+	return video;
 }
 
-bool videoIsLive(const QString &videoId)
+bool videoIsLive(const QString &videoId, int &viewers)
 {
 	net::Response res = net::get(("https://www.youtube.com/watch?v=" + videoId).toStdString(), kCookies);
 	if (!res.ok())
 		throw ChatError("no se pudo abrir el vídeo de YouTube");
-	return QString::fromUtf8(res.body).contains("\"isLiveNow\":true");
+	const QString html = QString::fromUtf8(res.body);
+	if (!html.contains("\"isLiveNow\":true"))
+		return false;
+	viewers = viewersFromPage(html);
+	return true;
 }
 
 QString capture(const QString &text, const char *pattern)
@@ -117,6 +125,33 @@ QString liveVideoFromPage(const QString &html)
 	if (m.hasMatch() && html.contains("\"isLiveNow\":true"))
 		return m.captured(1);
 	return {};
+}
+
+int viewersFromPage(const QString &html)
+{
+	// En un directo, videoViewCountRenderer lleva "isLive":true y los que lo ven ahora:
+	// "originalViewCount":"1234" o, si falta, el texto "1.234 personas viendo".
+	const qsizetype at = html.indexOf(QStringLiteral("\"videoViewCountRenderer\":"));
+	if (at < 0)
+		return -1;
+	const QString block = html.mid(at, 1000);
+	if (!block.contains(QStringLiteral("\"isLive\":true")))
+		return -1;
+	static const QRegularExpression original(QStringLiteral("\"originalViewCount\":\"(\\d+)\""));
+	QRegularExpressionMatch m = original.match(block);
+	if (m.hasMatch())
+		return m.captured(1).toInt();
+	static const QRegularExpression text(QStringLiteral("\"(?:text|simpleText)\":\"([\\d.,\\s\u00a0\u202f]+)"));
+	m = text.match(block);
+	if (!m.hasMatch())
+		return -1;
+	QString digits;
+	for (QChar c : m.captured(1))
+		if (c.isDigit())
+			digits += c;
+	bool ok = false;
+	const int n = digits.toInt(&ok);
+	return ok ? n : -1;
 }
 
 QJsonObject toMessage(const QJsonObject &action, const QString &channel)
@@ -168,10 +203,10 @@ LiveResult checkLive(const SourceInfo &s)
 	LiveResult r;
 	try {
 		if (s.videoFixed) {
-			r.live = videoIsLive(s.extra) ? 1 : 0;
+			r.live = videoIsLive(s.extra, r.viewers) ? 1 : 0;
 			r.videoId = s.extra;
 		} else {
-			r.videoId = findLiveVideo(s.channel);
+			r.videoId = findLiveVideo(s.channel, &r.viewers);
 			r.live = r.videoId.isEmpty() ? 0 : 1;
 		}
 	} catch (const std::exception &) {
