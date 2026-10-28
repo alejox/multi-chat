@@ -85,12 +85,11 @@ jobs:
         run: |
           cmake --install build_x64 --prefix release --config RelWithDebInfo
           # Con la forma de OBS 33 (C:\ProgramData\obs-studio\plugins\obs-multichat): el .dll en
-          # la carpeta del plugin y los datos en su carpeta data. Junto a ella, el instalador.
+          # la carpeta del plugin y los datos en su carpeta data.
           $built = "release/obs-multichat"
           New-Item -ItemType Directory -Force package/obs-multichat | Out-Null
           Copy-Item "$built/bin/64bit/obs-multichat.dll" package/obs-multichat/
           Copy-Item "$built/data" package/obs-multichat/data -Recurse
-          Copy-Item "packaging/windows/Instalar Multichat.bat" package/
           Get-ChildItem -Recurse package | Select-Object -ExpandProperty FullName
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path package/* -DestinationPath "dist/obs-multichat-${{ steps.version.outputs.v }}-windows-x64.zip"
@@ -99,7 +98,7 @@ jobs:
           $zip = Get-Item "dist/obs-multichat-*-windows-x64.zip"
           $dir = Join-Path $env:RUNNER_TEMP $zip.BaseName
           Expand-Archive $zip.FullName -DestinationPath $dir
-          foreach ($file in 'Instalar Multichat.bat', 'obs-multichat\obs-multichat.dll', 'obs-multichat\data\manifest.json',
+          foreach ($file in 'obs-multichat\obs-multichat.dll', 'obs-multichat\data\manifest.json',
                             'obs-multichat\data\overlay\index.html', 'obs-multichat\data\overlay\viewers.html',
                             'obs-multichat\data\overlay\icons.js', 'obs-multichat\data\overlay\clock.html',
                             'obs-multichat\data\overlay\styles.css',

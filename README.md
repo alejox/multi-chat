@@ -39,15 +39,9 @@ Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y 
 
 Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**, una carpeta por plugin (ya no dentro de `C:\Program Files\obs-studio`).
 
-1. Descarga `obs-multichat-<versión>-windows-x64.zip` y descomprímelo (clic derecho → **Extraer todo**). Quedan la carpeta `obs-multichat` y el archivo `Instalar Multichat.bat`.
-2. Haz doble clic en **`Instalar Multichat.bat`** y acepta el permiso de administrador. Copia el plugin a `C:\ProgramData\obs-studio\plugins\obs-multichat` y borra la copia antigua de `C:\Program Files\obs-studio`, si la había.
-3. Abre OBS.
-
-<details>
-<summary>Instalarlo a mano</summary>
-
-1. Abre `C:\ProgramData\obs-studio\plugins` (escríbelo en la barra del Explorador; `ProgramData` es una carpeta oculta). Si no existe la carpeta `plugins`, créala.
-2. Copia ahí la carpeta `obs-multichat` del zip. Debe quedar así:
+1. Descarga `obs-multichat-<versión>-windows-x64.zip` y descomprímelo (clic derecho → **Extraer todo**). Queda la carpeta `obs-multichat`.
+2. Abre `C:\ProgramData\obs-studio\plugins` (escríbelo en la barra del Explorador; `ProgramData` es una carpeta oculta). Si no existe la carpeta `plugins`, créala.
+3. Copia ahí la carpeta `obs-multichat` (si ya estaba, reemplázala) y acepta el permiso de administrador. Debe quedar así:
 
    ```
    C:\ProgramData\obs-studio\plugins\obs-multichat\
@@ -58,8 +52,8 @@ Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**,
        └── overlay\
    ```
 
-3. Si instalaste una versión anterior en `C:\Program Files\obs-studio`, borra `obs-plugins\64bit\obs-multichat.dll` y la carpeta `data\obs-plugins\obs-multichat`: OBS 33 la marca como *Legacy* y OBS 34 ya no la carga.
-</details>
+4. Si instalaste una versión anterior en `C:\Program Files\obs-studio`, borra `obs-plugins\64bit\obs-multichat.dll` y la carpeta `data\obs-plugins\obs-multichat`: OBS 33 la marca como *Legacy* y OBS 34 ya no la carga.
+5. Abre OBS.
 
 ### macOS
 
@@ -71,7 +65,7 @@ Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**,
 ### Comprobar y actualizar
 
 - En **Herramientas → Gestor de plugins** (OBS 33) aparece **Multichat** con su versión.
-- Cuando hay una versión nueva, el dock **Multichat** muestra un aviso con el botón **Descargar**. Instálala igual que la primera vez (en Windows, con `Instalar Multichat.bat`).
+- Cuando hay una versión nueva, el dock **Multichat** muestra un aviso con el botón **Descargar**. Instálala igual que la primera vez, reemplazando la carpeta del plugin.
 
 ## 🎛️ Usarlo
 
@@ -130,7 +124,6 @@ src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, 
 src/net/                   red del sistema: WinHTTP (Windows) y NSURLSession (macOS)
 src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
 src/update-checker.*       aviso de versión nueva (Releases de GitHub)
-packaging/windows/         instalador de Windows (Instalar Multichat.bat)
 data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
 ```
