@@ -5,13 +5,15 @@
 <title>Multichat · espectadores</title>
 <!-- La fuente "Multichat (espectadores)" carga esta página y le manda con el evento
      "multichat" (javascript_event de obs-browser):
-       {type: "config", config: {...}} · {type: "viewers", sources: [{platform, channel, live, viewers}]} -->
+       {type: "config", config: {...}} · {type: "viewers", items: [{platform, key, name, viewers}], total}
+     El plugin elige los canales y da a la fuente el tamaño aproximado del recuadro; aquí se
+     escala el recuadro para que la llene justo. -->
 <style>
   :root { --fs: 28px; --bg-alpha: .6; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
   body { color: #fff; font: 700 var(--fs)/1.2 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
     text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; font-variant-numeric: tabular-nums; }
-  #box { position: absolute; top: 0; left: 0; display: inline-flex; align-items: center; gap: .3em .9em;
+  #box { position: absolute; top: 0; left: 0; transform-origin: 0 0; display: inline-flex; align-items: center; gap: .3em .9em;
     padding: .35em .6em; border-radius: .45em; transition: opacity .4s; }
   body.column #box { flex-direction: column; align-items: flex-start; }
   body.bg #box { background: rgba(0, 0, 0, var(--bg-alpha)); text-shadow: none; }
@@ -32,25 +34,18 @@
 <script>
 const EYE = '<svg class="eye" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3.3" fill="#fff"/></svg>';
 
-let config = { size: 28, layout: 'row', total: true, names: false, background: true, opacity: 60,
-  platforms: ['twitch', 'youtube', 'kick', 'tiktok'], preview: true, streaming: false };
-let sources = [];
+let config = { size: 28, layout: 'row', names: false, background: true, opacity: 60 };
+let items = [];
+let total = -1;
 const box = document.getElementById('box');
-const compact = new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 });
-const plain = new Intl.NumberFormat();
 
+// Igual que formatViewers() del plugin: 1.234 · 12.5K · 1.2M
 function format(n) {
   if (n < 0) return '—';
-  return n < 10000 ? plain.format(n) : compact.format(n);
+  if (n < 10000) return n.toLocaleString();
+  if (n < 1e6) return (n / 1000).toFixed(n < 100000 ? 1 : 0).replace(/\.0$/, '') + 'K';
+  return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
 }
-
-// Para colocar la fuente sin estar en directo.
-const SAMPLE = [
-  { platform: 'twitch', channel: 'micanal', live: 1, viewers: 1234 },
-  { platform: 'youtube', channel: '@micanal', live: 1, viewers: 856 },
-  { platform: 'kick', channel: 'micanal', live: 1, viewers: 312 },
-  { platform: 'tiktok', channel: '@micanal', live: 1, viewers: 2045 },
-];
 
 // Los números cambian con una pequeña animación en lugar de saltar.
 const shown = new Map();
@@ -85,26 +80,35 @@ function item(icon, key, viewers, name) {
   return row;
 }
 
+// El recuadro llena la fuente: se escala a lo que permita el ancho o el alto.
+function fit() {
+  box.style.transform = '';
+  const w = box.offsetWidth, h = box.offsetHeight;
+  if (!w || !h) return;
+  box.style.transform = `scale(${Math.min(innerWidth / w, innerHeight / h)})`;
+}
+addEventListener('resize', fit);
+
+let lastRender = '';
 function render() {
-  let live = sources.filter(s => s.live === 1 && s.platform !== 'demo' && config.platforms.includes(s.platform));
-  if (!live.length && config.preview && !config.streaming)
-    live = SAMPLE.filter(s => config.platforms.includes(s.platform));
+  // El plugin reenvía lo mismo cada pocos segundos: solo se rehace si algo cambió.
+  const key = JSON.stringify([items, total, config]);
+  if (key === lastRender) return;
+  lastRender = key;
   box.textContent = '';
-  for (const s of live)
-    box.appendChild(item(ICONS[s.platform] || '', s.platform + ':' + s.channel, s.viewers, s.channel));
-  const known = live.filter(s => s.viewers >= 0);
-  if (config.total && live.length > 1 && known.length) {
-    const total = item(EYE, 'total', known.reduce((sum, s) => sum + s.viewers, 0));
-    total.classList.add('total');
-    box.appendChild(total);
+  for (const s of items)
+    box.appendChild(item(ICONS[s.platform] || '', s.key, s.viewers, s.name));
+  if (total >= 0) {
+    const t = item(EYE, 'total', total);
+    t.classList.add('total');
+    box.appendChild(t);
   }
-  document.body.classList.toggle('empty', !live.length);
+  document.body.classList.toggle('empty', !items.length);
+  fit();
 }
 
 function applyConfig(c) {
-  const before = JSON.stringify(config);
   config = { ...config, ...c };
-  if (JSON.stringify(config) === before && box.childElementCount) return; // el reenvío periódico
   document.documentElement.style.setProperty('--fs', config.size + 'px');
   document.documentElement.style.setProperty('--bg-alpha', String(config.opacity / 100));
   document.body.classList.toggle('bg', !!config.background);
@@ -117,7 +121,8 @@ window.addEventListener('multichat', e => {
   const data = e.detail || {};
   if (data.type === 'config') applyConfig(data.config || {});
   else if (data.type === 'viewers') {
-    sources = data.sources || [];
+    items = data.items || [];
+    total = typeof data.total === 'number' ? data.total : -1;
     render();
   }
 });

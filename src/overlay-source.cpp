@@ -9,10 +9,15 @@
 #include <plugin-support.h>
 
 #include <QFileInfo>
+#include <QFont>
+#include <QFontMetricsF>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocale>
 #include <QObject>
+#include <QRegularExpression>
+#include <QSize>
 #include <QTimer>
 
 #include <algorithm>
@@ -30,8 +35,10 @@ struct OverlaySource {
 	obs_source_t *self = nullptr;
 	obs_source_t *browser = nullptr;
 	QJsonObject config;
-	uint32_t width = 500;
-	uint32_t height = 600;
+	// El hilo de gráficos los lee (get_width/get_height) mientras la interfaz los cambia.
+	std::atomic<uint32_t> width{500};
+	std::atomic<uint32_t> height{600};
+	bool sized = false; // la de espectadores ya tomó el tamaño de su recuadro
 };
 
 // OBS puede crear y destruir fuentes desde otros hilos: el acceso a la lista va con candado.
@@ -53,8 +60,8 @@ void send(OverlaySource *s, const QJsonObject &payload)
 	calldata_free(&cd);
 }
 
-// Últimos espectadores enviados: los recibe al momento una fuente nueva.
-QJsonObject lastViewers;
+// Últimos canales conocidos (live y espectadores), para las fuentes de espectadores.
+QJsonArray lastSources;
 
 void sendAll(const QJsonObject &payload, bool viewers = false)
 {
@@ -64,17 +71,140 @@ void sendAll(const QJsonObject &payload, bool viewers = false)
 			send(s, payload);
 }
 
-QJsonObject viewersPayload()
+// ---- Fuente de espectadores ----
+
+struct ViewerItem {
+	QString platform, name;
+	int viewers = -1;
+};
+
+// Canales que muestra una fuente de espectadores: los que están en vivo o, para colocarla
+// sin estar en directo, unos de ejemplo.
+QList<ViewerItem> viewerItems(const OverlaySource *s)
+{
+	const QJsonArray platforms = s->config.value("platforms").toArray();
+	QList<ViewerItem> items;
+	for (const QJsonValue v : lastSources) {
+		const QJsonObject src = v.toObject();
+		const QString platform = src.value("platform").toString();
+		if (src.value("live").toInt() == 1 && platform != "demo" && platforms.contains(platform))
+			items.append({platform, src.value("channel").toString(), src.value("viewers").toInt(-1)});
+	}
+	if (items.isEmpty() && s->config.value("preview").toBool() && !streaming) {
+		const ViewerItem samples[] = {{"twitch", "micanal", 1234},
+					      {"youtube", "@micanal", 856},
+					      {"kick", "micanal", 312},
+					      {"tiktok", "@micanal", 2045}};
+		for (const ViewerItem &sample : samples)
+			if (platforms.contains(sample.platform))
+				items.append(sample);
+	}
+	return items;
+}
+
+// El total se muestra si hay más de un canal y al menos uno con espectadores conocidos.
+int viewerTotal(const OverlaySource *s, const QList<ViewerItem> &items)
+{
+	if (!s->config.value("total").toBool() || items.size() < 2)
+		return -1;
+	int total = -1;
+	for (const ViewerItem &item : items)
+		if (item.viewers >= 0)
+			total = std::max(total, 0) + item.viewers;
+	return total;
+}
+
+// Mismo formato que viewers.html: 1.234 · 12.5K · 1.2M
+QString formatViewers(int n)
+{
+	if (n < 0)
+		return QStringLiteral("—");
+	if (n < 10000)
+		return QLocale().toString(n);
+	if (n < 1000000)
+		return QString::number(n / 1000.0, 'f', n < 100000 ? 1 : 0).remove(QRegularExpression("\\.0$")) + 'K';
+	return QString::number(n / 1000000.0, 'f', 1).remove(QRegularExpression("\\.0$")) + 'M';
+}
+
+// Tamaño del recuadro con las medidas de viewers.html (en em = tamaño de letra). La página
+// luego escala el recuadro para que llene la fuente justo, así que basta con aproximarlo.
+QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int total)
+{
+	const double em = std::max(1, s->config.value("size").toInt(28));
+	QFont font;
+	font.setFamilies({"Segoe UI", ".AppleSystemUIFont", "Helvetica Neue", "Roboto"});
+	font.setPixelSize(int(em));
+	font.setWeight(QFont::Bold);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+	font.setFeature(QFont::Tag("tnum"), 1); // cifras de ancho fijo, como font-variant-numeric
+#endif
+	QFont small = font;
+	small.setPixelSize(std::max(1, int(em * 0.6)));
+	small.setWeight(QFont::DemiBold);
+	const QFontMetricsF big(font), little(small);
+	const bool names = s->config.value("names").toBool();
+	const bool column = s->config.value("layout").toString() == "column";
+
+	QList<double> widths;
+	for (const ViewerItem &item : items)
+		widths << em * 1.45 + big.horizontalAdvance(formatViewers(item.viewers)) +
+				  (names ? em * 0.35 + little.horizontalAdvance(item.name) : 0);
+	const double totalWidth = total >= 0 ? em * 1.45 + big.horizontalAdvance(formatViewers(total)) : 0;
+
+	double w, h;
+	if (column) {
+		w = totalWidth;
+		for (double x : widths)
+			w = std::max(w, x);
+		w += em * 1.2;
+		h = em * 0.7 + double(items.size()) * em * 1.2 + double(items.size() - 1) * em * 0.3;
+		if (total >= 0)
+			h += em * 1.75 + 2;
+	} else {
+		w = em * 1.2 + em * 0.9 * double(items.size() - 1);
+		for (double x : widths)
+			w += x;
+		if (total >= 0)
+			w += em * 1.8 + 2 + totalWidth;
+		h = em * 1.9;
+	}
+	return QSize(std::min(4096, int(std::ceil(w))), std::min(4096, int(std::ceil(h))));
+}
+
+QJsonObject viewersPayload(const QList<ViewerItem> &items, int total)
 {
 	QJsonArray list;
-	for (const QJsonValue v : ChatManager::instance().state().value("sources").toArray()) {
-		const QJsonObject src = v.toObject();
-		list.append(QJsonObject{{"platform", src.value("platform")},
-					{"channel", src.value("channel")},
-					{"live", src.value("live")},
-					{"viewers", src.value("viewers")}});
+	for (const ViewerItem &item : items)
+		list.append(QJsonObject{{"platform", item.platform},
+					{"key", item.platform + ':' + item.name},
+					{"name", item.name},
+					{"viewers", item.viewers}});
+	return QJsonObject{{"type", "viewers"}, {"items", list}, {"total", total}};
+}
+
+void resizeBrowser(OverlaySource *s);
+
+// Manda los espectadores a la página y ajusta la fuente al tamaño del recuadro.
+// Si no hay nada que mostrar se queda con el tamaño anterior para no saltar.
+void refreshViewers(OverlaySource *s)
+{
+	const QList<ViewerItem> items = viewerItems(s);
+	const int total = viewerTotal(s, items);
+	// Sin nada que mostrar la primera vez, el tamaño de cuatro canales de ejemplo.
+	const QList<ViewerItem> measured =
+		!items.isEmpty() || s->sized ? items
+					     : QList<ViewerItem>{{"twitch", "micanal", 1234}, {"youtube", "@micanal", 856},
+								 {"kick", "micanal", 312}, {"tiktok", "@micanal", 2045}};
+	if (!measured.isEmpty()) {
+		s->sized = true;
+		const QSize size = viewerBoxSize(s, measured, items.isEmpty() ? viewerTotal(s, measured) : total);
+		if (uint32_t(size.width()) != s->width || uint32_t(size.height()) != s->height) {
+			s->width = uint32_t(size.width());
+			s->height = uint32_t(size.height());
+			resizeBrowser(s);
+		}
 	}
-	return QJsonObject{{"type", "viewers"}, {"sources", list}};
+	send(s, viewersPayload(items, total));
 }
 
 void sendConfig(OverlaySource *s)
@@ -103,10 +233,21 @@ obs_data_t *browserSettings(const OverlaySource *s)
 	return bs;
 }
 
+void resizeBrowser(OverlaySource *s)
+{
+	if (!s->browser)
+		return;
+	obs_data_t *bs = browserSettings(s);
+	obs_source_update(s->browser, bs);
+	obs_data_release(bs);
+}
+
 void readSettings(OverlaySource *s, obs_data_t *settings)
 {
-	s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
-	s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
+	if (!s->viewers) { // la de espectadores calcula su tamaño sola
+		s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
+		s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
+	}
 	QJsonArray platforms;
 	for (const char *p : {"twitch", "youtube", "kick", "tiktok"})
 		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
@@ -166,8 +307,8 @@ void *create(obs_data_t *settings, obs_source_t *source, bool viewers)
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	sources.insert(s);
 	sendConfig(s);
-	if (viewers && !lastViewers.isEmpty())
-		send(s, lastViewers);
+	if (viewers)
+		refreshViewers(s);
 	return s;
 }
 
@@ -197,12 +338,10 @@ void ov_update(void *data, obs_data_t *settings)
 	auto *s = static_cast<OverlaySource *>(data);
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	readSettings(s, settings);
-	if (s->browser) {
-		obs_data_t *bs = browserSettings(s);
-		obs_source_update(s->browser, bs);
-		obs_data_release(bs);
-	}
+	resizeBrowser(s);
 	sendConfig(s);
+	if (s->viewers)
+		refreshViewers(s);
 }
 
 void ov_defaults(obs_data_t *settings)
@@ -230,8 +369,6 @@ void ov_defaults(obs_data_t *settings)
 
 void vw_defaults(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, "width", 800);
-	obs_data_set_default_int(settings, "height", 80);
 	obs_data_set_default_int(settings, "font_size", 28);
 	obs_data_set_default_string(settings, "layout", "row");
 	obs_data_set_default_bool(settings, "total", true);
@@ -325,10 +462,10 @@ obs_properties_t *ov_properties(void *)
 		obs_properties_add_int_slider(props, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
 	obs_property_int_set_suffix(speed, " px/s");
 	obs_property_t *spacing =
-		obs_properties_add_int_slider(props, "spacing", obs_module_text("Source.Spacing"), 0, 60, 1);
+		obs_properties_add_int_slider(props, "spacing", obs_module_text("Source.Spacing"), -40, 60, 1);
 	obs_property_int_set_suffix(spacing, " px");
 	obs_property_t *hspacing =
-		obs_properties_add_int_slider(props, "hspacing", obs_module_text("Source.Spacing"), 0, 400, 2);
+		obs_properties_add_int_slider(props, "hspacing", obs_module_text("Source.Spacing"), -200, 400, 2);
 	obs_property_int_set_suffix(hspacing, " px");
 
 	obs_property_t *size =
@@ -389,8 +526,6 @@ obs_properties_t *vw_properties(void *)
 	obs_property_int_set_suffix(opacity, " %");
 
 	obs_properties_add_bool(props, "preview", obs_module_text("Viewers.Preview"));
-	obs_properties_add_int(props, "width", obs_module_text("Source.Width"), 50, 4096, 1);
-	obs_properties_add_int(props, "height", obs_module_text("Source.Height"), 30, 4096, 1);
 	return props;
 }
 
@@ -453,8 +588,11 @@ void overlay_set_streaming(bool active)
 {
 	streaming = active;
 	std::lock_guard<std::mutex> lock(sourcesMutex);
-	for (OverlaySource *s : sources)
+	for (OverlaySource *s : sources) {
 		sendConfig(s);
+		if (s->viewers)
+			refreshViewers(s); // al transmitir se quitan los números de ejemplo
+	}
 }
 
 void register_overlay_source()
@@ -464,12 +602,12 @@ void register_overlay_source()
 			 [](const QJsonObject &m) { sendAll(QJsonObject{{"type", "message"}, {"message", m}}); });
 	QObject::connect(&manager, &ChatManager::cleared, &manager, [] { sendAll(QJsonObject{{"type", "clear"}}); });
 	auto pushViewers = [] {
-		const QJsonObject payload = viewersPayload();
-		{
-			std::lock_guard<std::mutex> lock(sourcesMutex);
-			lastViewers = payload;
-		}
-		sendAll(payload, true);
+		const QJsonArray list = ChatManager::instance().state().value("sources").toArray();
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		lastSources = list;
+		for (OverlaySource *s : sources)
+			if (s->viewers)
+				refreshViewers(s);
 	};
 	QObject::connect(&manager, &ChatManager::stateChanged, &manager, pushViewers);
 
