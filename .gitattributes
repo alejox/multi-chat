@@ -1,2 +1,0 @@
-# El instalador de Windows necesita finales de línea CRLF.
-*.bat text eol=crlf

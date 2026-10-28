@@ -2,7 +2,7 @@
     "id": "com.alejoxgaming.obs-multichat",
     "name": "obs-multichat",
     "display_name": "Multichat",
-    "version": "2.0.2",
+    "version": "2.0.3",
     "description": "Los chats de Twitch, YouTube, Kick y TikTok juntos en un dock y en tu escena, con espectadores y fecha y hora.",
     "long_description": "Detecta en qué plataformas estás en vivo, une sus chats en un dock y en una fuente para la escena (vertical o en cinta horizontal), muestra los espectadores de cada canal y avisa cuando hay una versión nueva.",
     "urls": {
