@@ -51,15 +51,40 @@ function format(n) {
 
 // Los números cambian con una pequeña animación en lugar de saltar.
 const shown = new Map();
+// Cambios de número pendientes de animar: render() los arranca cuando ya están en la página.
+let pending = [];
 function animate(node, key, target) {
   const from = shown.has(key) ? shown.get(key) : target;
   shown.set(key, target);
-  if (from < 0 || target < 0 || from === target) { node.textContent = format(target); return; }
+  node.textContent = format(target);
+  if (from >= 0 && target >= 0 && from !== target)
+    pending.push({ node, from, target });
+}
+
+// Cada número reserva el ancho más largo que tendrá mientras cuenta antes de medir el
+// recuadro (fit), así nunca se sale de la fuente mientras cuenta. Al terminar se vuelve a ajustar.
+function startAnimations() {
+  const anims = pending;
+  pending = [];
+  for (const a of anims) {
+    // Los valores intermedios pueden ser más anchos que los extremos (102 → 617.3K → 1.2M).
+    let widest = 0;
+    for (let i = 20; i >= 0; i--) {
+      a.node.textContent = format(Math.round(a.from + (a.target - a.from) * (i / 20)));
+      widest = Math.max(widest, a.node.offsetWidth);
+    }
+    a.node.style.minWidth = widest + 'px';
+  }
+  fit();
+  if (!anims.length) return;
   const start = performance.now();
   const step = now => {
     const t = Math.min(1, (now - start) / 800);
-    node.textContent = format(Math.round(from + (target - from) * (1 - Math.pow(1 - t, 3))));
-    if (t < 1) requestAnimationFrame(step);
+    const ease = 1 - Math.pow(1 - t, 3);
+    for (const a of anims) a.node.textContent = format(Math.round(a.from + (a.target - a.from) * ease));
+    if (t < 1) return requestAnimationFrame(step);
+    for (const a of anims) a.node.style.minWidth = '';
+    fit();
   };
   requestAnimationFrame(step);
 }
@@ -106,7 +131,7 @@ function render() {
     box.appendChild(t);
   }
   document.body.classList.toggle('empty', !items.length);
-  fit();
+  startAnimations();
 }
 
 function applyConfig(c) {
