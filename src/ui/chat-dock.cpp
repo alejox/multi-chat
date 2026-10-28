@@ -4,6 +4,7 @@
 #include "ui-common.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
+#include "../update-checker.hpp"
 
 #include <obs-module.h>
 
@@ -283,6 +284,33 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	bannerLayout->addStretch(1);
 	banner_->hide();
 	root->addWidget(banner_);
+
+	// Aviso de versión nueva en las Releases de GitHub.
+	auto *update = new QWidget(this);
+	update->setObjectName("multichatUpdate");
+	update->setAttribute(Qt::WA_StyledBackground);
+	update->setStyleSheet("#multichatUpdate { background-color: rgba(62, 207, 110, 60); border-radius: 4px; }");
+	auto *updateLayout = new QHBoxLayout(update);
+	updateLayout->setContentsMargins(6, 3, 3, 3);
+	auto *updateText = new QLabel(update);
+	updateText->setWordWrap(true);
+	auto *download = new QPushButton(ui::T("Update.Download"), update);
+	updateLayout->addWidget(updateText, 1);
+	updateLayout->addWidget(download);
+	update->hide();
+	root->addWidget(update);
+	auto showUpdate = [update, updateText, download](const chat::Release &release) {
+		if (release.version.isEmpty())
+			return;
+		updateText->setText(ui::T("Update.Available").arg(release.version));
+		disconnect(download, nullptr, nullptr, nullptr);
+		connect(download, &QPushButton::clicked, download, [release] {
+			QDesktopServices::openUrl(QUrl(release.url));
+		});
+		update->show();
+	};
+	connect(&UpdateChecker::instance(), &UpdateChecker::updateAvailable, this, showUpdate);
+	showUpdate(UpdateChecker::instance().available());
 
 	chips_ = new QWidget(this);
 	chipsLayout_ = new FlowLayout(chips_, 4);

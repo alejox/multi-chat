@@ -1,12 +1,14 @@
 name: Publicar versión
 
-# Para publicar: sube "version" en buildspec.json, haz commit y empuja un tag con esa versión:
-#   git tag v2.0.0 && git push origin v2.0.0
-# o lanza este flujo a mano (Actions → Publicar versión → Run workflow) en la rama que quieras
-# publicar: crea el tag v<version de buildspec.json> sobre ese commit.
-# Compila el plugin y adjunta los zips de Windows y macOS a la Release del tag.
+# Publica una Release con los zips de Windows y macOS. Se lanza:
+#   - solo, al subir a main un cambio de "version" en buildspec.json (si ese tag aún no existe);
+#   - al empujar un tag v<version>:  git tag v2.0.2 && git push origin v2.0.2
+#   - a mano: Actions → Publicar versión → Run workflow (sobre la rama elegida).
+# En los tres casos el tag es v<version de buildspec.json>; si ya existe, no se publica nada.
 on:
   push:
+    branches: [main]
+    paths: [buildspec.json]
     tags: ['v*']
   workflow_dispatch:
 
@@ -14,24 +16,38 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    uses: ./.github/workflows/build.yml
-
-  publish:
-    needs: build
+  prepare:
     runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.tag.outputs.name }}
+      publish: ${{ steps.tag.outputs.publish }}
     steps:
       - uses: actions/checkout@v5
-      - name: El tag coincide con buildspec.json
+      - name: Versión y tag
         id: tag
         run: |
           v="v$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")"
+          echo "name=$v" >> "$GITHUB_OUTPUT"
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             [ "$v" = "$GITHUB_REF_NAME" ] || { echo "El tag es $GITHUB_REF_NAME pero buildspec.json dice $v"; exit 1; }
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           elif git ls-remote --exit-code --tags origin "refs/tags/$v" >/dev/null; then
-            echo "Ya existe el tag $v: sube la versión en buildspec.json"; exit 1
+            echo "Ya existe el tag $v: no se publica nada (sube la versión en buildspec.json)."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "name=$v" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -39,7 +55,7 @@ jobs:
       - name: Crear la Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           ls -la dist
-          tag="${{ steps.tag.outputs.name }}"
-          gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "Multichat $tag" --generate-notes
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Multichat $TAG" --generate-notes

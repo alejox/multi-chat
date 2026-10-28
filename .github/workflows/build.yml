@@ -18,6 +18,9 @@ jobs:
       - uses: actions/checkout@v5
       - name: Qt 6
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends qt6-base-dev ninja-build
+      - name: manifest.json tiene la versión de buildspec.json
+        run: |
+          python3 -c "import json,sys; b=json.load(open('buildspec.json'))['version']; m=json.load(open('data/manifest.json'))['version']; sys.exit(0 if b==m else f'manifest.json dice {m} y buildspec.json {b}')"
       - name: Compilar y ejecutar las pruebas
         run: |
           cmake -S tests -B build_tests -G Ninja
@@ -54,7 +57,7 @@ jobs:
           test -n "$plugin"
           codesign --verify --deep --strict --verbose=2 "$plugin"
           lipo -archs "$plugin/Contents/MacOS/obs-multichat"
-          for file in locale/es-ES.ini locale/en-US.ini overlay/index.html overlay/viewers.html overlay/clock.html overlay/styles.css overlay/icons.js; do
+          for file in locale/es-ES.ini locale/en-US.ini overlay/index.html overlay/viewers.html overlay/clock.html overlay/styles.css overlay/icons.js manifest.json; do
             test -f "$plugin/Contents/Resources/$file" || { echo "Falta $file"; exit 1; }
           done
           mkdir -p dist
@@ -81,29 +84,31 @@ jobs:
       - name: Empaquetar
         run: |
           cmake --install build_x64 --prefix release --config RelWithDebInfo
-          # Con la forma de la carpeta de OBS (C:\Program Files\obs-studio): el .dll en
-          # obs-plugins\64bit y los datos en data\obs-plugins\obs-multichat.
+          # Con la forma de OBS 33 (C:\ProgramData\obs-studio\plugins\obs-multichat): el .dll en
+          # la carpeta del plugin y los datos en su carpeta data. Junto a ella, el instalador.
           $built = "release/obs-multichat"
-          New-Item -ItemType Directory -Force package/obs-plugins/64bit, package/data/obs-plugins | Out-Null
-          Copy-Item "$built/bin/64bit/obs-multichat.dll" package/obs-plugins/64bit/
-          Copy-Item "$built/data" package/data/obs-plugins/obs-multichat -Recurse
+          New-Item -ItemType Directory -Force package/obs-multichat | Out-Null
+          Copy-Item "$built/bin/64bit/obs-multichat.dll" package/obs-multichat/
+          Copy-Item "$built/data" package/obs-multichat/data -Recurse
+          Copy-Item "packaging/windows/Instalar Multichat.bat" package/
           Get-ChildItem -Recurse package | Select-Object -ExpandProperty FullName
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path package/* -DestinationPath "dist/obs-multichat-${{ steps.version.outputs.v }}-windows-x64.zip"
-      - name: El zip trae la forma de la carpeta de OBS
+      - name: El zip trae la forma de OBS 33
         run: |
           $zip = Get-Item "dist/obs-multichat-*-windows-x64.zip"
           $dir = Join-Path $env:RUNNER_TEMP $zip.BaseName
           Expand-Archive $zip.FullName -DestinationPath $dir
-          foreach ($file in 'obs-plugins\64bit\obs-multichat.dll', 'data\obs-plugins\obs-multichat\overlay\index.html',
-                            'data\obs-plugins\obs-multichat\overlay\viewers.html', 'data\obs-plugins\obs-multichat\overlay\icons.js',
-                            'data\obs-plugins\obs-multichat\overlay\clock.html', 'data\obs-plugins\obs-multichat\overlay\styles.css',
-                            'data\obs-plugins\obs-multichat\locale\es-ES.ini', 'data\obs-plugins\obs-multichat\locale\en-US.ini') {
+          foreach ($file in 'Instalar Multichat.bat', 'obs-multichat\obs-multichat.dll', 'obs-multichat\data\manifest.json',
+                            'obs-multichat\data\overlay\index.html', 'obs-multichat\data\overlay\viewers.html',
+                            'obs-multichat\data\overlay\icons.js', 'obs-multichat\data\overlay\clock.html',
+                            'obs-multichat\data\overlay\styles.css',
+                            'obs-multichat\data\locale\es-ES.ini', 'obs-multichat\data\locale\en-US.ini') {
             if (-not (Test-Path (Join-Path $dir $file))) { throw "Falta $file en el zip" }
           }
           # El plugin solo debe depender de OBS, Qt y del sistema (WinHTTP).
           $dumpbin = Get-ChildItem -Recurse "${env:ProgramFiles}\Microsoft Visual Studio" -Filter dumpbin.exe | Where-Object FullName -like '*Hostx64\x64*' | Select-Object -First 1
-          & $dumpbin.FullName /dependents (Join-Path $dir 'obs-plugins\64bit\obs-multichat.dll')
+          & $dumpbin.FullName /dependents (Join-Path $dir 'obs-multichat\obs-multichat.dll')
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-windows
