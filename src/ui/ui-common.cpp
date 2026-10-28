@@ -6,6 +6,8 @@
 #include <QPainter>
 #include <QPainterPath>
 
+#include <algorithm>
+
 namespace ui {
 
 QString T(const char *key)
@@ -131,6 +133,27 @@ QPixmap platformIcon(const QString &platform, int size, qreal dpr)
 		p.setBrush(Qt::NoBrush);
 		p.drawEllipse(QRectF(8, 8, 8, 8));
 	}
+	return pm;
+}
+
+QPixmap avatarPixmap(const QImage &photo, const QString &platform, int size, qreal dpr)
+{
+	if (photo.isNull())
+		return platformIcon(platform, size, dpr);
+	QPixmap pm(QSize(size, size) * dpr);
+	pm.setDevicePixelRatio(dpr);
+	pm.fill(Qt::transparent);
+	QPainter p(&pm);
+	p.setRenderHint(QPainter::Antialiasing);
+	p.setRenderHint(QPainter::SmoothPixmapTransform);
+	QPainterPath circle;
+	circle.addEllipse(QRectF(0, 0, size, size));
+	p.save();
+	p.setClipPath(circle);
+	p.drawImage(QRectF(0, 0, size, size), photo);
+	p.restore();
+	const int badge = std::max(10, size * 2 / 5);
+	p.drawPixmap(QPointF(size - badge, size - badge), platformIcon(platform, badge, dpr));
 	return pm;
 }
 

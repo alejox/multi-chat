@@ -132,6 +132,18 @@ LiveResult checkLive(const QString &channel)
 	return r;
 }
 
+Profile profileFromChannel(const QJsonObject &channel)
+{
+	const QJsonObject user = channel.value("user").toObject();
+	return {user.value("username").toString(), user.value("profile_pic").toString()};
+}
+
+Profile fetchProfile(const QString &channel)
+{
+	QString error;
+	return profileFromChannel(channelInfo(channel, error));
+}
+
 class KickConnector : public Connector {
 public:
 	using Connector::Connector;

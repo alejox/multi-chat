@@ -15,6 +15,8 @@ QColor platformColor(const QString &platform);
 QString formatCount(int count);
 // Logo de la plataforma dibujado a mano (no depende de plugins de imagen de Qt).
 QPixmap platformIcon(const QString &platform, int size, qreal dpr = 1.0);
+// Foto de perfil en círculo con el logo de la plataforma abajo a la derecha. Sin foto, el logo.
+QPixmap avatarPixmap(const QImage &photo, const QString &platform, int size, qreal dpr);
 // El logo con un punto de estado (verde conectado, ámbar conectando, rojo error).
 QIcon statusIcon(const QString &platform, const QString &status, int size, qreal dpr);
 

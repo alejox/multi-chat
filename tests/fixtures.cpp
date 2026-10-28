@@ -17,6 +17,8 @@ const char *fixture(int index)
 		R"js("viewCount":{"videoViewCountRenderer":{"viewCount":{"runs":[{"text":"1.234"},{"text":" watching now"}]},"isLive":true,"originalViewCount":"1234"}})js",
 		R"js("videoViewCountRenderer":{"viewCount":{"runs":[{"text":"1,234"},{"text":" personas viendo"}]},"isLive":true})js",
 		R"js("videoViewCountRenderer":{"viewCount":{"simpleText":"98.765 visualizaciones"},"originalViewCount":"98765"})js",
+		R"js(<meta property="og:title" content="Alejo &amp; Tech"><meta property="og:image" content="https://yt3.googleusercontent.com/abc123=s900-c-k-c0x00ffffff-no-rj">)js",
+		R"js("videoOwnerRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.ggpht.com/xyz=s48-c-k-c0x00ffffff-no-rj","width":48}]},"title":{"runs":[{"text":"Canal"}]}} "ownerChannelName":"Mi Canal")js",
 	};
 	return fixtures[index];
 }

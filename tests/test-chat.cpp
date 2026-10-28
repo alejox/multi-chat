@@ -2,6 +2,7 @@
 
 #include "../src/chat/message.hpp"
 #include "../src/chat/platforms.hpp"
+#include "../src/chat/updates.hpp"
 
 #include <QJsonDocument>
 #include <QtTest/QtTest>
@@ -227,6 +228,50 @@ private slots:
 			 QString("a&amp;b <a href=\"http://x.io/?a=1&amp;b=2\" style=\"color:#00f;\">"
 				 "http://x.io/?a=1&amp;b=2</a>"));
 		QVERIFY(!linkifyHtml("javascript:alert(1) ftp://x").contains("<a"));
+	}
+	void profiles()
+	{
+		Profile y = youtube::profileFromPage(fixture(8));
+		QCOMPARE(y.name, QString("Alejo & Tech"));
+		QCOMPARE(y.avatar, QString("https://yt3.googleusercontent.com/abc123=s88-c-k-c0x00ffffff-no-rp"));
+		Profile v = youtube::profileFromPage(fixture(9));
+		QCOMPARE(v.name, QString("Mi Canal"));
+		QCOMPARE(v.avatar, QString("https://yt3.ggpht.com/xyz=s88-c-k-c0x00ffffff-no-rp"));
+
+		Profile t = twitch::profileFromGql(QJsonDocument::fromJson(
+			"{\"data\":{\"user\":{\"displayName\":\"MiCanal\",\"profileImageURL\":\"https://static-cdn.jtvnw.net/a.png\"}}}").object());
+		QCOMPARE(t.name, QString("MiCanal"));
+		QCOMPARE(t.avatar, QString("https://static-cdn.jtvnw.net/a.png"));
+
+		Profile k = kick::profileFromChannel(QJsonDocument::fromJson(
+			"{\"user\":{\"username\":\"alejoxcode\",\"profile_pic\":\"https://files.kick.com/p.webp\"}}").object());
+		QCOMPARE(k.name, QString("alejoxcode"));
+		QCOMPARE(k.avatar, QString("https://files.kick.com/p.webp"));
+
+		Profile tt = tiktok::profileFromRoom(QJsonDocument::fromJson(
+			"{\"data\":{\"user\":{\"nickname\":\"Alejo\",\"avatarThumb\":\"https://p16.tiktokcdn.com/a.jpeg\"}}}").object());
+		QCOMPARE(tt.name, QString("Alejo"));
+		QCOMPARE(tt.avatar, QString("https://p16.tiktokcdn.com/a.jpeg"));
+	}
+	void updates()
+	{
+		QVERIFY(isNewerVersion("v2.0.2", "2.0.1"));
+		QVERIFY(isNewerVersion("2.0.10", "2.0.9"));
+		QVERIFY(isNewerVersion("2.1", "2.0.9"));
+		QVERIFY(!isNewerVersion("v2.0.1", "2.0.1"));
+		QVERIFY(!isNewerVersion("2.0.0", "2.0.1"));
+		QVERIFY(!isNewerVersion("", "2.0.1"));
+		const QJsonObject json = QJsonDocument::fromJson(
+			"{\"tag_name\":\"v2.0.2\",\"html_url\":\"https://github.com/r/releases/tag/v2.0.2\",\"assets\":["
+			"{\"name\":\"obs-multichat-2.0.2-macos.zip\",\"browser_download_url\":\"https://d/mac.zip\"},"
+			"{\"name\":\"obs-multichat-2.0.2-windows-x64.zip\",\"browser_download_url\":\"https://d/win.zip\"}]}").object();
+		Release r = parseLatestRelease(json, "-windows-x64.zip");
+		QCOMPARE(r.version, QString("2.0.2"));
+		QCOMPARE(r.url, QString("https://d/win.zip"));
+		QCOMPARE(parseLatestRelease(json, "-linux.zip").url, QString("https://github.com/r/releases/tag/v2.0.2"));
+		QJsonObject draft = json;
+		draft.insert("prerelease", true);
+		QVERIFY(parseLatestRelease(draft, "-macos.zip").version.isEmpty());
 	}
 };
 

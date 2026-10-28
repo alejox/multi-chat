@@ -215,6 +215,38 @@ LiveResult checkLive(const SourceInfo &s)
 	return r;
 }
 
+Profile profileFromPage(const QString &html)
+{
+	// Página de un vídeo: el avatar del canal está en videoOwnerRenderer.
+	QString name = capture(html, "\"ownerChannelName\":\"([^\"]+)\"");
+	QString avatar = capture(html, "\"videoOwnerRenderer\":\\{\"thumbnail\":\\{\"thumbnails\":\\[\\{\"url\":\"([^\"]+)\"");
+	// Página del canal: og:image es la foto de perfil y og:title el nombre.
+	if (avatar.isEmpty()) {
+		avatar = capture(html, "<meta property=\"og:image\" content=\"([^\"]+)\"");
+		name = capture(html, "<meta property=\"og:title\" content=\"([^\"]+)\"");
+	}
+	if (avatar.startsWith("//"))
+		avatar.prepend("https:");
+	// Las fotos de YouTube aceptan tamaño y formato en la URL: 88 px y PNG (-rp) en lugar de JPEG.
+	static const QRegularExpression size(QStringLiteral("=s\\d+(-[^?]*)?$"));
+	if (avatar.contains(size))
+		avatar.replace(size, QStringLiteral("=s88-c-k-c0x00ffffff-no-rp"));
+	name.replace(QStringLiteral("&amp;"), QStringLiteral("&"));
+	name.replace(QStringLiteral("&#39;"), QStringLiteral("'"));
+	name.replace(QStringLiteral("&quot;"), QStringLiteral("\""));
+	return {name, avatar};
+}
+
+Profile fetchProfile(const SourceInfo &s)
+{
+	const std::string url = s.videoFixed ? ("https://www.youtube.com/watch?v=" + s.extra).toStdString()
+					     : channelUrl(s.channel).toStdString();
+	net::Response res = net::get(url, kCookies);
+	if (!res.ok())
+		return {};
+	return profileFromPage(QString::fromUtf8(res.body));
+}
+
 class YouTubeConnector : public Connector {
 public:
 	using Connector::Connector;

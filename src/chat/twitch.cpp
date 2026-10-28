@@ -210,6 +210,28 @@ LiveResult checkLive(const QString &channel)
 	return r;
 }
 
+Profile profileFromGql(const QJsonObject &response)
+{
+	const QJsonObject user = response.value("data").toObject().value("user").toObject();
+	return {user.value("displayName").toString(), user.value("profileImageURL").toString()};
+}
+
+Profile fetchProfile(const QString &channel)
+{
+	QString login;
+	for (QChar c : channel.toLower())
+		if (c.isLetterOrNumber() || c == '_')
+			login += c;
+	QJsonObject query{{"query", QStringLiteral("query{user(login:\"%1\"){displayName profileImageURL(width:70)}}")
+					    .arg(login)}};
+	net::Response res = net::postJson("https://gql.twitch.tv/gql",
+					  QJsonDocument(query).toJson(QJsonDocument::Compact).toStdString(),
+					  {{"Client-Id", kGqlClientId}});
+	if (!res.ok())
+		return {};
+	return profileFromGql(QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object());
+}
+
 class TwitchConnector : public Connector {
 public:
 	using Connector::Connector;

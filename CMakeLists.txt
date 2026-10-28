@@ -36,6 +36,8 @@ target_sources(
     src/chat-manager.hpp
     src/overlay-source.cpp
     src/overlay-source.hpp
+    src/update-checker.cpp
+    src/update-checker.hpp
     src/chat/connector.cpp
     src/chat/connector.hpp
     src/chat/message.cpp
@@ -46,6 +48,8 @@ target_sources(
     src/chat/kick.cpp
     src/chat/youtube.cpp
     src/chat/tiktok.cpp
+    src/chat/updates.cpp
+    src/chat/updates.hpp
     src/net/net.hpp
     src/ui/chat-dock.cpp
     src/ui/chat-dock.hpp
@@ -53,6 +57,8 @@ target_sources(
     src/ui/flow-layout.hpp
     src/ui/image-cache.cpp
     src/ui/image-cache.hpp
+    src/ui/profile-cache.cpp
+    src/ui/profile-cache.hpp
     src/ui/settings-dialog.cpp
     src/ui/ui-common.cpp
     src/ui/ui-common.hpp
