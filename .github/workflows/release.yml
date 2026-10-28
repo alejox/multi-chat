@@ -1,6 +1,6 @@
 name: Publicar versión
 
-# Publica una Release con los zips de Windows y macOS. Se lanza:
+# Publica una Release con los zips de Windows y macOS y el .tar.gz de Linux. Se lanza:
 #   - solo, al subir a main un cambio de "version" en buildspec.json (si ese tag aún no existe);
 #   - al empujar un tag v<version>:  git tag v2.0.2 && git push origin v2.0.2
 #   - a mano: Actions → Publicar versión → Run workflow (sobre la rama elegida).

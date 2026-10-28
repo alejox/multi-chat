@@ -64,8 +64,8 @@ target_sources(
     src/ui/ui-common.hpp
 )
 
-# Red nativa del sistema: OBS no instala los plugins TLS de Qt, así que QtNetwork no
-# puede usar HTTPS dentro de OBS.
+# Red nativa del sistema: OBS no instala los plugins TLS de Qt en Windows ni macOS, así que
+# QtNetwork no puede usar HTTPS dentro de OBS.
 if(OS_WINDOWS)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/net/net-win.cpp)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp shell32)
@@ -74,6 +74,11 @@ elseif(OS_MACOS)
   enable_language(OBJCXX)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/net/net-mac.mm)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "$<LINK_LIBRARY:FRAMEWORK,Foundation.framework>")
+else()
+  # En Linux, Qt sí trae TLS, pero libcurl ya la tiene cualquier OBS.
+  find_package(CURL REQUIRED)
+  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/net/net-linux.cpp)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
 endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

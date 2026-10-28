@@ -1,7 +1,7 @@
 name: Compilar plugin
 
-# Compila el plugin para OBS 33 en Windows (Visual Studio) y macOS (Xcode, binario universal)
-# y deja los zips como artefactos. release.yml lo reutiliza para publicar una versión.
+# Compila el plugin para OBS 33 en Windows (Visual Studio), macOS (Xcode, binario universal) y
+# Linux (Ubuntu 24.04 con el OBS del PPA oficial) y deja los paquetes como artefactos. release.yml lo reutiliza para publicar una versión.
 on:
   push:
     branches: ['**']
@@ -111,4 +111,46 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-windows
+          path: dist/*
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Versión
+        id: version
+        run: echo "v=$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")" >> "$GITHUB_OUTPUT"
+      - name: OBS (PPA oficial), Qt 6 y libcurl
+        run: |
+          sudo add-apt-repository --yes ppa:obsproject/obs-studio
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends obs-studio qt6-base-dev qt6-base-private-dev \
+            libcurl4-openssl-dev libsimde-dev libgles2-mesa-dev ninja-build
+          dpkg -s obs-studio | grep '^Version'
+      - name: Configurar
+        run: cmake --preset ubuntu-ci-x86_64
+      - name: Compilar
+        run: cmake --build --preset ubuntu-ci-x86_64
+      - name: Empaquetar
+        run: |
+          cmake --install build_x86_64 --prefix release
+          # Con la forma de la carpeta de plugins del usuario
+          # (~/.config/obs-studio/plugins/obs-multichat): el .so en bin/64bit y los datos en data.
+          mkdir -p package/obs-multichat/bin/64bit
+          cp -L release/lib/*/obs-plugins/obs-multichat.so package/obs-multichat/bin/64bit/
+          strip --strip-debug package/obs-multichat/bin/64bit/obs-multichat.so
+          cp -r release/share/obs/obs-plugins/obs-multichat package/obs-multichat/data
+          for file in bin/64bit/obs-multichat.so data/manifest.json data/locale/es-ES.ini data/locale/en-US.ini \
+                      data/overlay/index.html data/overlay/viewers.html data/overlay/clock.html \
+                      data/overlay/styles.css data/overlay/icons.js; do
+            test -f "package/obs-multichat/$file" || { echo "Falta $file"; exit 1; }
+          done
+          # El plugin solo debe depender de OBS, Qt, libcurl y el sistema.
+          ldd package/obs-multichat/bin/64bit/obs-multichat.so
+          mkdir -p dist
+          tar -czf "dist/obs-multichat-${{ steps.version.outputs.v }}-linux-x86_64.tar.gz" -C package obs-multichat
+          tar -tzf dist/*.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-linux
           path: dist/*
