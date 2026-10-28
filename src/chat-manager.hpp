@@ -25,6 +25,7 @@ public:
 	struct Source {
 		chat::SourceInfo info;
 		int live = -1;           // 1 en vivo, 0 offline, -1 no se sabe
+		int viewers = -1;        // espectadores ahora mismo, -1 si no se sabe
 		QString status = "idle"; // idle | connecting | waiting | connected | error
 		QString detail;
 		std::shared_ptr<chat::Connector> connector;

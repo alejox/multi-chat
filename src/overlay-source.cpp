@@ -87,7 +87,7 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 	s->width = (uint32_t)std::max<long long>(100, obs_data_get_int(settings, "width"));
 	s->height = (uint32_t)std::max<long long>(100, obs_data_get_int(settings, "height"));
 	QJsonArray platforms;
-	for (const char *p : {"twitch", "youtube", "kick"})
+	for (const char *p : {"twitch", "youtube", "kick", "tiktok"})
 		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
 			platforms.append(p);
 	s->config = QJsonObject{
@@ -159,6 +159,7 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "show_twitch", true);
 	obs_data_set_default_bool(settings, "show_youtube", true);
 	obs_data_set_default_bool(settings, "show_kick", true);
+	obs_data_set_default_bool(settings, "show_tiktok", true);
 	obs_data_set_default_bool(settings, "icons", true);
 	obs_data_set_default_bool(settings, "badges", true);
 	obs_data_set_default_bool(settings, "background", false);
@@ -189,6 +190,7 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(props, "show_twitch", obs_module_text("Source.ShowTwitch"));
 	obs_properties_add_bool(props, "show_youtube", obs_module_text("Source.ShowYouTube"));
 	obs_properties_add_bool(props, "show_kick", obs_module_text("Source.ShowKick"));
+	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
 	obs_properties_add_bool(props, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(props, "badges", obs_module_text("Source.Badges"));
 	obs_properties_add_bool(props, "background", obs_module_text("Source.Background"));

@@ -11,6 +11,8 @@ namespace ui {
 QString T(const char *key);
 
 QColor platformColor(const QString &platform);
+// 950 · 1,2 K · 3,4 M
+QString formatCount(int count);
 // Logo de la plataforma dibujado a mano (no depende de plugins de imagen de Qt).
 QPixmap platformIcon(const QString &platform, int size, qreal dpr = 1.0);
 // El logo con un punto de estado (verde conectado, ámbar conectando, rojo error).

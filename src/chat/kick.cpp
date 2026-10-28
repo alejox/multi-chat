@@ -123,8 +123,12 @@ LiveResult checkLive(const QString &channel)
 	LiveResult r;
 	QString error;
 	QJsonObject info = channelInfo(channel, error);
-	if (!info.isEmpty())
-		r.live = info.value("livestream").isObject() ? 1 : 0;
+	if (!info.isEmpty()) {
+		const QJsonValue stream = info.value("livestream");
+		r.live = stream.isObject() ? 1 : 0;
+		if (stream.isObject())
+			r.viewers = stream.toObject().value("viewer_count").toInt(-1);
+	}
 	return r;
 }
 

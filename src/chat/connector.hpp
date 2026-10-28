@@ -20,7 +20,7 @@ namespace chat {
 // Un chat configurado por el usuario ("twitch:micanal").
 struct SourceInfo {
 	QString key;             // twitch:micanal (en minúsculas)
-	QString platform;        // twitch | youtube | kick | demo
+	QString platform;        // twitch | youtube | kick | tiktok | demo
 	QString channel;         // micanal · @micanal · id del vídeo
 	QString extra;           // Kick: id del chatroom · YouTube: id del directo
 	bool videoFixed = false; // YouTube: el usuario indicó un directo concreto

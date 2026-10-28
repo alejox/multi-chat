@@ -42,7 +42,7 @@ public:
 
 		auto *addRow = new QHBoxLayout();
 		platform_ = new QComboBox(chatsBox);
-		for (const char *p : {"twitch", "youtube", "kick"})
+		for (const char *p : {"twitch", "youtube", "kick", "tiktok"})
 			platform_->addItem(QIcon(ui::platformIcon(p, 16, devicePixelRatioF())), chat::platformName(p),
 					   QString::fromLatin1(p));
 		channel_ = new QLineEdit(chatsBox);
@@ -174,13 +174,14 @@ private:
 			if (!chat::parseEntry(entry, info, error))
 				continue;
 			QString status = "idle";
-			int live = -1;
+			int live = -1, viewers = -1;
 			QString detail;
 			for (const QJsonValue v : sources) {
 				const QJsonObject s = v.toObject();
 				if (s.value("key").toString() == info.key) {
 					status = s.value("status").toString();
 					live = s.value("live").toInt();
+					viewers = s.value("viewers").toInt(-1);
 					detail = s.value("detail").toString();
 				}
 			}
@@ -188,6 +189,8 @@ private:
 				       "   —   " + ui::T(("Status." + status).toUtf8().constData());
 			if (live == 1)
 				text += QString::fromUtf8("  🔴 ") + ui::T("Live.Yes");
+			if (viewers >= 0)
+				text += QString::fromUtf8("  👁 ") + ui::formatCount(viewers);
 			if (status == "error" && !detail.isEmpty())
 				text += "\n" + detail;
 			auto *item = new QListWidgetItem(ui::statusIcon(info.platform, status, 18, devicePixelRatioF()),
