@@ -27,6 +27,19 @@ LiveResult checkLive(const SourceInfo &s)
 	return {};
 }
 
+Profile fetchProfile(const SourceInfo &s)
+{
+	if (s.platform == "twitch")
+		return twitch::fetchProfile(s.channel);
+	if (s.platform == "kick")
+		return kick::fetchProfile(s.channel);
+	if (s.platform == "youtube")
+		return youtube::fetchProfile(s);
+	if (s.platform == "tiktok")
+		return tiktok::fetchProfile(s.channel);
+	return {};
+}
+
 std::shared_ptr<Connector> createConnector(const SourceInfo &s, Connector::PostFn post, Connector::ReportFn report)
 {
 	if (s.platform == "twitch")

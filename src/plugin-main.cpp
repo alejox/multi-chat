@@ -26,6 +26,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "overlay-source.hpp"
 #include "ui/chat-dock.hpp"
 #include "ui/image-cache.hpp"
+#include "ui/profile-cache.hpp"
+#include "update-checker.hpp"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
@@ -50,6 +52,8 @@ void shutdown()
 {
 	ChatManager::instance().shutdown();
 	ImageCache::instance().shutdown();
+	ProfileCache::instance().shutdown();
+	UpdateChecker::instance().shutdown();
 }
 
 void on_frontend_event(enum obs_frontend_event event, void *)
@@ -95,6 +99,7 @@ bool obs_module_load(void)
 	obs_frontend_add_tools_menu_item(
 		obs_module_text("Menu.Settings"), [](void *) { open_multichat_settings_from_source(); }, nullptr);
 	obs_frontend_add_event_callback(on_frontend_event, nullptr);
+	UpdateChecker::instance().start();
 
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
 	return true;

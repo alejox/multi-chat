@@ -1,6 +1,8 @@
 // Ventana "Multichat": añadir y quitar chats, y elegir cuándo conectarlos.
 
 #include "chat-dock.hpp"
+#include "image-cache.hpp"
+#include "profile-cache.hpp"
 #include "ui-common.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
@@ -20,6 +22,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QShortcut>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -53,6 +56,33 @@ public:
 		addRow->addWidget(channel_, 1);
 		addRow->addWidget(add);
 		chatsLayout->addLayout(addRow);
+
+		// Vista previa del canal escrito o pegado: foto de perfil y nombre.
+		preview_ = new QWidget(chatsBox);
+		auto *previewLayout = new QHBoxLayout(preview_);
+		previewLayout->setContentsMargins(2, 2, 2, 2);
+		avatar_ = new QLabel(preview_);
+		avatar_->setFixedSize(40, 40);
+		previewText_ = new QLabel(preview_);
+		previewText_->setTextFormat(Qt::PlainText);
+		previewLayout->addWidget(avatar_);
+		previewLayout->addWidget(previewText_, 1);
+		preview_->hide();
+		chatsLayout->addWidget(preview_);
+		previewTimer_.setSingleShot(true);
+		previewTimer_.setInterval(500);
+		connect(&previewTimer_, &QTimer::timeout, this, [this] { updatePreview(); });
+		connect(channel_, &QLineEdit::textChanged, this, [this] { previewTimer_.start(); });
+		// Perfiles y fotos llegan en segundo plano (y el dock pide emotes a la misma caché):
+		// se agrupan en una sola actualización.
+		refreshTimer_.setSingleShot(true);
+		refreshTimer_.setInterval(200);
+		connect(&refreshTimer_, &QTimer::timeout, this, [this] {
+			updatePreview();
+			refreshList();
+		});
+		connect(&ProfileCache::instance(), &ProfileCache::ready, this, [this] { refreshTimer_.start(); });
+		connect(&ImageCache::instance(), &ImageCache::ready, this, [this] { refreshTimer_.start(); });
 
 		auto *hintRow = new QHBoxLayout();
 		hint_ = new QLabel(chatsBox);
@@ -95,7 +125,10 @@ public:
 		(m.mode() == ChatManager::Mode::Always ? always_ : auto_)->setChecked(true);
 		demo_->setChecked(m.demo());
 
-		connect(platform_, &QComboBox::currentIndexChanged, this, [this] { updateHint(); });
+		connect(platform_, &QComboBox::currentIndexChanged, this, [this] {
+			updateHint();
+			previewTimer_.start();
+		});
 		connect(add, &QPushButton::clicked, this, [this] { addEntry(); });
 		connect(channel_, &QLineEdit::returnPressed, this, [this] { addEntry(); });
 		auto *removeKey = new QShortcut(QKeySequence::Delete, list_);
@@ -119,15 +152,55 @@ private:
 		hint_->setText(ui::T(("Settings.Hint." + p).toUtf8().constData()));
 	}
 
-	void addEntry()
+	// Si pegan una URL o "plataforma:canal" se respeta; si no, se usa la plataforma elegida.
+	QString entryFromInput() const
 	{
-		QString text = channel_->text().trimmed();
+		const QString text = channel_->text().trimmed();
 		if (text.isEmpty())
-			return;
-		// Si pegan una URL o "plataforma:canal" se respeta; si no, se usa la plataforma elegida.
+			return {};
 		const bool explicitEntry = text.contains("://") || text.contains(".tv/") || text.contains(".com/") ||
 					   text.contains("youtu.be/") || text.contains(':');
-		const QString entry = explicitEntry ? text : platform_->currentData().toString() + ':' + text;
+		return explicitEntry ? text : platform_->currentData().toString() + ':' + text;
+	}
+
+	// Foto de perfil del canal (o el logo de la plataforma mientras llega o si no hay).
+	QPixmap avatarFor(const chat::SourceInfo &info, int size)
+	{
+		chat::Profile profile;
+		QImage photo;
+		if (ProfileCache::instance().get(info, profile) && !profile.avatar.isEmpty())
+			photo = ImageCache::instance().get(profile.avatar);
+		return ui::avatarPixmap(photo, info.platform, size, devicePixelRatioF());
+	}
+
+	void updatePreview()
+	{
+		chat::SourceInfo info;
+		QString error;
+		const QString entry = entryFromInput();
+		if (entry.isEmpty() || !chat::parseEntry(entry, info, error)) {
+			preview_->hide();
+			return;
+		}
+		chat::Profile profile;
+		const bool known = ProfileCache::instance().get(info, profile);
+		QString text = chat::platformName(info.platform) + QStringLiteral(" · ") + info.channel;
+		if (!known)
+			text = ui::T("Settings.Preview.Loading") + "  " + text;
+		else if (profile.name.isEmpty() && profile.avatar.isEmpty())
+			text += "  —  " + ui::T("Settings.Preview.NotFound");
+		else if (!profile.name.isEmpty())
+			text = profile.name + "\n" + text;
+		previewText_->setText(text);
+		avatar_->setPixmap(avatarFor(info, 40));
+		preview_->show();
+	}
+
+	void addEntry()
+	{
+		const QString entry = entryFromInput();
+		if (entry.isEmpty())
+			return;
 		chat::SourceInfo info;
 		QString error;
 		if (!chat::parseEntry(entry, info, error)) {
@@ -137,6 +210,7 @@ private:
 		}
 		error_->hide();
 		channel_->clear();
+		preview_->hide();
 		entries_ << entry;
 		apply();
 	}
@@ -204,6 +278,8 @@ private:
 				row->setToolTip(detail);
 			auto *rowLayout = new QHBoxLayout(row);
 			rowLayout->setContentsMargins(4, 2, 2, 2);
+			auto *avatar = new QLabel(row);
+			avatar->setPixmap(avatarFor(info, 28));
 			auto *icon = new QLabel(row);
 			icon->setPixmap(ui::statusIcon(info.platform, status, 18, devicePixelRatioF()).pixmap(18, 18));
 			auto *label = new QLabel(text, row);
@@ -214,6 +290,7 @@ private:
 			remove->setToolTip(ui::T("Settings.Remove"));
 			remove->setAutoRaise(true);
 			remove->setCursor(Qt::PointingHandCursor);
+			rowLayout->addWidget(avatar, 0, Qt::AlignTop);
 			rowLayout->addWidget(icon, 0, Qt::AlignTop);
 			rowLayout->addWidget(label, 1);
 			rowLayout->addWidget(remove, 0, Qt::AlignVCenter);
@@ -238,6 +315,11 @@ private:
 	QLineEdit *channel_ = nullptr;
 	QLabel *hint_ = nullptr;
 	QLabel *error_ = nullptr;
+	QWidget *preview_ = nullptr;
+	QLabel *avatar_ = nullptr;
+	QLabel *previewText_ = nullptr;
+	QTimer previewTimer_;
+	QTimer refreshTimer_;
 	QRadioButton *auto_ = nullptr;
 	QRadioButton *always_ = nullptr;
 	QCheckBox *demo_ = nullptr;

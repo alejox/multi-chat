@@ -267,6 +267,15 @@ LiveResult parseRoom(const QJsonObject &response, QString &roomId)
 	return r;
 }
 
+Profile profileFromRoom(const QJsonObject &response)
+{
+	const QJsonObject user = response.value("data").toObject().value("user").toObject();
+	QString avatar = user.value("avatarThumb").toString();
+	if (avatar.isEmpty())
+		avatar = user.value("avatarMedium").toString();
+	return {user.value("nickname").toString(), avatar};
+}
+
 namespace {
 
 const char *const kSignServer = "https://api.eulerstream.com";
@@ -276,7 +285,7 @@ QString cleanHandle(const QString &channel)
 	return channel.startsWith('@') ? channel.mid(1) : channel;
 }
 
-LiveResult fetchRoom(const QString &channel, QString &roomId, QString &error)
+LiveResult fetchRoom(const QString &channel, QString &roomId, QString &error, Profile *profile = nullptr)
 {
 	const QString url = "https://www.tiktok.com/api-live/user/room/?aid=1988&app_name=tiktok_web"
 			    "&device_platform=web_pc&sourceType=54&uniqueId=" +
@@ -297,6 +306,8 @@ LiveResult fetchRoom(const QString &channel, QString &roomId, QString &error)
 		error = QStringLiteral("respuesta inesperada de TikTok");
 		return {};
 	}
+	if (profile)
+		*profile = profileFromRoom(json);
 	return parseRoom(json, roomId);
 }
 
@@ -333,6 +344,14 @@ LiveResult checkLive(const QString &channel)
 {
 	QString roomId, error;
 	return fetchRoom(channel, roomId, error);
+}
+
+Profile fetchProfile(const QString &channel)
+{
+	QString roomId, error;
+	Profile profile;
+	fetchRoom(channel, roomId, error, &profile);
+	return profile;
 }
 
 class TikTokConnector : public Connector {

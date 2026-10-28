@@ -27,6 +27,14 @@ struct LiveResult {
 // Busca el directo activo / consulta si el canal está en vivo. Bloquea (red).
 LiveResult checkLive(const SourceInfo &source);
 
+// Nombre visible y foto de perfil de un canal (vacíos si no se pudo saber).
+struct Profile {
+	QString name;
+	QString avatar; // URL https de la imagen
+};
+// Consulta el perfil del canal. Bloquea (red).
+Profile fetchProfile(const SourceInfo &source);
+
 std::shared_ptr<Connector> createConnector(const SourceInfo &source, Connector::PostFn post,
 					   Connector::ReportFn report);
 
@@ -46,6 +54,9 @@ QJsonArray splitEmotes(const QString &body, const QString &emotesTag);
 // Devuelve un objeto vacío si la línea no es un mensaje de chat.
 QJsonObject toMessage(const IrcMessage &msg, const QString &channel);
 LiveResult checkLive(const QString &channel);
+// En la respuesta de GQL a {user{displayName profileImageURL}}.
+Profile profileFromGql(const QJsonObject &response);
+Profile fetchProfile(const QString &channel);
 std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn post, Connector::ReportFn report);
 } // namespace twitch
 
@@ -53,6 +64,9 @@ namespace kick {
 QJsonArray splitContent(const QString &content);
 QJsonObject toMessage(const QJsonObject &data, const QString &channel);
 LiveResult checkLive(const QString &channel);
+// En la respuesta de /api/v2/channels/<canal>.
+Profile profileFromChannel(const QJsonObject &channel);
+Profile fetchProfile(const QString &channel);
 std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn post, Connector::ReportFn report);
 } // namespace kick
 
@@ -67,6 +81,9 @@ QString liveVideoFromPage(const QString &html);
 // En el HTML de un directo: espectadores ahora mismo, o -1.
 int viewersFromPage(const QString &html);
 LiveResult checkLive(const SourceInfo &source);
+// En el HTML de la página del canal o de un vídeo.
+Profile profileFromPage(const QString &html);
+Profile fetchProfile(const SourceInfo &source);
 std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn post, Connector::ReportFn report);
 } // namespace youtube
 
@@ -123,6 +140,9 @@ FetchResult parseFetchResult(QByteArrayView data);
 QJsonObject toMessage(const Event &event, const QString &channel);
 // En la respuesta de /api-live/user/room/: id de la sala, si está en vivo y espectadores.
 LiveResult parseRoom(const QJsonObject &response, QString &roomId);
+// En la misma respuesta: nombre y foto del usuario.
+Profile profileFromRoom(const QJsonObject &response);
+Profile fetchProfile(const QString &channel);
 LiveResult checkLive(const QString &channel);
 std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn post, Connector::ReportFn report);
 } // namespace tiktok
