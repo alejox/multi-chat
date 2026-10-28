@@ -304,6 +304,13 @@ bool fitsCanvas(const OverlaySource *s)
 	return s->kind == Kind::Chat && s->config.value("layout").toString() == "horizontal" && s->config.value("fit").toBool();
 }
 
+// Ancho de la cinta ajustada: el elegido o, con 0, el del lienzo.
+uint32_t tickerWidth(const OverlaySource *s)
+{
+	const int width = s->config.value("tickerWidth").toInt();
+	return width > 0 ? uint32_t(width) : canvasWidth();
+}
+
 // Al pasar a la cinta ajustada al lienzo, quita en las escenas la escala, el recorte y los
 // límites que tuviera la fuente y la lleva al borde izquierdo, para que ocupe el lienzo justo.
 void fitSceneItems(obs_scene_t *scene, OverlaySource *s);
@@ -550,12 +557,13 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"scroll", obs_data_get_string(settings, "scroll")},
 		{"clock", obs_data_get_bool(settings, "clock")},
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
+		{"tickerWidth", (int)obs_data_get_int(settings, "ticker_width")},
 		{"preview", obs_data_get_bool(settings, "preview")},
 	};
 	readBoxStyle(s->config, settings, "", "bg");
 	readBoxStyle(s->config, settings, "panel_", "panel");
 	if (fitsCanvas(s)) {
-		s->width = canvasWidth();
+		s->width = tickerWidth(s);
 		s->height = tickerHeight(s->config);
 	}
 }
@@ -691,6 +699,7 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "width"), manualSize);
 	obs_property_set_visible(obs_properties_get(props, "height"), manualSize);
 	obs_property_set_visible(obs_properties_get(props, "fit_canvas"), horizontal);
+	obs_property_set_visible(obs_properties_get(props, "ticker_width"), horizontal && !manualSize);
 	obs_property_set_visible(obs_properties_get(props, "scroll"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "clock"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "speed"), horizontal);
@@ -726,6 +735,10 @@ obs_properties_t *ov_properties(void *)
 	obs_property_t *fit = obs_properties_add_bool(props, "fit_canvas", obs_module_text("Source.FitCanvas"));
 	obs_property_set_long_description(fit, obs_module_text("Source.FitCanvas.Help"));
 	obs_property_set_modified_callback(fit, ov_layout_changed);
+	obs_property_t *tickerWidthProp =
+		obs_properties_add_int(props, "ticker_width", obs_module_text("Source.TickerWidth"), 0, 8192, 1);
+	obs_property_int_set_suffix(tickerWidthProp, " px");
+	obs_property_set_long_description(tickerWidthProp, obs_module_text("Source.TickerWidth.Help"));
 	obs_property_t *scroll = obs_properties_add_list(props, "scroll", obs_module_text("Source.Scroll"),
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Continuous"), "continuous");
@@ -940,11 +953,10 @@ void register_overlay_source()
 	QObject::connect(heartbeat, &QTimer::timeout, &manager, pushViewers);
 	// La cinta horizontal sigue al lienzo si cambia su resolución.
 	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] {
-		const uint32_t canvas = canvasWidth();
 		std::lock_guard<std::mutex> lock(sourcesMutex);
 		for (OverlaySource *s : sources)
-			if (fitsCanvas(s) && s->width != canvas) {
-				s->width = canvas;
+			if (fitsCanvas(s) && s->width != tickerWidth(s)) {
+				s->width = tickerWidth(s);
 				resizeBrowser(s);
 			}
 	});
