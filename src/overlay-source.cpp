@@ -156,6 +156,7 @@ QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int 
 	const QFontMetricsF big(font), little(small);
 	const bool names = s->config.value("names").toBool();
 	const bool column = s->config.value("layout").toString() == "column";
+	const double padX = 2.0 * s->config.value("padX").toInt(17), padY = 2.0 * s->config.value("padY").toInt(10);
 
 	QList<double> widths;
 	for (const ViewerItem &item : items)
@@ -168,17 +169,17 @@ QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int 
 		w = totalWidth;
 		for (double x : widths)
 			w = std::max(w, x);
-		w += em * 1.2;
-		h = em * 0.7 + double(items.size()) * em * 1.2 + double(items.size() - 1) * em * 0.3;
+		w += padX;
+		h = padY + double(items.size()) * em * 1.2 + double(items.size() - 1) * em * 0.3;
 		if (total >= 0)
 			h += em * 1.75 + 2;
 	} else {
-		w = em * 1.2 + em * 0.9 * double(items.size() - 1);
+		w = padX + em * 0.9 * double(items.size() - 1);
 		for (double x : widths)
 			w += x;
 		if (total >= 0)
 			w += em * 1.8 + 2 + totalWidth;
-		h = em * 1.9;
+		h = em * 1.2 + padY;
 	}
 	const double border = boxBorder(s);
 	return QSize(std::min(4096, int(std::ceil(w + border))), std::min(4096, int(std::ceil(h + border))));
@@ -246,11 +247,11 @@ QSize clockBoxSize(const OverlaySource *s)
 								  (c.value("hour24").toBool() ? "" : " AP"))
 				 .toUpper();
 	const QString text = parts.join(' ');
-	double w = em * 1.2 + QFontMetricsF(font).horizontalAdvance(text) + em * 0.02 * double(text.size());
+	double w = 2.0 * c.value("padX").toInt(19) + QFontMetricsF(font).horizontalAdvance(text) + em * 0.02 * double(text.size());
 	if (c.value("bar").toBool())
 		w += em * 0.63;
 	const double border = boxBorder(s);
-	return QSize(std::min(4096, int(std::ceil(w + border))), int(std::ceil(em * 1.9 + border)));
+	return QSize(std::min(4096, int(std::ceil(w + border))), int(std::ceil(em * 1.2 + 2.0 * c.value("padY").toInt(11) + border)));
 }
 
 void refreshClock(OverlaySource *s)
@@ -289,11 +290,12 @@ uint32_t canvasWidth()
 uint32_t tickerHeight(const QJsonObject &config)
 {
 	const double size = config.value("size").toInt(22);
-	// Con fondo: relleno de 10 px y el borde (los estilos con borde propio usan hasta 2 px).
+	// Con fondo: el relleno del mensaje y el borde (los estilos con borde propio usan hasta 2 px).
 	const double border = std::max(2, config.value("bgBorderWidth").toInt());
-	const double line = size * 1.35 + (config.value("background").toBool() ? 10 + 2 * border : 0);
-	const double pad = std::max(4.0, std::round(size * 0.2));
-	return uint32_t(std::ceil(line + 2 * pad));
+	const double line = size * 1.35 + (config.value("background").toBool()
+						   ? 2.0 * config.value("msgPadY").toInt() + 2 * border
+						   : 0);
+	return uint32_t(std::max(10.0, std::ceil(line + 2.0 * config.value("padY").toInt())));
 }
 
 // Cinta horizontal con "ajustar al lienzo": su tamaño lo pone el plugin.
@@ -439,6 +441,15 @@ void addBoxStyle(obs_properties_t *props, const std::string &prefix)
 	obs_properties_add_color(props, (prefix + "border_color").c_str(), text("BorderColor"));
 }
 
+// Relleno arriba/abajo e izquierda/derecha.
+void addPadding(obs_properties_t *props, const char *keyY, const char *keyX, const char *textY, const char *textX)
+{
+	obs_property_t *y = obs_properties_add_int_slider(props, keyY, obs_module_text(textY), 0, 100, 1);
+	obs_property_int_set_suffix(y, " px");
+	obs_property_t *x = obs_properties_add_int_slider(props, keyX, obs_module_text(textX), 0, 200, 1);
+	obs_property_int_set_suffix(x, " px");
+}
+
 // Estilos de fondo de data/overlay/styles.css (los mismos que music-now-playing).
 void addStyleList(obs_properties_t *props)
 {
@@ -493,6 +504,8 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 			{"seconds", obs_data_get_bool(settings, "seconds")},
 			{"hour24", obs_data_get_bool(settings, "hour24")},
 			{"bar", obs_data_get_bool(settings, "bar")},
+			{"padY", (int)obs_data_get_int(settings, "pad_y")},
+			{"padX", (int)obs_data_get_int(settings, "pad_x")},
 			{"background", obs_data_get_bool(settings, "background")},
 			{"style", obs_data_get_string(settings, "style")},
 		};
@@ -505,6 +518,8 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 			{"layout", obs_data_get_string(settings, "layout")},
 			{"total", obs_data_get_bool(settings, "total")},
 			{"names", obs_data_get_bool(settings, "names")},
+			{"padY", (int)obs_data_get_int(settings, "pad_y")},
+			{"padX", (int)obs_data_get_int(settings, "pad_x")},
 			{"platforms", platforms},
 			{"background", obs_data_get_bool(settings, "background")},
 			{"style", obs_data_get_string(settings, "style")},
@@ -528,6 +543,10 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"speed", (int)obs_data_get_int(settings, "speed")},
 		{"spacing", (int)obs_data_get_int(settings, "spacing")},
 		{"hspacing", (int)obs_data_get_int(settings, "hspacing")},
+		{"padY", (int)obs_data_get_int(settings, "pad_y")},
+		{"padX", (int)obs_data_get_int(settings, "pad_x")},
+		{"msgPadY", (int)obs_data_get_int(settings, "msg_pad_y")},
+		{"msgPadX", (int)obs_data_get_int(settings, "msg_pad_x")},
 		{"scroll", obs_data_get_string(settings, "scroll")},
 		{"clock", obs_data_get_bool(settings, "clock")},
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
@@ -633,6 +652,10 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "fit_canvas", true);
 	obs_data_set_default_int(settings, "spacing", 5);
 	obs_data_set_default_int(settings, "hspacing", 48);
+	obs_data_set_default_int(settings, "pad_y", 6);
+	obs_data_set_default_int(settings, "pad_x", 10);
+	obs_data_set_default_int(settings, "msg_pad_y", 5);
+	obs_data_set_default_int(settings, "msg_pad_x", 11);
 	obs_data_set_default_bool(settings, "preview", true);
 }
 
@@ -642,6 +665,8 @@ void vw_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "layout", "row");
 	obs_data_set_default_bool(settings, "total", true);
 	obs_data_set_default_bool(settings, "names", false);
+	obs_data_set_default_int(settings, "pad_y", 10);
+	obs_data_set_default_int(settings, "pad_x", 17);
 	for (const char *p : {"show_twitch", "show_youtube", "show_kick", "show_tiktok"})
 		obs_data_set_default_bool(settings, p, true);
 	obs_data_set_default_bool(settings, "background", true);
@@ -676,6 +701,8 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "max"), !horizontal);
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
 	showBoxStyle(props, settings, "panel_", obs_data_get_bool(settings, "panel"));
+	for (const char *key : {"msg_pad_y", "msg_pad_x"})
+		obs_property_set_visible(obs_properties_get(props, key), obs_data_get_bool(settings, "background"));
 	return true;
 }
 
@@ -713,6 +740,7 @@ obs_properties_t *ov_properties(void *)
 	obs_property_t *hspacing =
 		obs_properties_add_int_slider(props, "hspacing", obs_module_text("Source.Spacing"), -200, 400, 2);
 	obs_property_int_set_suffix(hspacing, " px");
+	addPadding(props, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
 
 	obs_property_t *size =
 		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
@@ -733,6 +761,7 @@ obs_properties_t *ov_properties(void *)
 	obs_property_set_modified_callback(
 		obs_properties_add_bool(props, "background", obs_module_text("Source.Background")), ov_layout_changed);
 	addBoxStyle(props, "");
+	addPadding(props, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
 	obs_property_set_modified_callback(obs_properties_add_bool(props, "panel", obs_module_text("Source.Panel")),
 					   ov_layout_changed);
 	addBoxStyle(props, "panel_");
@@ -772,6 +801,7 @@ obs_properties_t *vw_properties(void *)
 	obs_property_set_modified_callback(
 		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), box_changed);
 	addBoxStyle(props, "");
+	addPadding(props, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 
 	obs_properties_add_bool(props, "preview", obs_module_text("Viewers.Preview"));
 	return props;
@@ -790,6 +820,8 @@ void ck_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "seconds", false);
 	obs_data_set_default_bool(settings, "hour24", true);
 	obs_data_set_default_bool(settings, "bar", true);
+	obs_data_set_default_int(settings, "pad_y", 11);
+	obs_data_set_default_int(settings, "pad_x", 19);
 	obs_data_set_default_bool(settings, "background", false);
 	obs_data_set_default_string(settings, "style", "solid");
 	boxStyleDefaults(settings, "", 60, 12);
@@ -811,6 +843,7 @@ obs_properties_t *ck_properties(void *)
 	obs_property_set_modified_callback(
 		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), box_changed);
 	addBoxStyle(props, "");
+	addPadding(props, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	return props;
 }
 
