@@ -36,8 +36,8 @@ target_sources(
     src/chat-manager.hpp
     src/overlay-source.cpp
     src/overlay-source.hpp
-    src/update-checker.cpp
-    src/update-checker.hpp
+    src/updater.cpp
+    src/updater.hpp
     src/chat/connector.cpp
     src/chat/connector.hpp
     src/chat/message.cpp
@@ -68,7 +68,7 @@ target_sources(
 # puede usar HTTPS dentro de OBS.
 if(OS_WINDOWS)
   target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/net/net-win.cpp)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp)
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp shell32)
   target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /utf-8)
 elseif(OS_MACOS)
   enable_language(OBJCXX)

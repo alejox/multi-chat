@@ -62,10 +62,14 @@ Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**,
 3. En la Terminal, una vez: `xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin`
 4. Abre OBS.
 
-### Comprobar y actualizar
+### Actualizaciones automáticas
 
-- En **Herramientas → Gestor de plugins** (OBS 33) aparece **Multichat** con su versión.
-- Cuando hay una versión nueva, el dock **Multichat** muestra un aviso con el botón **Descargar**. Instálala igual que la primera vez, reemplazando la carpeta del plugin.
+Al abrir OBS, el plugin revisa si hay una versión nueva en las Releases de GitHub. Si la hay, muestra un aviso con **Actualizar ahora**, **Más tarde** u **Omitir esta versión** (y el dock **Multichat** lo recuerda con su botón). **Actualizar ahora** la descarga, la instala y pide reiniciar OBS. También se puede revisar a mano en **Herramientas → Multichat: buscar actualizaciones**.
+
+- **Windows:** se instala en `C:\ProgramData\obs-studio\plugins\obs-multichat`, que es de administrador: Windows pide permiso una vez para copiar el plugin. Si estaba en la carpeta de antes (`C:\Program Files\obs-studio`), queda en la nueva y se quita la copia de antes.
+- **macOS:** se reemplaza `obs-multichat.plugin` en su carpeta y se le quita la marca de "descargado de internet", así que macOS no vuelve a pedir permiso.
+
+Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 
 ## 🎛️ Usarlo
 
@@ -123,7 +127,7 @@ src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Mu
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, demo
 src/net/                   red del sistema: WinHTTP (Windows) y NSURLSession (macOS)
 src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
-src/update-checker.*       aviso de versión nueva (Releases de GitHub)
+src/updater.*              actualizaciones automáticas desde las Releases de GitHub
 data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
 ```
