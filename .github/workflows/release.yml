@@ -59,3 +59,9 @@ jobs:
         run: |
           ls -la dist
           gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Multichat $TAG" --generate-notes
+      - name: Actualizar alejoxcode
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          [ -n "$VERCEL_DEPLOY_HOOK" ] || { echo "Sin VERCEL_DEPLOY_HOOK: se omite"; exit 0; }
+          curl -fsS -X POST "$VERCEL_DEPLOY_HOOK"
