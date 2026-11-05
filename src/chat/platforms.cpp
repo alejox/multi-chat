@@ -3,6 +3,7 @@
 
 #include <QRandomGenerator>
 #include <QRegularExpression>
+#include <QSet>
 
 #include <iterator>
 
@@ -114,6 +115,42 @@ bool starviosChannel(QString user, SourceInfo &out, QString &error)
 	return true;
 }
 
+// Primeras partes de ruta de la web de Starvios que no son canales, sacadas de las rutas de su bundle:
+// una ruta fija gana a /$username, así que en esas direcciones nunca hay un canal.
+bool starviosReservedPath(const QString &segment)
+{
+	static const QSet<QString> reserved{
+		"admin", "alerts", "api", "assets", "auth", "canal", "clip", "clips", "directo", "directos", "earn", "escena",
+		"explorar", "explore", "flash", "following", "guion", "history", "league", "live", "overlay", "patrocinios",
+		"playlist", "playlists", "popout", "privacy", "search", "settings", "sponsors", "starvies", "starviosparty",
+		"studio", "support", "terms", "tienda", "ver", "watch",
+		// Con guion no pasarían la regla de los usuarios, pero también son rutas de la web.
+		"forgot-password", "go-live", "league-admin", "livekit-test", "partner-review", "promo-management",
+		"reset-password", "watch-later",
+	};
+	return reserved.contains(segment.toLower());
+}
+
+// starvios.com/<usuario> y las rutas que llevan a ese canal: /canal/<usuario> redirige ahí, /live/<usuario>
+// es el directo y /directo/<usuario> redirige al directo. La web no usa "@" en ninguna de ellas.
+bool starviosUrl(const QString &url, const QString &raw, SourceInfo &out, QString &error)
+{
+	const QStringList path = url.section('?', 0, 0).section('#', 0, 0).split('/', Qt::SkipEmptyParts);
+	QString user;
+	if (path.size() == 2 && !starviosReservedPath(path[1])) {
+		user = path[1];
+	} else if (path.size() == 3) {
+		const QString route = path[1].toLower();
+		if (route == "live" || route == "directo" || route == "canal")
+			user = path[2];
+	}
+	if (user.isEmpty() || user.startsWith('@')) {
+		error = QStringLiteral("URL de Starvios no reconocida: %1").arg(raw);
+		return false;
+	}
+	return starviosChannel(user, out, error);
+}
+
 } // namespace
 
 bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
@@ -125,7 +162,7 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 	}
 
 	// URLs: twitch.tv/canal, kick.com/canal, youtube.com/@canal, youtube.com/watch?v=..., tiktok.com/@usuario,
-	// starvios.com/live/usuario
+	// starvios.com/usuario, starvios.com/live/usuario
 	static const QRegularExpression scheme(QStringLiteral("^https?://(www\\.|m\\.)?"),
 					       QRegularExpression::CaseInsensitiveOption);
 	QString url = raw;
@@ -142,12 +179,8 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 	}
 	if (host == "tiktok.com" && seg.size() > 1 && seg[1].startsWith('@'))
 		return tiktokChannel(seg[1], out, error);
-	if (host == "starvios.com" || host == "www.starvios.com") {
-		if (seg.size() > 2 && seg[1] == "live")
-			return starviosChannel(seg[2].section('?', 0, 0).section('#', 0, 0), out, error);
-		error = QStringLiteral("URL de Starvios no reconocida: %1").arg(raw);
-		return false;
-	}
+	if (host == "starvios.com" || host == "www.starvios.com")
+		return starviosUrl(url, raw, out, error);
 	if (host == "youtube.com" || host == "youtu.be") {
 		if (!youtube::parseVideoId(url).isEmpty())
 			return youtubeChannel(url, out);
