@@ -803,6 +803,61 @@ private slots:
 		QVERIFY(!rig.socket(1));
 	}
 
+	void starviosDiscardedLookupsAreNotLost()
+	{
+		std::atomic<bool> release{false};
+		StarviosRig rig;
+		rig.extra = [&](const std::string &url, const std::string &) {
+			net::Response res;
+			if (url.find("/api/public/emotes") != std::string::npos) {
+				// Mantiene ocupado el hilo de las consultas para que las siguientes queden en cola.
+				StarviosRig::until([&] { return release.load(); }, 5000);
+				res.status = 500;
+			} else if (url.find("id=eq.n1") != std::string::npos) {
+				res.status = 200;
+				res.body = QJsonDocument(QJsonArray{chatRow("n1", "nuevo")}).toJson().toStdString();
+			} else if (url.find("/rest/v1/live_chat_messages") != std::string::npos) {
+				res.status = 200;
+				res.body = "[]"; // las filas ya recordadas no vuelven en la consulta del hueco
+			}
+			return res;
+		};
+		rig.start();
+		auto ws = rig.joined();
+		QVERIFY(ws);
+		ws->push(starviosMsg(chatRow("m0", "hola :abc_d:")));
+		QVERIFY(StarviosRig::until([&] { return rig.requestCount("/api/public/emotes") == 1; }));
+		// Tantas consultas en cola como admite el conector, y el socket se cae antes de hacerlas.
+		for (int i = 0; i < 16; ++i) {
+			QJsonObject row = chatRow(QStringLiteral("q%1").arg(i), QStringLiteral("en cola %1").arg(i), {}, false);
+			row.insert("user_id", QStringLiteral("u%1").arg(i));
+			ws->push(starviosMsg(row));
+		}
+		ws->push(starviosMsg(chatRow("marca", "marca")));
+		QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 2; }));
+		QCOMPARE(rig.requestCount("id=eq."), 0);
+		ws->close();
+		release = true;
+		// Cada mensaje en cola se muestra con la etiqueta neutra, sin esperar a la consulta.
+		QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 18; }));
+		for (int i = 0; i < 16; ++i) {
+			const QJsonObject message = rig.postedAt(2 + i);
+			QCOMPARE(firstText(message), QStringLiteral("en cola %1").arg(i));
+			QCOMPARE(message["author"].toString(), QString("Espectador"));
+			QVERIFY(!message["recovered"].toBool());
+		}
+		QCOMPARE(rig.requestCount("id=eq."), 0);
+		// Lo descartado no gasta el cupo: en la sesión siguiente se sigue preguntando por el autor.
+		auto second = rig.joined(1);
+		QVERIFY(second);
+		QJsonObject fresh = chatRow("n1", "nuevo", {}, false);
+		fresh.insert("user_id", "u99");
+		second->push(starviosMsg(fresh));
+		QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 19; }));
+		QCOMPARE(rig.requestCount("id=eq.n1"), 1);
+		QCOMPARE(rig.postedAt(18)["author"].toString(), QString("Ana"));
+	}
+
 	void starviosNothingIsPublishedAfterStop()
 	{
 		std::atomic<bool> release{false};
