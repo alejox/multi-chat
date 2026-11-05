@@ -26,7 +26,7 @@ add_executable(
 )
 target_link_libraries(test-chat PRIVATE Qt6::Core Qt6::Test)
 
-add_executable(test-tts test-tts.cpp ${src}/chat/message.cpp ${src}/tts/speech-text.cpp)
+add_executable(test-tts test-tts.cpp ${src}/chat/message.cpp ${src}/tts/speech-text.cpp ${src}/tts/voice-engine.cpp)
 target_link_libraries(test-tts PRIVATE Qt6::Core Qt6::Test)
 
 foreach(test_target test-chat test-tts)

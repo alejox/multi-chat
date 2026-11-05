@@ -1,0 +1,243 @@
+#include "voice-engine.hpp"
+#include "bounded-queue.hpp"
+
+#include <algorithm>
+#include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <utility>
+#include <vector>
+
+namespace tts {
+
+namespace {
+using SteadyClock = std::chrono::steady_clock;
+constexpr uint64_t kNsPerSecond = 1000000000ULL;
+constexpr uint64_t kNsPerMs = 1000000ULL;
+} // namespace
+
+// Estado compartido con las funciones que se le pasan al sintetizador. Esas funciones pueden
+// llegar después de destruir el motor: por eso guardan su propia referencia a este objeto y
+// nunca al motor. Cada texto tiene su generación, y lo que llegue de otra se ignora.
+struct VoiceEngine::Shared {
+	explicit Shared(std::size_t queueLimit) : queue(queueLimit) {}
+
+	std::mutex mutex;
+	std::condition_variable wake;
+	BoundedQueue<QString> queue;
+	std::deque<PcmBuffer> pcm;
+	std::size_t pcmOffset = 0; // muestras ya entregadas del primer búfer
+	uint64_t generation = 0;
+	bool renderDone = false;
+	bool skip = false;
+	bool stop = false;
+	QString voiceId;
+	double rate = 0.5;
+	SteadyClock::time_point lastActivity;
+};
+
+VoiceEngine::VoiceEngine(VoiceEngineConfig config)
+	: config_(std::move(config)),
+	  shared_(std::make_shared<Shared>(config_.queueLimit))
+{
+	thread_ = std::thread([this] { run(); });
+}
+
+VoiceEngine::~VoiceEngine()
+{
+	{
+		std::lock_guard<std::mutex> lock(shared_->mutex);
+		shared_->stop = true;
+	}
+	shared_->wake.notify_all();
+	thread_.join();
+}
+
+std::size_t VoiceEngine::enqueue(const QString &text)
+{
+	std::size_t dropped;
+	{
+		std::lock_guard<std::mutex> lock(shared_->mutex);
+		dropped = shared_->queue.push(text);
+	}
+	shared_->wake.notify_all();
+	return dropped;
+}
+
+void VoiceEngine::setVoice(const QString &voiceId, double rate)
+{
+	std::lock_guard<std::mutex> lock(shared_->mutex);
+	shared_->voiceId = voiceId;
+	shared_->rate = rate;
+}
+
+void VoiceEngine::skipCurrent()
+{
+	{
+		std::lock_guard<std::mutex> lock(shared_->mutex);
+		shared_->skip = true;
+	}
+	shared_->wake.notify_all();
+}
+
+void VoiceEngine::clear()
+{
+	{
+		std::lock_guard<std::mutex> lock(shared_->mutex);
+		shared_->queue.clear();
+		shared_->skip = true;
+	}
+	shared_->wake.notify_all();
+}
+
+std::size_t VoiceEngine::droppedTotal() const
+{
+	std::lock_guard<std::mutex> lock(shared_->mutex);
+	return shared_->queue.droppedTotal();
+}
+
+void VoiceEngine::run()
+{
+	Shared &s = *shared_;
+	std::unique_ptr<SpeechBackend> backend; // solo lo toca este hilo
+	bool speaking = false;
+	uint64_t nextTimestamp = 0;
+	std::vector<float> chunk;
+	const auto stallTimeout = std::chrono::milliseconds(config_.stallMs);
+	const auto interrupted = [&s] { return s.stop || s.skip; };
+
+	std::unique_lock<std::mutex> lock(s.mutex);
+
+	// Invalida lo que llegue del texto actual y cancela el sintetizador. Vuelve con el candado.
+	const auto abandonCurrent = [&] {
+		++s.generation;
+		s.pcm.clear();
+		s.pcmOffset = 0;
+		s.renderDone = false;
+		speaking = false;
+		lock.unlock();
+		if (backend)
+			backend->stop();
+		lock.lock();
+	};
+
+	while (!s.stop) {
+		if (s.skip) {
+			s.skip = false;
+			if (speaking)
+				abandonCurrent();
+			continue;
+		}
+
+		if (!speaking) {
+			QString text;
+			if (!s.queue.pop(text)) {
+				s.wake.wait(lock);
+				continue;
+			}
+			const uint64_t generation = ++s.generation;
+			SpeechRequest request{text, s.voiceId, s.rate};
+			speaking = true;
+			s.renderDone = false;
+			s.lastActivity = SteadyClock::now();
+			lock.unlock();
+
+			if (!backend && config_.backendFactory)
+				backend = config_.backendFactory();
+			if (backend) {
+				const std::shared_ptr<Shared> shared = shared_;
+				backend->speak(
+					request,
+					[shared, generation](PcmBuffer buffer) {
+						if (buffer.samples.empty() || !buffer.channels || !buffer.sampleRate)
+							return;
+						{
+							std::lock_guard<std::mutex> guard(shared->mutex);
+							if (generation != shared->generation)
+								return;
+							shared->pcm.push_back(std::move(buffer));
+							shared->lastActivity = SteadyClock::now();
+						}
+						shared->wake.notify_all();
+					},
+					[shared, generation] {
+						{
+							std::lock_guard<std::mutex> guard(shared->mutex);
+							if (generation != shared->generation)
+								return;
+							shared->renderDone = true;
+						}
+						shared->wake.notify_all();
+					});
+			}
+
+			lock.lock();
+			if (!backend)
+				speaking = false; // este sistema no tiene voz: el texto se pierde
+			continue;
+		}
+
+		if (s.pcm.empty()) {
+			if (s.renderDone) {
+				speaking = false;
+				s.renderDone = false;
+				s.wake.wait_for(lock, std::chrono::milliseconds(config_.gapMs), interrupted);
+			} else if (SteadyClock::now() - s.lastActivity >= stallTimeout) {
+				abandonCurrent();
+				lock.unlock();
+				if (config_.onStall)
+					config_.onStall();
+				lock.lock();
+			} else {
+				s.wake.wait_until(lock, s.lastActivity + stallTimeout);
+			}
+			continue;
+		}
+
+		// Un trozo del primer búfer, a ritmo real.
+		PcmBuffer &front = s.pcm.front();
+		const uint32_t rate = front.sampleRate;
+		const uint32_t channels = front.channels;
+		const std::size_t chunkFrames = std::max<std::size_t>(1, std::size_t(rate) * config_.chunkMs / 1000);
+		const std::size_t available = (front.samples.size() - s.pcmOffset) / channels;
+		const std::size_t frames = std::min(chunkFrames, available);
+		const auto begin = front.samples.begin() + static_cast<std::ptrdiff_t>(s.pcmOffset);
+		chunk.assign(begin, begin + static_cast<std::ptrdiff_t>(frames * channels));
+		s.pcmOffset += frames * channels;
+		if (s.pcmOffset + channels > front.samples.size()) {
+			s.pcm.pop_front();
+			s.pcmOffset = 0;
+		}
+		s.lastActivity = SteadyClock::now();
+		lock.unlock();
+
+		const uint64_t now = config_.clockNs();
+		// Marcas de tiempo continuas dentro de un texto; tras una pausa se sigue desde ahora,
+		// sin retroceder nunca.
+		if (now > nextTimestamp + uint64_t(config_.resyncMs) * kNsPerMs)
+			nextTimestamp = now;
+		AudioChunk out;
+		out.samples = chunk.data();
+		out.frames = static_cast<uint32_t>(frames);
+		out.channels = channels;
+		out.sampleRate = rate;
+		out.timestampNs = nextTimestamp;
+		config_.sink(out);
+		nextTimestamp += uint64_t(frames) * kNsPerSecond / rate;
+
+		lock.lock();
+		const uint64_t after = config_.clockNs();
+		if (nextTimestamp > after)
+			s.wake.wait_for(lock, std::chrono::nanoseconds(nextTimestamp - after), interrupted);
+	}
+
+	if (speaking)
+		abandonCurrent();
+	++s.generation;
+	s.pcm.clear();
+	lock.unlock();
+	backend.reset();
+}
+
+} // namespace tts

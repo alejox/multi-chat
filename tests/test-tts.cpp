@@ -2,9 +2,18 @@
 
 #include "../src/chat/message.hpp"
 #include "../src/tts/bounded-queue.hpp"
+#include "../src/tts/pcm.hpp"
 #include "../src/tts/speech-text.hpp"
+#include "../src/tts/voice-engine.hpp"
 
+#include <QElapsedTimer>
+#include <QThread>
 #include <QtTest/QtTest>
+
+#include <atomic>
+#include <chrono>
+#include <mutex>
+#include <vector>
 
 using namespace tts;
 
@@ -27,6 +36,131 @@ QJsonObject message(const QString &text, const QString &author = QStringLiteral(
 	if (!text.isEmpty())
 		parts.append(chat::textPart(text));
 	return chat::makeMessage(platform, "canal", author, parts, options);
+}
+
+// Sintetizador falso. Su estado sobrevive al motor para poder llamar a las funciones tarde,
+// como puede hacer el sintetizador real.
+struct FakeSpeech {
+	struct Job {
+		SpeechRequest request;
+		SpeechBackend::PcmCallback onPcm;
+		SpeechBackend::DoneCallback onDone;
+	};
+	std::mutex mutex;
+	std::vector<Job> jobs;
+	std::atomic<int> created{0};
+	std::atomic<int> stops{0};
+	// Milisegundos de audio que se entregan de golpe al empezar cada texto; -1 = nada.
+	std::atomic<int> autoRenderMs{-1};
+
+	int jobCount()
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		return int(jobs.size());
+	}
+	Job job(int index)
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		return jobs.at(std::size_t(index));
+	}
+};
+
+PcmBuffer silence(int ms, uint32_t channels = 1, uint32_t rate = 1000)
+{
+	PcmBuffer b;
+	b.sampleRate = rate;
+	b.channels = channels;
+	b.samples.assign(std::size_t(ms) * rate / 1000 * channels, 0.25f);
+	return b;
+}
+
+class FakeBackend : public SpeechBackend {
+public:
+	explicit FakeBackend(std::shared_ptr<FakeSpeech> state) : state_(std::move(state)) { ++state_->created; }
+	void speak(const SpeechRequest &request, PcmCallback onPcm, DoneCallback onDone) override
+	{
+		{
+			std::lock_guard<std::mutex> lock(state_->mutex);
+			state_->jobs.push_back({request, onPcm, onDone});
+		}
+		if (state_->autoRenderMs >= 0) {
+			onPcm(silence(state_->autoRenderMs));
+			onDone();
+		}
+	}
+	void stop() override { ++state_->stops; }
+
+private:
+	std::shared_ptr<FakeSpeech> state_;
+};
+
+uint64_t steadyNs()
+{
+	return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+				std::chrono::steady_clock::now().time_since_epoch())
+				.count());
+}
+
+// Motor conectado al sintetizador falso, que guarda lo que sale.
+struct Rig {
+	struct Chunk {
+		uint32_t frames;
+		uint32_t rate;
+		uint64_t timestampNs;
+		qint64 wallMs;
+	};
+	std::shared_ptr<FakeSpeech> speech = std::make_shared<FakeSpeech>();
+	std::mutex mutex;
+	std::vector<Chunk> chunks;
+	std::atomic<int> stalls{0};
+	QElapsedTimer wall;
+	std::unique_ptr<VoiceEngine> engine;
+
+	explicit Rig(VoiceEngineConfig config = {})
+	{
+		wall.start();
+		auto state = speech;
+		config.backendFactory = [state] { return std::make_unique<FakeBackend>(state); };
+		config.sink = [this](const AudioChunk &c) {
+			std::lock_guard<std::mutex> lock(mutex);
+			chunks.push_back({c.frames, c.sampleRate, c.timestampNs, wall.elapsed()});
+		};
+		config.clockNs = steadyNs;
+		config.onStall = [this] { ++stalls; };
+		engine = std::make_unique<VoiceEngine>(std::move(config));
+	}
+	uint64_t frames()
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		uint64_t total = 0;
+		for (const Chunk &c : chunks)
+			total += c.frames;
+		return total;
+	}
+	std::vector<Chunk> snapshot()
+	{
+		std::lock_guard<std::mutex> lock(mutex);
+		return chunks;
+	}
+};
+
+template<typename Pred> bool waitFor(Pred pred, int timeoutMs = 5000)
+{
+	QElapsedTimer timer;
+	timer.start();
+	while (!pred()) {
+		if (timer.elapsed() > timeoutMs)
+			return false;
+		QThread::msleep(2);
+	}
+	return true;
+}
+
+VoiceEngineConfig fastConfig()
+{
+	VoiceEngineConfig config;
+	config.gapMs = 0;
+	return config;
 }
 
 } // namespace
@@ -265,6 +399,263 @@ private slots:
 		q.push(1);
 		q.clear();
 		QVERIFY(q.empty());
+	}
+
+	void pcmKeepsFloatAndScalesIntegers()
+	{
+		const float f[] = {0.5f, -0.5f};
+		const float *fp[] = {f};
+		PcmBuffer a = toFloatPcm(fp, 1, 2, 1, false, 22050);
+		QCOMPARE(a.sampleRate, uint32_t(22050));
+		QCOMPARE(a.frames(), std::size_t(2));
+		QCOMPARE(a.samples[1], -0.5f);
+
+		const int16_t i[] = {16384, -32768};
+		const int16_t *ip[] = {i};
+		PcmBuffer b = toFloatPcm(ip, 1, 2, 1, false, 48000);
+		QCOMPARE(b.samples[0], 0.5f);
+		QCOMPARE(b.samples[1], -1.0f);
+
+		const int32_t l[] = {1073741824};
+		const int32_t *lp[] = {l};
+		QCOMPARE(toFloatPcm(lp, 1, 1, 1, false, 48000).samples[0], 0.5f);
+
+		const double d[] = {0.25};
+		const double *dp[] = {d};
+		QCOMPARE(toFloatPcm(dp, 1, 1, 1, false, 48000).samples[0], 0.25f);
+	}
+
+	void pcmInterleavesPlanarStereo()
+	{
+		const float l[] = {1.0f, 2.0f};
+		const float r[] = {3.0f, 4.0f};
+		const float *planar[] = {l, r};
+		PcmBuffer a = toFloatPcm(planar, 2, 2, 2, false, 22050);
+		QCOMPARE(a.channels, uint32_t(2));
+		QCOMPARE(a.samples, (std::vector<float>{1.0f, 3.0f, 2.0f, 4.0f}));
+
+		const float mixed[] = {1.0f, 3.0f, 2.0f, 4.0f};
+		const float *inter[] = {mixed};
+		QCOMPARE(toFloatPcm(inter, 1, 2, 2, true, 22050).samples, a.samples);
+	}
+
+	void pcmDownmixesMoreThanTwoChannels()
+	{
+		const int16_t all[] = {16384, 16384, 16384, 0, 0, 0};
+		const int16_t *inter[] = {all};
+		PcmBuffer a = toFloatPcm(inter, 1, 2, 3, true, 44100);
+		QCOMPARE(a.channels, uint32_t(1));
+		QCOMPARE(a.samples, (std::vector<float>{0.5f, 0.0f}));
+	}
+
+	void pcmRejectsInvalidBuffers()
+	{
+		const float f[] = {0.5f};
+		const float *fp[] = {f};
+		const float *none[] = {nullptr};
+		QVERIFY(toFloatPcm(fp, 1, 0, 1, false, 22050).samples.empty());
+		QVERIFY(toFloatPcm(fp, 1, 1, 0, false, 22050).samples.empty());
+		QVERIFY(toFloatPcm(fp, 1, 1, 1, false, 0).samples.empty());
+		QVERIFY(toFloatPcm(fp, 1, 1, 2, false, 22050).samples.empty()); // falta un plano
+		QVERIFY(toFloatPcm(none, 1, 1, 1, false, 22050).samples.empty());
+	}
+
+	// Sin textos no hay sintetizador: la fuente activada pero sin chat no gasta nada.
+	void backendIsCreatedOnFirstText()
+	{
+		Rig rig(fastConfig());
+		QThread::msleep(20);
+		QCOMPARE(rig.speech->created.load(), 0);
+		rig.speech->autoRenderMs = 20;
+		rig.engine->enqueue("hola");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		QCOMPARE(rig.speech->created.load(), 1);
+	}
+
+	// El audio llega de golpe y debe salir a ritmo real, en trozos pequeños y en orden.
+	void audioIsDeliveredAtRealTimePace()
+	{
+		Rig rig(fastConfig());
+		rig.speech->autoRenderMs = 300;
+		rig.engine->enqueue("hola");
+		QVERIFY(waitFor([&] { return rig.frames() == 300; }));
+
+		const auto chunks = rig.snapshot();
+		QVERIFY(chunks.size() >= 10);
+		for (std::size_t i = 0; i < chunks.size(); ++i) {
+			QVERIFY(chunks[i].frames <= 20); // 20 ms a 1000 Hz
+			QCOMPARE(chunks[i].rate, uint32_t(1000));
+			if (i > 0) {
+				QVERIFY(chunks[i].timestampNs > chunks[i - 1].timestampNs);
+				const uint64_t expected = uint64_t(chunks[i - 1].frames) * 1000000u;
+				QVERIFY(chunks[i].timestampNs - chunks[i - 1].timestampNs >= expected);
+			}
+		}
+		// Del primer al último trozo pasan al menos los 280 ms de audio que hay entre ellos,
+		// con un margen por el redondeo del temporizador.
+		QVERIFY(chunks.back().wallMs - chunks.front().wallMs >= 260);
+	}
+
+	void textsAreSpokenOneAfterAnother()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("uno");
+		rig.engine->enqueue("dos");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		QCOMPARE(rig.speech->job(0).request.text, QString("uno"));
+
+		// Sin terminar de generar, el segundo espera; aunque el audio se haya entregado.
+		rig.speech->job(0).onPcm(silence(40));
+		QVERIFY(waitFor([&] { return rig.frames() == 40; }));
+		QThread::msleep(30);
+		QCOMPARE(rig.speech->jobCount(), 1);
+
+		rig.speech->job(0).onDone();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		QCOMPARE(rig.speech->job(1).request.text, QString("dos"));
+	}
+
+	// Un búfer con otro formato a mitad de un texto se entrega con su propio formato.
+	void formatChangesAreRespected()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("uno");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		rig.speech->job(0).onPcm(silence(20, 1, 1000));
+		rig.speech->job(0).onPcm(silence(20, 2, 2000));
+		QVERIFY(waitFor([&] { return rig.frames() == 60; }));
+		const auto chunks = rig.snapshot();
+		QCOMPARE(chunks.front().rate, uint32_t(1000));
+		QCOMPARE(chunks.back().rate, uint32_t(2000));
+	}
+
+	void voiceAndRateApplyToTheNextText()
+	{
+		Rig rig(fastConfig());
+		rig.engine->setVoice("voz-a", 0.75);
+		rig.engine->enqueue("uno");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		QCOMPARE(rig.speech->job(0).request.voiceId, QString("voz-a"));
+		QCOMPARE(rig.speech->job(0).request.rate, 0.75);
+	}
+
+	void skipDrainsTheCurrentAudioAndContinues()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("largo");
+		rig.engine->enqueue("siguiente");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		const auto first = rig.speech->job(0);
+		first.onPcm(silence(5000));
+		QVERIFY(waitFor([&] { return rig.frames() >= 40; }));
+
+		rig.engine->skipCurrent();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		QCOMPARE(rig.speech->stops.load(), 1);
+		QCOMPARE(rig.speech->job(1).request.text, QString("siguiente"));
+		const uint64_t after = rig.frames();
+		QVERIFY(after < 1000);
+
+		// Lo que llegue tarde del texto cortado se ignora y no da por terminado al nuevo.
+		first.onPcm(silence(1000));
+		first.onDone();
+		QThread::msleep(40);
+		QCOMPARE(rig.frames(), after);
+		rig.speech->job(1).onPcm(silence(40));
+		QVERIFY(waitFor([&] { return rig.frames() == after + 40; }));
+	}
+
+	void skipWithNothingPlayingIsHarmless()
+	{
+		Rig rig(fastConfig());
+		rig.engine->skipCurrent();
+		rig.engine->clear();
+		QThread::msleep(10);
+		QCOMPARE(rig.speech->created.load(), 0);
+		rig.engine->enqueue("hola");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+	}
+
+	void clearEmptiesTheQueueAndStopsSpeech()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("uno");
+		rig.engine->enqueue("dos");
+		rig.engine->enqueue("tres");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		rig.speech->job(0).onPcm(silence(5000));
+		QVERIFY(waitFor([&] { return rig.frames() >= 20; }));
+		rig.engine->clear();
+		QVERIFY(waitFor([&] { return rig.speech->stops.load() == 1; }));
+		QThread::msleep(60);
+		QCOMPARE(rig.speech->jobCount(), 1);
+		const uint64_t frames = rig.frames();
+		QThread::msleep(40);
+		QCOMPARE(rig.frames(), frames);
+	}
+
+	void fullQueueDropsTheOldestText()
+	{
+		VoiceEngineConfig config = fastConfig();
+		config.queueLimit = 2;
+		Rig rig(config);
+		rig.engine->enqueue("actual");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		QCOMPARE(rig.engine->enqueue("a"), std::size_t(0));
+		QCOMPARE(rig.engine->enqueue("b"), std::size_t(0));
+		QCOMPARE(rig.engine->enqueue("c"), std::size_t(1));
+		QCOMPARE(rig.engine->droppedTotal(), std::size_t(1));
+		rig.speech->job(0).onDone();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		QCOMPARE(rig.speech->job(1).request.text, QString("b"));
+	}
+
+	// Si el sintetizador se queda callado no debe bloquear la lectura para siempre.
+	void stalledBackendIsAbandoned()
+	{
+		VoiceEngineConfig config = fastConfig();
+		config.stallMs = 50;
+		Rig rig(config);
+		rig.engine->enqueue("mudo");
+		rig.engine->enqueue("siguiente");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		QCOMPARE(rig.speech->job(1).request.text, QString("siguiente"));
+		QVERIFY(rig.stalls.load() >= 1);
+		QVERIFY(rig.speech->stops.load() >= 1);
+	}
+
+	// Destruir la fuente en plena lectura: se detiene el sintetizador, no sale más audio y las
+	// funciones que el sintetizador aún tenga guardadas se pueden llamar sin peligro.
+	void destroyingWhilePlayingIsSafe()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("largo");
+		rig.engine->enqueue("otro");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		const auto job = rig.speech->job(0);
+		job.onPcm(silence(5000));
+		QVERIFY(waitFor([&] { return rig.frames() >= 20; }));
+
+		QElapsedTimer timer;
+		timer.start();
+		rig.engine.reset();
+		QVERIFY(timer.elapsed() < 1000); // no espera a que termine de hablar
+		QCOMPARE(rig.speech->stops.load(), 1);
+
+		const uint64_t frames = rig.frames();
+		job.onPcm(silence(100));
+		job.onDone();
+		QThread::msleep(40);
+		QCOMPARE(rig.frames(), frames);
+		QCOMPARE(rig.speech->jobCount(), 1);
+	}
+
+	void destroyingAnIdleEngineCreatesNoBackend()
+	{
+		Rig rig(fastConfig());
+		rig.engine.reset();
+		QCOMPARE(rig.speech->created.load(), 0);
+		QCOMPARE(rig.speech->stops.load(), 0);
 	}
 };
 
