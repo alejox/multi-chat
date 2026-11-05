@@ -33,12 +33,12 @@ Streamers miss comments while looking away from the chat. The voice must reach t
 - [x] T2 macOS backend and audio source. Route: delegated.
   - Accept: source registered only on macOS; PCM pushed at real-time pace with `obs_source_output_audio`; voice and rate are selectable; off by default; skip button; shutdown is clean.
   - Check: `cmake --build --preset macos` succeeds. Audible result needs a manual test in OBS.
-- [ ] T3 Locale strings and README. Route: delegated.
+- [x] T3 Locale strings and README. Route: delegated.
   - Accept: en-US and es-ES keys present for all properties; README documents usage and the macOS-only limit.
   - Check: every new key resolved in both locale files; `cmake --build --preset macos` succeeds.
 
 ## Progress
-T1 done (13446ee, 5cf5086). T2 done. T3 in progress.
+T1 done (13446ee, 5cf5086). T2 done (2c57922). T3 done (the commit that holds this line).
 
 ## Verification evidence
 - Baseline `cmake --build --preset macos` before any change: BUILD SUCCEEDED (Xcode at /Applications/Xcode.app).
@@ -49,10 +49,11 @@ T1 done (13446ee, 5cf5086). T2 done. T3 in progress.
 - T2 GREEN: test-tts 40 passed, 0 failed, three runs in a row; also 40 passed with no reports under ThreadSanitizer and AddressSanitizer (scratch builds).
 - T2 real synthesizer through a scratch harness, without OBS (`speech-backend-mac.mm` + `voice-engine.cpp`): 22050 Hz mono, peak 0.599, 3.56 s of audio delivered over 3.55 s; skip cut at 1.02 s and the next text played; destroying mid-utterance exited cleanly; no stalls. First audio took 3.2 s on one run and 0.56 s on another; about 0.45 s of silence between texts.
 - T2 `cmake --build --preset macos`: BUILD SUCCEEDED; x86_64 and arm64; links AVFoundation.
+- T3 keys: all 15 `Voice.*` keys used in `voice-source.cpp` exist in both locale files, with no extras; the 15 are in the built plugin's `es-ES.ini`. `cmake --build --preset macos`: BUILD SUCCEEDED. `build_tests/` and `build_macos/` are ignored by git.
 - Not verified: listening in OBS, the mixer, `obs_source_output_audio`, source destruction and module unload inside OBS, Windows and Linux builds.
 
 ## Engram mirror
 Pending: `mem_save` was blocked by the auto mode hook check earlier in this session. Topic: `odd/tts-chat-reader/tasks`.
 
 ## Next step
-T1.
+User installs the plugin with OBS closed and tests it by ear in OBS. CI must confirm the tests with the real QtTest and the Windows and Linux builds.
