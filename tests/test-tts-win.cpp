@@ -5,12 +5,6 @@
 
 #include "../src/tts/speech-backend.hpp"
 
-#define NOMINMAX
-#include <windows.h>
-#include <mmsystem.h>
-#include <sapi.h>
-#include <wrl/client.h>
-
 #include <QString>
 #include <QtGlobal>
 
@@ -28,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-using Microsoft::WRL::ComPtr;
 using namespace tts;
 
 namespace {
@@ -168,63 +161,6 @@ bool expectCancelledSilence()
 	return true;
 }
 
-// Sonda temporal para observar la causa del silencio: repite los pasos de SAPI e imprime cada HRESULT.
-void probeSapi(const char *label, const WAVEFORMATEX *format)
-{
-	std::printf("== sonda SAPI: %s\n", label);
-	ComPtr<ISpVoice> voice;
-	HRESULT hr = CoCreateInstance(CLSID_SpVoice, nullptr, CLSCTX_ALL, IID_ISpVoice, &voice);
-	std::printf("  CoCreateInstance(SpVoice) hr=0x%08lX\n", static_cast<unsigned long>(hr));
-	if (FAILED(hr))
-		return;
-	ComPtr<IStream> memStream;
-	hr = CreateStreamOnHGlobal(nullptr, TRUE, &memStream);
-	std::printf("  CreateStreamOnHGlobal hr=0x%08lX\n", static_cast<unsigned long>(hr));
-	if (FAILED(hr))
-		return;
-	ComPtr<ISpStream> spStream;
-	hr = CoCreateInstance(CLSID_SpStream, nullptr, CLSCTX_ALL, IID_ISpStream, &spStream);
-	std::printf("  CoCreateInstance(SpStream) hr=0x%08lX\n", static_cast<unsigned long>(hr));
-	if (FAILED(hr))
-		return;
-	hr = spStream->SetBaseStream(memStream.Get(), SPDFID_WaveFormatEx, format);
-	std::printf("  SetBaseStream hr=0x%08lX\n", static_cast<unsigned long>(hr));
-	if (FAILED(hr))
-		return;
-	hr = voice->SetOutput(spStream.Get(), TRUE);
-	std::printf("  SetOutput hr=0x%08lX\n", static_cast<unsigned long>(hr));
-	if (FAILED(hr))
-		return;
-	const std::wstring text = kSpeechText.toStdWString();
-	hr = voice->Speak(text.c_str(), SPF_IS_NOT_XML | SPF_PURGEBEFORESPEAK, nullptr);
-	std::printf("  Speak hr=0x%08lX\n", static_cast<unsigned long>(hr));
-	voice->SetOutput(nullptr, TRUE);
-
-	STATSTG stat {};
-	hr = memStream->Stat(&stat, STATFLAG_NONAME);
-	std::printf("  Stat hr=0x%08lX bytes=%llu\n", static_cast<unsigned long>(hr),
-		    static_cast<unsigned long long>(stat.cbSize.QuadPart));
-	LARGE_INTEGER zero {};
-	memStream->Seek(zero, STREAM_SEEK_SET, nullptr);
-	unsigned char head[4] = {};
-	ULONG read = 0;
-	memStream->Read(head, sizeof head, &read);
-	std::printf("  primeros %lu bytes: %02X %02X %02X %02X\n", read, head[0], head[1], head[2], head[3]);
-}
-
-void probeSapiFormats()
-{
-	probeSapi("formato nulo (lo que hace el backend)", nullptr);
-	WAVEFORMATEX format {};
-	format.wFormatTag = WAVE_FORMAT_PCM;
-	format.nChannels = 1;
-	format.nSamplesPerSec = 22050;
-	format.wBitsPerSample = 16;
-	format.nBlockAlign = 2;
-	format.nAvgBytesPerSec = 44100;
-	probeSapi("PCM 16 bits mono a 22050 Hz", &format);
-}
-
 int runAll()
 {
 	const std::vector<VoiceInfo> voices = availableVoices();
@@ -235,8 +171,6 @@ int runAll()
 		std::printf("SIN VOCES: este sistema no tiene voces SAPI, no se probo el sintetizador\n");
 		return kExitNoVoices;
 	}
-
-	probeSapiFormats();
 
 	bool ok = true;
 	SpeechRequest request;
@@ -265,8 +199,6 @@ int main()
 {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	qInstallMessageHandler(countingMessageHandler);
-	const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-	std::printf("CoInitializeEx hr=0x%08lX\n", static_cast<unsigned long>(com));
 
 	const int code = runAll();
 	// Sale sin destructores globales: un hilo de SAPI colgado no debe impedir terminar.
