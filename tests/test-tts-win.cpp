@@ -5,6 +5,7 @@
 
 #include "../src/tts/speech-backend.hpp"
 
+#define NOMINMAX
 #include <windows.h>
 #include <mmsystem.h>
 #include <sapi.h>
