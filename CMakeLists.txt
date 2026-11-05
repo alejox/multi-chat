@@ -75,8 +75,11 @@ target_sources(
 # Red nativa del sistema: OBS no instala los plugins TLS de Qt en Windows ni macOS, así que
 # QtNetwork no puede usar HTTPS dentro de OBS.
 if(OS_WINDOWS)
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/net/net-win.cpp)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp shell32)
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE src/net/net-win.cpp src/tts/speech-backend-win.cpp src/tts/voice-source.cpp src/tts/voice-source.hpp
+  )
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp shell32 sapi ole32)
   target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /utf-8)
 elseif(OS_MACOS)
   enable_language(OBJCXX)
@@ -89,10 +92,15 @@ elseif(OS_MACOS)
     PRIVATE "$<LINK_LIBRARY:FRAMEWORK,Foundation.framework>" "$<LINK_LIBRARY:FRAMEWORK,AVFoundation.framework>"
   )
 else()
-  # En Linux, Qt sí trae TLS, pero libcurl ya la tiene cualquier OBS.
+  # En Linux, Qt sí trae TLS, pero libcurl ya la tiene cualquier OBS. La voz usa espeak-ng.
   find_package(CURL REQUIRED)
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/net/net-linux.cpp)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl)
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(ESPEAK_NG REQUIRED IMPORTED_TARGET espeak-ng)
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE src/net/net-linux.cpp src/tts/speech-backend-linux.cpp src/tts/voice-source.cpp src/tts/voice-source.hpp
+  )
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl PkgConfig::ESPEAK_NG)
 endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
