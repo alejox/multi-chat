@@ -36,7 +36,7 @@ struct VoiceEngineConfig {
 	uint32_t chunkMs = 20;
 	uint32_t gapMs = 250;       // silencio entre dos textos
 	uint32_t stallMs = 15000;   // sin audio durante este tiempo, se pasa al siguiente texto
-	uint32_t resyncMs = 200;    // si el audio llega con este retraso, se sigue desde ahora
+	uint32_t resyncMs = 200;    // si dentro de un texto el audio llega con este retraso, se sigue desde ahora
 };
 
 class VoiceEngine {
