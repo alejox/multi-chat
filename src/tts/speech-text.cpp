@@ -89,7 +89,7 @@ QString bodyText(const QJsonObject &message)
 {
 	QString body;
 	const QJsonArray parts = message.value(QStringLiteral("parts")).toArray();
-	for (const QJsonValue &value : parts) {
+	for (const QJsonValue value : parts) {
 		const QJsonObject part = value.toObject();
 		if (part.value(QStringLiteral("type")).toString() == QStringLiteral("text"))
 			body += part.value(QStringLiteral("text")).toString();
