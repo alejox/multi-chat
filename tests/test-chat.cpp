@@ -25,7 +25,78 @@ private:
 		return s;
 	}
 
+	// Trama binaria de Supabase Realtime construida según _decodeUserBroadcast del bundle de la
+	// página (no es una captura real): tipo, longitudes de topic, evento y metadatos, codificación y
+	// después esos campos seguidos del contenido.
+	static QByteArray realtimeFrame(const QByteArray &topic, const QByteArray &event, const QByteArray &meta,
+					const QByteArray &payload, char kind = 4, char encoding = 1)
+	{
+		QByteArray out;
+		out.append(kind);
+		out.append(char(topic.size()));
+		out.append(char(event.size()));
+		out.append(char(meta.size()));
+		out.append(encoding);
+		return out + topic + event + meta + payload;
+	}
+
 private slots:
+	void starviosBroadcastFrame()
+	{
+		using starvios::Frame;
+		const QByteArray payload = "{\"op\":\"INSERT\",\"msg\":{\"id\":\"m1\",\"body\":\"hóla\"}}";
+		for (const QByteArray &meta : {QByteArray(), QByteArray("{\"id\":\"x\"}")}) {
+			const Frame f = starvios::decodeFrame(realtimeFrame("realtime:stream:s1", "msg", meta, payload));
+			QVERIFY(f.type == Frame::Type::Broadcast);
+			QCOMPARE(f.topic, QString("realtime:stream:s1"));
+			QCOMPARE(f.event, QString("msg"));
+			QCOMPARE(f.payload["op"].toString(), QString("INSERT"));
+			QCOMPARE(f.payload["msg"].toObject()["body"].toString(), QString("hóla"));
+		}
+		// Metadatos que no son JSON: la página los descartaría, aquí no invalidan el mensaje.
+		QVERIFY(starvios::decodeFrame(realtimeFrame("t", "msg", "{", payload)).type == Frame::Type::Broadcast);
+		// Bien formadas, pero sin contenido JSON o de otro tipo: se ignoran sin ser un error.
+		QVERIFY(starvios::decodeFrame(realtimeFrame("t", "msg", "", "\x01\x02", 4, 0)).type == Frame::Type::Ignored);
+		QVERIFY(starvios::decodeFrame(realtimeFrame("t", "msg", "", payload, 3)).type == Frame::Type::Ignored);
+		QVERIFY(starvios::decodeFrame(realtimeFrame("t", "msg", "", payload, 9)).type == Frame::Type::Ignored);
+	}
+
+	void starviosMalformedFrames()
+	{
+		using starvios::Frame;
+		QVERIFY(starvios::decodeFrame(QByteArray()).type == Frame::Type::Invalid);
+		QVERIFY(starvios::decodeFrame(QByteArray("\x04", 1)).type == Frame::Type::Invalid);
+		const QByteArray good = realtimeFrame("topic", "msg", "{}", "{\"op\":\"INSERT\"}");
+		// Cortada en cualquier punto, nunca se lee fuera de los límites ni se da por buena.
+		for (qsizetype cut = 0; cut < good.size(); ++cut)
+			QVERIFY(starvios::decodeFrame(QByteArrayView(good).first(cut)).type == Frame::Type::Invalid);
+		QVERIFY(starvios::decodeFrame(realtimeFrame("t", "msg", "", "no json")).type == Frame::Type::Invalid);
+		QVERIFY(starvios::decodeFrame(realtimeFrame("t", "msg", "", "[1,2]")).type == Frame::Type::Invalid);
+		QVERIFY(starvios::decodeFrame(QByteArray(32, char(0xFF))).type != Frame::Type::Broadcast);
+		for (const char *text : {"[", "{}", "[1,2,3]", "\"hola\"", "[null,null,\"t\",\"e\"]"})
+			QVERIFY(starvios::decodeFrame(QByteArray(text)).type == Frame::Type::Invalid);
+	}
+
+	void starviosControlFrame()
+	{
+		using starvios::Frame;
+		const Frame reply = starvios::decodeFrame(QByteArray(
+			"[\"1\",\"1\",\"realtime:stream:s1\",\"phx_reply\",{\"status\":\"ok\",\"response\":{}}]"));
+		QVERIFY(reply.type == Frame::Type::Control);
+		QCOMPARE(reply.ref, QString("1"));
+		QCOMPARE(reply.topic, QString("realtime:stream:s1"));
+		QCOMPARE(reply.event, QString("phx_reply"));
+		QCOMPARE(reply.payload["status"].toString(), QString("ok"));
+		const Frame beat = starvios::decodeFrame(QByteArray("[null,\"7\",\"phoenix\",\"phx_reply\",{}]"));
+		QVERIFY(beat.type == Frame::Type::Control);
+		QCOMPARE(beat.ref, QString("7"));
+		// ref numérico o nulo, y un contenido que no es un objeto: no rompen la trama.
+		const Frame other = starvios::decodeFrame(QByteArray("[null,5,\"t\",\"system\",null]"));
+		QVERIFY(other.type == Frame::Type::Control);
+		QCOMPARE(other.ref, QString("5"));
+		QVERIFY(other.payload.isEmpty());
+	}
+
 	void parseEntries()
 	{
 		QCOMPARE(entry("twitch:MiCanal").key, QString("twitch:micanal"));

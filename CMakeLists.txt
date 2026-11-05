@@ -48,6 +48,7 @@ target_sources(
     src/chat/kick.cpp
     src/chat/youtube.cpp
     src/chat/tiktok.cpp
+    src/chat/starvios.cpp
     src/chat/updates.cpp
     src/chat/updates.hpp
     src/net/net.hpp
