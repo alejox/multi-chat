@@ -102,6 +102,7 @@ void VoiceEngine::run()
 	Shared &s = *shared_;
 	std::unique_ptr<SpeechBackend> backend; // solo lo toca este hilo
 	bool speaking = false;
+	bool firstChunkOfText = false;
 	uint64_t nextTimestamp = 0;
 	std::vector<float> chunk;
 	const auto stallTimeout = std::chrono::milliseconds(config_.stallMs);
@@ -139,6 +140,7 @@ void VoiceEngine::run()
 			const uint64_t generation = ++s.generation;
 			SpeechRequest request{text, s.voiceId, s.rate};
 			speaking = true;
+			firstChunkOfText = true;
 			s.renderDone = false;
 			s.lastActivity = SteadyClock::now();
 			lock.unlock();
@@ -213,10 +215,14 @@ void VoiceEngine::run()
 		lock.unlock();
 
 		const uint64_t now = config_.clockNs();
-		// Marcas de tiempo continuas dentro de un texto; tras una pausa se sigue desde ahora,
-		// sin retroceder nunca.
-		if (now > nextTimestamp + uint64_t(config_.resyncMs) * kNsPerMs)
+		// Marcas de tiempo continuas dentro de un texto; tras una pausa larga se sigue desde ahora.
+		// Cada texto nuevo empieza en el momento actual si va retrasado, aunque sea poco: el audio
+		// con marcas en el pasado puede hacer que OBS aumente su búfer global para siempre. Nunca
+		// se retrocede, así que un texto nuevo tampoco pisa lo ya entregado.
+		const uint64_t allowedDelay = firstChunkOfText ? 0 : uint64_t(config_.resyncMs) * kNsPerMs;
+		if (now > nextTimestamp + allowedDelay)
 			nextTimestamp = now;
+		firstChunkOfText = false;
 		AudioChunk out;
 		out.samples = chunk.data();
 		out.frames = static_cast<uint32_t>(frames);

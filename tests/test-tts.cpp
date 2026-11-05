@@ -580,6 +580,75 @@ private slots:
 		QVERIFY(waitFor([&] { return rig.frames() == after + 40; }));
 	}
 
+	// Saltar pasa al siguiente texto sin pausa. Si su primer trozo saliera con una marca de tiempo
+	// en el pasado, OBS podría aumentar su búfer de audio global para siempre.
+	void firstChunkOfATextStartsAtTheCurrentTime()
+	{
+		VoiceEngineConfig config = fastConfig();
+		config.resyncMs = 60000; // aquí no debe ayudar el reajuste por retraso dentro de un texto
+		Rig rig(config);
+		rig.engine->enqueue("largo");
+		rig.engine->enqueue("siguiente");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		rig.speech->job(0).onPcm(silence(5000));
+		QVERIFY(waitFor([&] { return rig.frames() >= 40; }));
+
+		rig.engine->skipCurrent();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		const uint64_t skippedFrames = rig.frames();
+		QThread::msleep(80); // lo que tarda el sintetizador en dar el primer audio
+
+		const std::size_t skippedChunks = rig.snapshot().size();
+		const uint64_t beforeAudio = steadyNs();
+		rig.speech->job(1).onPcm(silence(100));
+		QVERIFY(waitFor([&] { return rig.frames() == skippedFrames + 100; }));
+
+		const auto chunks = rig.snapshot();
+		QVERIFY(chunks.at(skippedChunks).timestampNs >= beforeAudio);
+	}
+
+	// Si el motor aún lleva ventaja sobre el reloj, el texto nuevo no puede pisar lo ya entregado.
+	void newTextNeverOverlapsWhatWasDelivered()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("largo");
+		rig.engine->enqueue("siguiente");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		rig.speech->job(0).onPcm(silence(5000));
+		QVERIFY(waitFor([&] { return rig.frames() >= 40; }));
+
+		rig.engine->skipCurrent();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		const uint64_t skippedFrames = rig.frames();
+		rig.speech->job(1).onPcm(silence(40));
+		QVERIFY(waitFor([&] { return rig.frames() == skippedFrames + 40; }));
+
+		const auto chunks = rig.snapshot();
+		for (std::size_t i = 1; i < chunks.size(); ++i) {
+			const uint64_t duration = uint64_t(chunks[i - 1].frames) * 1000000000ULL / chunks[i - 1].rate;
+			QVERIFY(chunks[i].timestampNs >= chunks[i - 1].timestampNs + duration);
+		}
+	}
+
+	// Dentro de un texto, una pausa pequeña no abre un hueco: el audio sigue siendo continuo.
+	void timelineStaysContinuousWithinAText()
+	{
+		VoiceEngineConfig config = fastConfig();
+		config.resyncMs = 60000;
+		Rig rig(config);
+		rig.engine->enqueue("uno");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		rig.speech->job(0).onPcm(silence(20));
+		QVERIFY(waitFor([&] { return rig.frames() == 20; }));
+		QThread::msleep(60);
+		rig.speech->job(0).onPcm(silence(20));
+		QVERIFY(waitFor([&] { return rig.frames() == 40; }));
+
+		const auto chunks = rig.snapshot();
+		QCOMPARE(chunks.size(), std::size_t(2));
+		QCOMPARE(chunks[1].timestampNs - chunks[0].timestampNs, uint64_t(20000000));
+	}
+
 	void skipWithNothingPlayingIsHarmless()
 	{
 		Rig rig(fastConfig());
