@@ -194,8 +194,8 @@ PcmBuffer synthesize(const QString &text, const QString &voiceId, double rate)
 	const bool spoken = checked(voice->Speak(wtext.c_str(), SPF_IS_NOT_XML | SPF_PURGEBEFORESPEAK, nullptr),
 				    "sintetizar el texto") &&
 			    checked(voice->WaitUntilDone(INFINITE), "esperar a la síntesis");
-	// No se llama a SetOutput(nullptr): pide la salida de audio del sistema, que falla sin tarjeta de
-	// sonido (0x8004503A en el CI). El búfer ya está completo y la voz se suelta al salir.
+	// No se llama a SetOutput(nullptr): en el CI devolvía 0x8004503A, y no hace falta porque el búfer
+	// ya está completo y la voz se suelta al salir.
 	return spoken ? readPcm(memStream.Get()) : PcmBuffer {};
 }
 

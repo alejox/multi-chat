@@ -61,5 +61,8 @@ Los HRESULT de `SetOutput`, `Speak` y `WaitUntilDone` se ignoran, así que todo 
 - T3 en `11fdfb6`: `ctest --test-dir build_tests` 100% (2 de 2), contra el QtTest stand-in local de `build_tests`; el QtTest real corre en el job `tests`. `cmake --build --preset macos`: BUILD SUCCEEDED. `5596bb5` solo cambia un archivo de Windows, que aquí no se compila.
 - No verificado: que OBS reproduzca ese PCM en la máquina del usuario. El CI demuestra que el backend produce audio, no que se oiga, ni que el tono sea correcto de oído.
 
+- Revisión nativa: apagada a nivel global. `gentle-ai review assess` dio riesgo alto (`shell_source` en `build.yml`), así que se usó un verificador independiente de solo lectura: PASS, sin defectos bloqueantes.
+- Hallazgos menores sin corregir: la prueba no detecta audio truncado por encima de 0,2 s ni cancela durante la síntesis; el hilo separado podría sobrevivir a la descarga del plugin (ya existía antes de este cambio).
+
 ## Next step
-Quien coordina decide la revisión, el merge, la versión y la release. Después, el usuario prueba de oído en Windows; si sigue sin sonar, el log de OBS debería mostrar líneas `[multichat] voz de Windows`.
+Publicar 2.1.1. Después, el usuario prueba de oído en Windows; si sigue sin sonar, el log de OBS debería mostrar líneas `[multichat] voz de Windows`.

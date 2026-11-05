@@ -1,7 +1,7 @@
 #pragma once
 
-// Sintetizador de voz de cada sistema. Solo existe el de macOS (speech-backend-mac.mm); para
-// añadir Windows o Linux basta con implementar esta interfaz, sin tocar la fuente de OBS.
+// Sintetizador de voz de cada sistema: speech-backend-mac.mm, speech-backend-win.cpp y
+// speech-backend-linux.cpp. Para añadir otro basta con implementar esta interfaz, sin tocar la fuente de OBS.
 
 #include "pcm.hpp"
 
