@@ -35,6 +35,8 @@ QColor platformColor(const QString &platform)
 		return QColor(0x53, 0xFC, 0x18);
 	if (platform == "tiktok")
 		return QColor(0xFE, 0x2C, 0x55);
+	if (platform == "starvios")
+		return QColor(0x8B, 0x5C, 0xF6);
 	return QColor(0x88, 0x88, 0x88);
 }
 
@@ -126,6 +128,23 @@ QPixmap platformIcon(const QString &platform, int size, qreal dpr)
 		p.drawPath(note.translated(0.8, 0.8));
 		p.setBrush(Qt::white);
 		p.drawPath(note);
+	} else if (platform == "starvios") {
+		p.setBrush(platformColor(platform));
+		p.drawRoundedRect(QRectF(1, 1, 22, 22), 5, 5);
+		QPainterPath star;
+		star.moveTo(12, 5.2);
+		star.lineTo(14.1, 9.6);
+		star.lineTo(18.9, 10.2);
+		star.lineTo(15.4, 13.5);
+		star.lineTo(16.3, 18.3);
+		star.lineTo(12, 16);
+		star.lineTo(7.7, 18.3);
+		star.lineTo(8.6, 13.5);
+		star.lineTo(5.1, 10.2);
+		star.lineTo(9.9, 9.6);
+		star.closeSubpath();
+		p.setBrush(Qt::white);
+		p.drawPath(star);
 	} else {
 		p.setBrush(platformColor(platform));
 		p.drawEllipse(QRectF(2, 2, 20, 20));

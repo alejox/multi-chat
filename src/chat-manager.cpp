@@ -33,7 +33,7 @@ QString configPath()
 
 int platformOrder(const QString &p)
 {
-	static const QStringList order = {"twitch", "youtube", "kick", "tiktok", "demo"};
+	static const QStringList order = {"twitch", "youtube", "kick", "tiktok", "starvios", "demo"};
 	return int(order.indexOf(p));
 }
 

@@ -98,7 +98,8 @@ QList<ViewerItem> viewerItems(const OverlaySource *s)
 		const ViewerItem samples[] = {{"twitch", "micanal", 1234},
 					      {"youtube", "@micanal", 856},
 					      {"kick", "micanal", 312},
-					      {"tiktok", "@micanal", 2045}};
+					      {"tiktok", "@micanal", 2045},
+					      {"starvios", "micanal", 148}};
 		for (const ViewerItem &sample : samples)
 			if (platforms.contains(sample.platform))
 				items.append(sample);
@@ -208,7 +209,8 @@ void refreshViewers(OverlaySource *s)
 	const QList<ViewerItem> measured =
 		!items.isEmpty() || s->sized ? items
 					     : QList<ViewerItem>{{"twitch", "micanal", 1234}, {"youtube", "@micanal", 856},
-								 {"kick", "micanal", 312}, {"tiktok", "@micanal", 2045}};
+								 {"kick", "micanal", 312}, {"tiktok", "@micanal", 2045},
+								 {"starvios", "micanal", 148}};
 	if (!measured.isEmpty()) {
 		s->sized = true;
 		const QSize size = viewerBoxSize(s, measured, items.isEmpty() ? viewerTotal(s, measured) : total);
@@ -501,7 +503,7 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
 	}
 	QJsonArray platforms;
-	for (const char *p : {"twitch", "youtube", "kick", "tiktok"})
+	for (const char *p : {"twitch", "youtube", "kick", "tiktok", "starvios"})
 		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
 			platforms.append(p);
 	if (s->kind == Kind::Clock) {
@@ -652,6 +654,7 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "show_youtube", true);
 	obs_data_set_default_bool(settings, "show_kick", true);
 	obs_data_set_default_bool(settings, "show_tiktok", true);
+	obs_data_set_default_bool(settings, "show_starvios", true);
 	obs_data_set_default_bool(settings, "icons", true);
 	obs_data_set_default_bool(settings, "badges", true);
 	obs_data_set_default_bool(settings, "background", false);
@@ -686,7 +689,7 @@ void vw_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "names", false);
 	obs_data_set_default_int(settings, "pad_y", 10);
 	obs_data_set_default_int(settings, "pad_x", 17);
-	for (const char *p : {"show_twitch", "show_youtube", "show_kick", "show_tiktok"})
+	for (const char *p : {"show_twitch", "show_youtube", "show_kick", "show_tiktok", "show_starvios"})
 		obs_data_set_default_bool(settings, p, true);
 	obs_data_set_default_bool(settings, "background", true);
 	obs_data_set_default_string(settings, "style", "solid");
@@ -790,6 +793,7 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(props, "show_youtube", obs_module_text("Source.ShowYouTube"));
 	obs_properties_add_bool(props, "show_kick", obs_module_text("Source.ShowKick"));
 	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
+	obs_properties_add_bool(props, "show_starvios", obs_module_text("Source.ShowStarvios"));
 	obs_properties_add_bool(props, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(props, "badges", obs_module_text("Source.Badges"));
 	addStyleList(props);
@@ -832,6 +836,7 @@ obs_properties_t *vw_properties(void *)
 	obs_properties_add_bool(props, "show_youtube", obs_module_text("Source.ShowYouTube"));
 	obs_properties_add_bool(props, "show_kick", obs_module_text("Source.ShowKick"));
 	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
+	obs_properties_add_bool(props, "show_starvios", obs_module_text("Source.ShowStarvios"));
 	addStyleList(props);
 	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
 	obs_property_set_modified_callback(
