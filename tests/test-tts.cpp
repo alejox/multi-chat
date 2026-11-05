@@ -4,6 +4,7 @@
 #include "../src/tts/bounded-queue.hpp"
 #include "../src/tts/pcm.hpp"
 #include "../src/tts/speech-text.hpp"
+#include "../src/tts/wav.hpp"
 #include "../src/tts/voice-engine.hpp"
 
 #include <QElapsedTimer>
@@ -12,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstring>
 #include <mutex>
 #include <vector>
 
@@ -161,6 +163,65 @@ VoiceEngineConfig fastConfig()
 	VoiceEngineConfig config;
 	config.gapMs = 0;
 	return config;
+}
+
+// -- helpers para fromWav --
+
+void putU16(std::vector<uint8_t> &out, uint16_t v)
+{
+	out.push_back(uint8_t(v & 0xff));
+	out.push_back(uint8_t(v >> 8));
+}
+
+void putU32(std::vector<uint8_t> &out, uint32_t v)
+{
+	out.push_back(uint8_t(v & 0xff));
+	out.push_back(uint8_t(v >> 8));
+	out.push_back(uint8_t(v >> 16));
+	out.push_back(uint8_t(v >> 24));
+}
+
+void putI16(std::vector<uint8_t> &out, int16_t v)
+{
+	putU16(out, uint16_t(v));
+}
+
+void putF32(std::vector<uint8_t> &out, float f)
+{
+	uint32_t u;
+	std::memcpy(&u, &f, sizeof u);
+	putU32(out, u);
+}
+
+// Envuelve muestras crudas intercaladas en un RIFF/WAVE mínimo con un chunk fmt de 16 bytes.
+std::vector<uint8_t> wavBytes(const std::vector<uint8_t> &data, uint16_t channels, uint32_t rate, uint16_t bits,
+			      uint16_t formatTag)
+{
+	const uint16_t blockAlign = uint16_t(channels * bits / 8);
+	std::vector<uint8_t> out;
+	const auto tag = [&](const char *c) { out.insert(out.end(), c, c + 4); };
+	tag("RIFF");
+	putU32(out, 0); // corregido abajo
+	tag("WAVE");
+	tag("fmt ");
+	putU32(out, 16);
+	putU16(out, formatTag);
+	putU16(out, channels);
+	putU32(out, rate);
+	putU32(out, uint32_t(rate) * blockAlign);
+	putU16(out, blockAlign);
+	putU16(out, bits);
+	tag("data");
+	putU32(out, uint32_t(data.size()));
+	out.insert(out.end(), data.begin(), data.end());
+	if (data.size() & 1)
+		out.push_back(0);
+	const uint32_t riffSize = uint32_t(out.size() - 8);
+	out[4] = uint8_t(riffSize & 0xff);
+	out[5] = uint8_t(riffSize >> 8);
+	out[6] = uint8_t(riffSize >> 16);
+	out[7] = uint8_t(riffSize >> 24);
+	return out;
 }
 
 } // namespace
@@ -506,6 +567,79 @@ private slots:
 		QVERIFY(toFloatPcm(fp, 1, 1, 1, false, 0).samples.empty());
 		QVERIFY(toFloatPcm(fp, 1, 1, 2, false, 22050).samples.empty()); // falta un plano
 		QVERIFY(toFloatPcm(none, 1, 1, 1, false, 22050).samples.empty());
+	}
+
+	void wavParsesPcm16Mono()
+	{
+		std::vector<uint8_t> raw;
+		putI16(raw, 0);
+		putI16(raw, 16384);
+		putI16(raw, -32768);
+		putI16(raw, 32767);
+		const std::vector<uint8_t> w = wavBytes(raw, 1, 22050, 16, 1);
+		PcmBuffer b = fromWav(w.data(), w.size());
+		QCOMPARE(b.sampleRate, uint32_t(22050));
+		QCOMPARE(b.channels, uint32_t(1));
+		QCOMPARE(b.frames(), std::size_t(4));
+		QCOMPARE(b.samples[0], 0.0f);
+		QCOMPARE(b.samples[1], 0.5f);
+		QCOMPARE(b.samples[2], -1.0f);
+		QVERIFY(qAbs(b.samples[3] - (32767.0f / 32768.0f)) < 1e-6f);
+	}
+
+	void wavParsesPcm16Stereo()
+	{
+		std::vector<uint8_t> raw;
+		putI16(raw, 16384);
+		putI16(raw, -16384);
+		putI16(raw, 32767);
+		putI16(raw, 0);
+		const std::vector<uint8_t> w = wavBytes(raw, 2, 48000, 16, 1);
+		PcmBuffer b = fromWav(w.data(), w.size());
+		QCOMPARE(b.channels, uint32_t(2));
+		QCOMPARE(b.frames(), std::size_t(2));
+		QCOMPARE(b.samples, (std::vector<float>{0.5f, -0.5f, 32767.0f / 32768.0f, 0.0f}));
+	}
+
+	void wavParsesPcm8()
+	{
+		const std::vector<uint8_t> raw = {128, 0, 255, 64};
+		const std::vector<uint8_t> w = wavBytes(raw, 1, 8000, 8, 1);
+		PcmBuffer b = fromWav(w.data(), w.size());
+		QCOMPARE(b.sampleRate, uint32_t(8000));
+		QCOMPARE(b.frames(), std::size_t(4));
+		QCOMPARE(b.samples[0], 0.0f);
+		QVERIFY(qAbs(b.samples[1] + 1.0f) < 1e-6f);
+		QVERIFY(qAbs(b.samples[2] - (127.0f / 128.0f)) < 1e-6f);
+		QVERIFY(qAbs(b.samples[3] + 0.5f) < 1e-6f);
+	}
+
+	void wavParsesFloat32()
+	{
+		std::vector<uint8_t> raw;
+		putF32(raw, 0.25f);
+		putF32(raw, -0.5f);
+		const std::vector<uint8_t> w = wavBytes(raw, 1, 44100, 32, 3);
+		PcmBuffer b = fromWav(w.data(), w.size());
+		QCOMPARE(b.sampleRate, uint32_t(44100));
+		QCOMPARE(b.frames(), std::size_t(2));
+		QCOMPARE(b.samples[0], 0.25f);
+		QCOMPARE(b.samples[1], -0.5f);
+	}
+
+	void wavRejectsInvalidData()
+	{
+		QVERIFY(fromWav(nullptr, 0).samples.empty());
+		QVERIFY(fromWav(nullptr, 100).samples.empty());
+		const std::vector<uint8_t> tooShort = {'R', 'I', 'F', 'F'};
+		QVERIFY(fromWav(tooShort.data(), tooShort.size()).samples.empty());
+		const std::vector<uint8_t> empty = wavBytes({}, 1, 22050, 16, 1);
+		QVERIFY(fromWav(empty.data(), empty.size()).samples.empty());
+		std::vector<uint8_t> truncated = wavBytes({0, 0}, 1, 22050, 16, 1);
+		truncated.resize(truncated.size() - 2); // corta las muestras del chunk data
+		QVERIFY(fromWav(truncated.data(), truncated.size()).samples.empty());
+		const std::vector<uint8_t> alaw = wavBytes({0, 0}, 1, 22050, 16, 6); // A-law, no PCM ni float
+		QVERIFY(fromWav(alaw.data(), alaw.size()).samples.empty());
 	}
 
 	// Sin textos no hay sintetizador: la fuente activada pero sin chat no gasta nada.
