@@ -1,18 +1,25 @@
-// Voz en Windows con SAPI: ISpVoice renderiza el texto a un WAV en memoria (no a los altavoces),
-// y ese PCM llega a OBS como cualquier otra fuente de audio. Sin sphelper.h: se usan los objetos
+// Voz en Windows con SAPI: ISpVoice renderiza el texto a PCM en memoria (no a los altavoces), y
+// ese PCM llega a OBS como cualquier otra fuente de audio. Sin sphelper.h: se usan los objetos
 // COM directamente para que el archivo quede limpio con /W4 y /WX en el CI.
+//
+// Los fallos se informan con qWarning, que OBS manda a su log: aquí no se depende de libobs para
+// poder ejecutar este archivo en tests/test-tts-win.cpp.
 
 #include "speech-backend.hpp"
-#include "wav.hpp"
 
+#define NOMINMAX
+#include <windows.h>
+#include <mmsystem.h>
 #include <sapi.h>
 #include <wrl/client.h>
 
 #include <QString>
+#include <QtGlobal>
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <thread>
@@ -45,6 +52,18 @@ struct ComInit {
 	}
 };
 
+// Formato que se pide a SAPI y con el que se interpretan los bytes que escribe.
+constexpr uint32_t kSampleRate = 22050;
+constexpr WORD kBitsPerSample = 16;
+
+bool checked(HRESULT hr, const char *step)
+{
+	if (SUCCEEDED(hr))
+		return true;
+	qWarning("[multichat] voz de Windows: falló %s (HRESULT 0x%08lX)", step, static_cast<unsigned long>(hr));
+	return false;
+}
+
 struct VoiceToken {
 	QString id;
 	QString name;
@@ -54,12 +73,13 @@ std::vector<VoiceToken> listVoiceTokens()
 {
 	std::vector<VoiceToken> voices;
 	ComPtr<ISpObjectTokenCategory> category;
-	if (FAILED(CoCreateInstance(CLSID_SpObjectTokenCategory, nullptr, CLSCTX_ALL,
-				    IID_ISpObjectTokenCategory, &category)) ||
-	    FAILED(category->SetId(SPCAT_VOICES, FALSE)))
+	if (!checked(CoCreateInstance(CLSID_SpObjectTokenCategory, nullptr, CLSCTX_ALL, IID_ISpObjectTokenCategory,
+				      &category),
+		     "crear la categoría de voces") ||
+	    !checked(category->SetId(SPCAT_VOICES, FALSE), "abrir la categoría de voces"))
 		return voices;
 	ComPtr<IEnumSpObjectTokens> enumerator;
-	if (FAILED(category->EnumTokens(nullptr, nullptr, &enumerator)))
+	if (!checked(category->EnumTokens(nullptr, nullptr, &enumerator), "enumerar las voces"))
 		return voices;
 	ComPtr<ISpObjectToken> token;
 	while (enumerator->Next(1, &token, nullptr) == S_OK) {
@@ -90,12 +110,13 @@ ComPtr<ISpObjectToken> findToken(const QString &id)
 {
 	const std::wstring wanted = id.toStdWString();
 	ComPtr<ISpObjectTokenCategory> category;
-	if (FAILED(CoCreateInstance(CLSID_SpObjectTokenCategory, nullptr, CLSCTX_ALL,
-				    IID_ISpObjectTokenCategory, &category)) ||
-	    FAILED(category->SetId(SPCAT_VOICES, FALSE)))
+	if (!checked(CoCreateInstance(CLSID_SpObjectTokenCategory, nullptr, CLSCTX_ALL, IID_ISpObjectTokenCategory,
+				      &category),
+		     "crear la categoría de voces") ||
+	    !checked(category->SetId(SPCAT_VOICES, FALSE), "abrir la categoría de voces"))
 		return {};
 	ComPtr<IEnumSpObjectTokens> enumerator;
-	if (FAILED(category->EnumTokens(nullptr, nullptr, &enumerator)))
+	if (!checked(category->EnumTokens(nullptr, nullptr, &enumerator), "enumerar las voces"))
 		return {};
 	ComPtr<ISpObjectToken> token;
 	while (enumerator->Next(1, &token, nullptr) == S_OK) {
@@ -108,6 +129,73 @@ ComPtr<ISpObjectToken> findToken(const QString &id)
 		token.Reset();
 	}
 	return {};
+}
+
+// Copia todo lo que SAPI escribió: PCM crudo, sin cabecera RIFF, en el formato de kSampleRate.
+PcmBuffer readPcm(IStream *stream)
+{
+	STATSTG stat {};
+	if (!checked(stream->Stat(&stat, STATFLAG_NONAME), "medir el audio generado"))
+		return {};
+	std::vector<int16_t> samples(static_cast<std::size_t>(stat.cbSize.QuadPart) / sizeof(int16_t));
+	if (samples.empty())
+		return {};
+	LARGE_INTEGER zero {};
+	if (!checked(stream->Seek(zero, STREAM_SEEK_SET, nullptr), "volver al inicio del audio"))
+		return {};
+	ULONG read = 0;
+	if (!checked(stream->Read(samples.data(), static_cast<ULONG>(samples.size() * sizeof(int16_t)), &read),
+		     "leer el audio generado"))
+		return {};
+	const int16_t *plane = samples.data();
+	return toFloatPcm<int16_t>(&plane, 1, read / sizeof(int16_t), 1, true, kSampleRate);
+}
+
+// Corre en el hilo del trabajo, con COM ya inicializado. Devuelve un búfer vacío si algo falla,
+// y cada fallo queda en el log.
+PcmBuffer synthesize(const QString &text, const QString &voiceId, double rate)
+{
+	ComPtr<ISpVoice> voice;
+	if (!checked(CoCreateInstance(CLSID_SpVoice, nullptr, CLSCTX_ALL, IID_ISpVoice, &voice), "crear ISpVoice"))
+		return {};
+	if (!voiceId.isEmpty()) {
+		// Sin la voz elegida se sigue con la predeterminada: mejor esa que el silencio.
+		const ComPtr<ISpObjectToken> token = findToken(voiceId);
+		if (!token)
+			qWarning("[multichat] voz de Windows: no existe la voz %s; se usa la predeterminada",
+				 qUtf8Printable(voiceId));
+		else
+			checked(voice->SetVoice(token.Get()), "elegir la voz");
+	}
+	// rate 0..1 (0.5 normal) → ajuste SAPI de -10 (lento) a +10 (rápido).
+	checked(voice->SetRate(std::lround((rate - 0.5) * 20.0)), "ajustar la velocidad");
+
+	ComPtr<IStream> memStream;
+	if (!checked(CreateStreamOnHGlobal(nullptr, TRUE, &memStream), "crear el búfer de audio"))
+		return {};
+	ComPtr<ISpStream> spStream;
+	if (!checked(CoCreateInstance(CLSID_SpStream, nullptr, CLSCTX_ALL, IID_ISpStream, &spStream), "crear ISpStream"))
+		return {};
+
+	WAVEFORMATEX format {};
+	format.wFormatTag = WAVE_FORMAT_PCM;
+	format.nChannels = 1;
+	format.nSamplesPerSec = kSampleRate;
+	format.wBitsPerSample = kBitsPerSample;
+	format.nBlockAlign = static_cast<WORD>(format.nChannels * format.wBitsPerSample / 8);
+	format.nAvgBytesPerSec = format.nSamplesPerSec * format.nBlockAlign;
+	if (!checked(spStream->SetBaseStream(memStream.Get(), SPDFID_WaveFormatEx, &format), "preparar el audio"))
+		return {};
+
+	// FALSE: la voz debe convertir a este formato, porque es con el que se leen los bytes.
+	if (!checked(voice->SetOutput(spStream.Get(), FALSE), "dirigir la voz al búfer"))
+		return {};
+	const std::wstring wtext = text.toStdWString();
+	const bool spoken = checked(voice->Speak(wtext.c_str(), SPF_IS_NOT_XML | SPF_PURGEBEFORESPEAK, nullptr),
+				    "sintetizar el texto") &&
+			    checked(voice->WaitUntilDone(INFINITE), "esperar a la síntesis");
+	checked(voice->SetOutput(nullptr, TRUE), "soltar el búfer de audio");
+	return spoken ? readPcm(memStream.Get()) : PcmBuffer {};
 }
 
 class WinSpeechBackend : public SpeechBackend {
@@ -130,44 +218,11 @@ public:
 		// bloquearlo y para que stop() (saltar texto o apagar) no espere a que termine SAPI.
 		std::thread([job, text, voiceId, rate] {
 			ComInit com(COINIT_APARTMENTTHREADED);
-			PcmBuffer buffer;
-			ComPtr<ISpVoice> voice;
-			if (SUCCEEDED(CoCreateInstance(CLSID_SpVoice, nullptr, CLSCTX_ALL, IID_ISpVoice, &voice))) {
-				if (!voiceId.isEmpty()) {
-					const ComPtr<ISpObjectToken> token = findToken(voiceId);
-					if (token)
-						voice->SetVoice(token.Get());
-				}
-				// rate 0..1 (0.5 normal) → ajuste SAPI de -10 (lento) a +10 (rápido).
-				voice->SetRate(std::lround((rate - 0.5) * 20.0));
-
-				ComPtr<IStream> memStream;
-				if (SUCCEEDED(CreateStreamOnHGlobal(nullptr, TRUE, &memStream))) {
-					ComPtr<ISpStream> spStream;
-					if (SUCCEEDED(CoCreateInstance(CLSID_SpStream, nullptr, CLSCTX_ALL, IID_ISpStream,
-								       &spStream)) &&
-					    SUCCEEDED(spStream->SetBaseStream(memStream.Get(), SPDFID_WaveFormatEx, nullptr))) {
-						voice->SetOutput(spStream.Get(), TRUE);
-						const std::wstring wtext = text.toStdWString();
-						voice->Speak(wtext.c_str(), SPF_IS_NOT_XML | SPF_PURGEBEFORESPEAK, nullptr);
-						voice->WaitUntilDone(INFINITE);
-						voice->SetOutput(nullptr, TRUE);
-
-						LARGE_INTEGER zero {};
-						if (SUCCEEDED(memStream->Seek(zero, STREAM_SEEK_SET, nullptr))) {
-							STATSTG stat {};
-							if (SUCCEEDED(memStream->Stat(&stat, STATFLAG_NONAME)) && stat.cbSize.QuadPart > 0) {
-								std::vector<uint8_t> wav(static_cast<std::size_t>(stat.cbSize.QuadPart));
-								ULONG read = 0;
-								if (SUCCEEDED(memStream->Read(wav.data(), static_cast<ULONG>(wav.size()), &read)))
-									buffer = fromWav(wav.data(), read);
-							}
-						}
-					}
-				}
-			}
+			PcmBuffer buffer = synthesize(text, voiceId, rate);
 			if (!job->cancelled.load() && !job->finished.exchange(true)) {
-				if (!buffer.samples.empty())
+				if (buffer.samples.empty())
+					qWarning("[multichat] voz de Windows: un texto terminó sin audio");
+				else
 					job->onPcm(std::move(buffer));
 				job->onDone();
 			}

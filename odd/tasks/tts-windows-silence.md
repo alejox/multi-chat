@@ -35,7 +35,7 @@ Los HRESULT de `SetOutput`, `Speak` y `WaitUntilDone` se ignoran, así que todo 
 - Native review: la decide quien coordina la tarea, no este trabajo.
 
 ## Tasks
-- [ ] T1 RED: prueba real de SAPI en el CI de Windows. Route: delegated (writer; toca 3 archivos no triviales). Commit: pendiente.
+- [x] T1 RED: prueba real de SAPI en el CI de Windows. Route: delegated (writer; toca 3 archivos no triviales). Commits: `8e3ef7e`, `a030593`.
   - Accept: `test-tts-win` corre en el job de Windows, falla con límite de tiempo, y distingue "sin voces" de un fallo.
   - Check: run de CI en rojo con la salida real.
 - [ ] T2 GREEN: arreglar el backend. Route: delegated (writer). Commit: pendiente.
@@ -45,7 +45,13 @@ Los HRESULT de `SetOutput`, `Speak` y `WaitUntilDone` se ignoran, así que todo 
   - Check: `ctest --test-dir build_tests`; `cmake --build --preset macos`.
 
 ## Verification evidence
-Pendiente.
+- Run 41976314580 (`8e3ef7e`): el job de Windows falló al compilar la prueba, no por la voz: C2589 en `std::max` por la macro de `windows.h`. Se corrigió con `NOMINMAX` en `a030593`.
+- T1 RED, run https://github.com/alejox/multi-chat/actions/runs/41976727752 (`a030593`), job de Windows en rojo; `tests` y `linux` en verde al leerlo. Salida real:
+  - `voces en este sistema: 2` (Microsoft David Desktop y Microsoft Zira Desktop, en-US).
+  - Sonda con formato nulo, lo que hacía el backend: `SetBaseStream hr=0x80070057`.
+  - Sonda con PCM 16 bits mono a 22050 Hz: `SetBaseStream`, `SetOutput` y `Speak` en `hr=0x00000000`; `bytes=153870`; `primeros 4 bytes: 00 00 00 00` (sin RIFF).
+  - Voz predeterminada, David, Zira y voz inexistente: `llamadas PCM=0 ... FALLO: terminó sin entregar audio`. Texto vacío: `FALLO: terminó sin audio y sin ningún aviso en el log`. `stop()`: ok.
+- Causa observada: las dos hipótesis son ciertas. `SetBaseStream` rechaza el formato nulo con `E_INVALIDARG` y el error se tragaba; con formato válido el stream recibe PCM crudo, que `fromWav` habría rechazado por no llevar RIFF.
 
 ## Next step
-T1: subir la prueba y observar el fallo en el CI de Windows.
+T2: subir el arreglo y observar los 4 jobs en verde.
