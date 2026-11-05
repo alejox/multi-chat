@@ -52,8 +52,12 @@ target_sources(
     src/chat/updates.hpp
     src/net/net.hpp
     src/tts/bounded-queue.hpp
+    src/tts/pcm.hpp
+    src/tts/speech-backend.hpp
     src/tts/speech-text.cpp
     src/tts/speech-text.hpp
+    src/tts/voice-engine.cpp
+    src/tts/voice-engine.hpp
     src/ui/chat-dock.cpp
     src/ui/chat-dock.hpp
     src/ui/flow-layout.cpp
@@ -75,8 +79,14 @@ if(OS_WINDOWS)
   target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /utf-8)
 elseif(OS_MACOS)
   enable_language(OBJCXX)
-  target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/net/net-mac.mm)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE "$<LINK_LIBRARY:FRAMEWORK,Foundation.framework>")
+  target_sources(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE src/net/net-mac.mm src/tts/speech-backend-mac.mm src/tts/voice-source.cpp src/tts/voice-source.hpp
+  )
+  target_link_libraries(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE "$<LINK_LIBRARY:FRAMEWORK,Foundation.framework>" "$<LINK_LIBRARY:FRAMEWORK,AVFoundation.framework>"
+  )
 else()
   # En Linux, Qt sí trae TLS, pero libcurl ya la tiene cualquier OBS.
   find_package(CURL REQUIRED)

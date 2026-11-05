@@ -28,6 +28,9 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "ui/image-cache.hpp"
 #include "ui/profile-cache.hpp"
 #include "updater.hpp"
+#ifdef __APPLE__
+#include "tts/voice-source.hpp"
+#endif
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
@@ -50,6 +53,10 @@ QString streamingService()
 
 void shutdown()
 {
+#ifdef __APPLE__
+	// Primero la voz: así ningún mensaje de los últimos que entreguen los chats se pone a la cola.
+	voice_source_shutdown();
+#endif
 	ChatManager::instance().shutdown();
 	ImageCache::instance().shutdown();
 	ProfileCache::instance().shutdown();
@@ -93,6 +100,9 @@ bool obs_module_load(void)
 {
 	ChatManager::instance().load();
 	register_overlay_source();
+#ifdef __APPLE__
+	register_voice_source();
+#endif
 
 	auto *main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
 	obs_frontend_add_dock_by_id("multichat_dock", obs_module_text("Dock.Title"), new ChatDock(main_window));
