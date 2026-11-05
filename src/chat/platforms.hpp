@@ -38,7 +38,7 @@ Profile fetchProfile(const SourceInfo &source);
 std::shared_ptr<Connector> createConnector(const SourceInfo &source, Connector::PostFn post,
 					   Connector::ReportFn report);
 
-// Interpreta "twitch:canal", "youtube:@canal", "kick:canal", "tiktok:@usuario", "demo:demo" o una URL.
+// Interpreta "twitch:canal", "youtube:@canal", "kick:canal", "tiktok:@usuario", "starvios:usuario", "demo:demo" o una URL.
 // Devuelve false y rellena `error` si no es válida.
 bool parseEntry(const QString &entry, SourceInfo &out, QString &error);
 
@@ -165,6 +165,46 @@ struct Frame {
 };
 // Decide el formato mirando el contenido: los backends de net:: no distinguen texto de binario.
 Frame decodeFrame(QByteArrayView data);
+
+// Emotes de la plataforma: código en minúsculas → URL de la imagen.
+using EmoteMap = QHash<QString, QString>;
+// En la respuesta de /api/public/emotes. Descarta las entradas con un código o una ruta sospechosos.
+EmoteMap parseEmoteCatalog(const QJsonObject &response);
+// Separa el texto de los :código: conocidos, como hace la página. Los enlaces quedan intactos.
+QJsonArray splitBody(const QString &body, const EmoteMap &emotes);
+
+// Nombre visible de una fila de live_chat_messages: display_name o username; vacío si no trae perfil.
+QString authorOf(const QJsonObject &row);
+// Convierte una fila en un mensaje. Devuelve un objeto vacío si no hay nada que mostrar (sin id,
+// borrada, vacía). ownerId es el id del canal: su dueño lleva insignia aunque la fila no la traiga.
+QJsonObject toMessage(const QJsonObject &row, const QString &channel, const QString &ownerId = {},
+		      const EmoteMap &emotes = {}, bool recovered = false);
+
+// En la respuesta de /api/public/discovery. Rellena los ids solo si el directo está en vivo.
+LiveResult parseDiscovery(const QJsonObject &response, QString &streamId, QString &channelId);
+Profile profileFromDiscovery(const QJsonObject &response);
+// En la respuesta de live_viewer_counts: espectadores de ese directo, o -1.
+int viewersFromCounts(const QJsonArray &rows, const QString &streamId);
+
+// Para recuperarse si Starvios cambia su clave pública: la ruta de /assets/client-*.js en el HTML
+// de la portada, y la clave y la URL del proyecto dentro de ese módulo.
+QString clientScriptFromHtml(const QString &html);
+bool credentialsFromScript(const QString &script, QString &key, QString &projectUrl);
+
+LiveResult checkLive(const QString &channel);
+Profile fetchProfile(const QString &channel);
+
+// Tiempos de la sesión; las pruebas los acortan.
+struct Timing {
+	int joinTimeoutMs = 15000;
+	int heartbeatMs = 25000;
+	int discoveryMs = 60000; // comprueba si el directo sigue siendo el mismo
+	int offlineMs = 30000;   // sin directo: cada cuánto se vuelve a preguntar
+};
+std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn post, Connector::ReportFn report,
+				  Timing timing = {});
+// Olvida la clave recuperada y los emotes. Solo para las pruebas: ese estado es de todo el proceso.
+void resetSharedState();
 } // namespace starvios
 
 namespace demo {

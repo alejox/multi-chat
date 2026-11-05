@@ -38,6 +38,8 @@ QJsonObject makeMessage(const QString &platform, const QString &channel, const Q
 		m.insert("system", o.system);
 	if (o.action)
 		m.insert("action", true);
+	if (o.recovered)
+		m.insert("recovered", true);
 	return m;
 }
 
@@ -51,6 +53,8 @@ QString platformName(const QString &platform)
 		return QStringLiteral("Kick");
 	if (platform == "tiktok")
 		return QStringLiteral("TikTok");
+	if (platform == "starvios")
+		return QStringLiteral("Starvios");
 	if (platform == "demo")
 		return QStringLiteral("Demo");
 	return platform;

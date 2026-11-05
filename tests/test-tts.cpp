@@ -24,7 +24,7 @@ SpeechOptions baseOptions()
 	SpeechOptions o;
 	o.includeAuthor = false;
 	o.authorFormat = QStringLiteral("%1 dice: %2");
-	o.allowedPlatforms = {"twitch", "youtube", "kick", "tiktok"};
+	o.allowedPlatforms = {"twitch", "youtube", "kick", "tiktok", "starvios"};
 	o.maxLength = 0;
 	return o;
 }
@@ -362,6 +362,39 @@ private slots:
 		SpeechOptions o = baseOptions();
 		o.blockedWords = {"secreto"};
 		QVERIFY(speechTextForMessage(message("", "Ana", "tiktok", sys), o).isEmpty());
+	}
+
+	void recoveredMessagesAreNotRead()
+	{
+		SpeechOptions o = baseOptions();
+		chat::MessageOptions recovered;
+		recovered.recovered = true;
+		const QJsonObject missed = message("me perdí esto", "Ana", "starvios", recovered);
+		QVERIFY(missed.value("recovered").toBool());
+		QVERIFY(speechTextForMessage(missed, o).isEmpty());
+		QVERIFY(!message("hola").contains("recovered"));
+		QCOMPARE(speechTextForMessage(message("hola", "Ana", "starvios"), o), QString("hola"));
+	}
+
+	void starviosEmoteCodesAreNotRead()
+	{
+		SpeechOptions o = baseOptions();
+		const auto spoken = [&](const QString &text, const QString &platform = QStringLiteral("starvios")) {
+			return speechTextForMessage(message(text, "Ana", platform), o);
+		};
+		QCOMPARE(spoken("hola :mochi_sueno: amigos"), QString("hola amigos"));
+		QCOMPARE(spoken(":abc::def: hola :Abc1:"), QString("hola"));
+		QVERIFY(spoken(":abc: :def:").isEmpty());
+		// El texto normal con dos puntos no cambia.
+		QCOMPARE(spoken("son las 12:30:45 ya"), QString("son las 12:30:45 ya"));
+		QCOMPARE(spoken("nota: esto: sigue"), QString("nota: esto: sigue"));
+		QCOMPARE(spoken("clave:valor:otro"), QString("clave:valor:otro"));
+		QCOMPARE(spoken("triste :( o :) feliz"), QString("triste :( o :) feliz"));
+		QCOMPARE(spoken("uno :a: dos"), QString("uno :a: dos")); // demasiado corto para ser un código
+		QCOMPARE(spoken("uno :esto_es_demasiado_largo_para_codigo: dos"),
+			 QString("uno :esto_es_demasiado_largo_para_codigo: dos"));
+		// En otras plataformas un :texto: no es un emote de Starvios.
+		QCOMPARE(spoken("hola :abc: amigos", "twitch"), QString("hola :abc: amigos"));
 	}
 
 	void authorWithOnlyEmojisHasNoPrefix()

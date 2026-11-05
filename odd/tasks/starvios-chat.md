@@ -33,24 +33,34 @@ The user streams or follows channels on Starvios, which the plugin does not supp
 - [x] S1 Binary WebSocket support and Realtime frame decoder with tests. Route: delegated (writer trigger, 2+ non-trivial files).
   - Accept: binary frames reach connectors on macOS, Windows and Linux network backends; decoder handles valid and malformed frames.
   - Check: test suite and `cmake --build --preset macos`.
-- [ ] S2 Starvios connector and platform registration with tests. Route: delegated.
+- [x] S2 Starvios connector and platform registration with tests. Route: delegated.
   - Accept: `https://starvios.com/live/<user>` and bare usernames are accepted; offline and new broadcasts are handled through discovery; heartbeats sent; author, text, color, badges and Starvies mapped; missing profile handled; viewers polled; recovered messages are flagged and not spoken.
   - Check: test suite, build, and a bounded read-only live connection.
+- [ ] S2b Confirm the real live `msg` frame. Route: needs a moment when someone writes in chat.
+  - Accept: a real binary `msg` frame is decoded and shown, and the parser is corrected if its shape differs from the bundle.
+  - Check: bounded read-only live connection while the chat is active. Pending: nobody wrote during the 4 min 50 s allowed.
 - [ ] S3 UI hints, voice checkbox, locale strings and README. Route: delegated.
   - Accept: Starvios appears in settings and the voice properties in both locales; README lists its unofficial status.
   - Check: every new key resolved in both locale files; build.
 
 ## Progress
-- S1 done. `src/net/` did not change: all three backends already deliver binary messages unmodified through `net::WebSocket::receive` (`net-mac.mm` copies `msg.data`, `net-win.cpp` and `net-linux.cpp` append the payload for both message types), but none of them tells text from binary, so `decodeFrame` decides by content.
+- S1 done. `src/net/` did not change: all three backends already deliver binary messages unmodified through `net::WebSocket::receive` (`net-mac.mm` copies `msg.data`, `net-win.cpp` and `net-linux.cpp` append the payload for both message types), but none of them tells text from binary, so `decodeFrame` decides by content. S1 commit: `6ab9f3c`.
+- S2 done except S2b. Emotes resolve: the page takes the image from `https://starvios.com/api/public/img?p=<storage_path>` and the codes from `https://starvios.com/api/public/emotes` (1.5 MB, all channels). The connector downloads that list once per process, only after seeing an unknown `:code:`, off the socket thread, refreshed at most hourly, with validated codes and paths. Until it arrives, the code shows as text.
 
 ## Verification evidence
 - S1 RED: with `decodeFrame` as a stub, `ctest` failed `starviosBroadcastFrame` and `starviosControlFrame` (14 passed, 2 failed). `starviosMalformedFrames` passed against the stub, because a stub rejects everything.
 - S1 GREEN: `ctest --test-dir build_tests`: 100% tests passed out of 2, against the QtTest stand-in because `.deps` Qt has no QtTest.
 - S1 build: `cmake --preset macos && cmake --build --preset macos`: `** BUILD SUCCEEDED **`, plugin has x86_64 and arm64.
+- S2 RED: with stubs, `ctest` failed 17 connector, mapping and entry tests in `test-chat`, and `recoveredMessagesAreNotRead` and `starviosEmoteCodesAreNotRead` in `test-tts`.
+- S2 GREEN: `ctest` 100% tests passed out of 2 (three repeated runs), against the QtTest stand-in. `test-chat` under ThreadSanitizer: 34 passed, no warnings. A test caught a real bug on the way: `%3A` in an encoded date was consumed by a chained `arg()`.
+- S2 live, read only, against the chosen channel, about 4 min 50 s in total, one socket at a time:
+  - Observed: discovery live; `live_viewer_counts` returned 15 and 17; join `status=ok`; 9 of 9 heartbeats answered; reconnect after a forced drop; home page, `client-*.js` and credentials extracted; emote list (6025 entries) and one image over the real network.
+  - Observed with one synthetic frame injected by the harness: real row lookup by id filled the author; reconnect ran the real gap query and showed 2 rows flagged `recovered`.
+  - NOT confirmed: no real `msg` frame arrived (0 binary frames). REST shows no chat rows inside the 4-minute window (last rows 03:50:41, window started about 03:52:11 UTC), so the silence matches nobody writing, but the live payload shape is still taken from the bundle.
 - Frame fixtures are built from `_decodeUserBroadcast` in the page bundle; they are not captured frames.
 
 ## Engram mirror
 Pending: `mem_save` was blocked by the auto mode hook check earlier in this session. Topic: `odd/starvios-chat/tasks`.
 
 ## Next step
-S2.
+S3, then S2b.
