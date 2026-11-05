@@ -755,10 +755,12 @@ private:
 				const QJsonArray beat{QJsonValue::Null, pendingBeat_, "phoenix", "heartbeat", QJsonObject{}};
 				const std::string text = QJsonDocument(beat).toJson(QJsonDocument::Compact).toStdString();
 				lock.unlock();
-				const bool sent = ws_->send(text);
-				lock.lock();
-				if (!sent)
+				if (!ws_->send(text)) {
+					// Sin latidos nadie detectaría la conexión muerta si receive sigue bloqueado.
+					ws_->close();
 					return;
+				}
+				lock.lock();
 			}
 		}
 
