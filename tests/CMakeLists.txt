@@ -25,11 +25,18 @@ add_executable(
   ${src}/chat/updates.cpp
 )
 target_link_libraries(test-chat PRIVATE Qt6::Core Qt6::Test)
-if(MSVC)
-  target_compile_options(test-chat PRIVATE /utf-8 /W4)
-else()
-  target_compile_options(test-chat PRIVATE -Wall -Wextra)
-endif()
+
+add_executable(test-tts test-tts.cpp ${src}/chat/message.cpp ${src}/tts/speech-text.cpp)
+target_link_libraries(test-tts PRIVATE Qt6::Core Qt6::Test)
+
+foreach(test_target test-chat test-tts)
+  if(MSVC)
+    target_compile_options(${test_target} PRIVATE /utf-8 /W4)
+  else()
+    target_compile_options(${test_target} PRIVATE -Wall -Wextra)
+  endif()
+endforeach()
 
 enable_testing()
 add_test(NAME test-chat COMMAND test-chat)
+add_test(NAME test-tts COMMAND test-tts)

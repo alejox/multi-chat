@@ -51,6 +51,9 @@ target_sources(
     src/chat/updates.cpp
     src/chat/updates.hpp
     src/net/net.hpp
+    src/tts/bounded-queue.hpp
+    src/tts/speech-text.cpp
+    src/tts/speech-text.hpp
     src/ui/chat-dock.cpp
     src/ui/chat-dock.hpp
     src/ui/flow-layout.cpp
