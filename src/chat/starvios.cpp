@@ -701,17 +701,23 @@ private:
 			if (ref == pendingBeat_)
 				pendingBeat_.clear();
 		}
-		void enqueue(std::function<void()> task)
+		// discard se llama en lugar de task si la sesión acaba antes de que le llegue el turno.
+		void enqueue(std::function<void()> task, std::function<void()> discard = {})
 		{
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
-				tasks_.push_back(std::move(task));
+				tasks_.push_back({std::move(task), std::move(discard)});
 			}
 			cv_.notify_all();
 		}
 		bool streamChanged() const { return streamChanged_; }
 
 	private:
+		struct Task {
+			std::function<void()> run;
+			std::function<void()> discard;
+		};
+
 		void heartbeatLoop()
 		{
 			std::unique_lock<std::mutex> lock(mutex_);
@@ -753,12 +759,12 @@ private:
 			while (!done_) {
 				cv_.wait_until(lock, nextCheck, [this] { return done_ || !tasks_.empty(); });
 				if (done_)
-					return;
+					break;
 				if (!tasks_.empty()) {
-					std::function<void()> task = std::move(tasks_.front());
+					Task task = std::move(tasks_.front());
 					tasks_.pop_front();
 					lock.unlock();
-					task();
+					task.run();
 					lock.lock();
 					continue;
 				}
@@ -767,6 +773,13 @@ private:
 				lock.lock();
 				nextCheck = std::chrono::steady_clock::now() + std::chrono::milliseconds(owner_->timing_.discoveryMs);
 			}
+			// La sesión acaba: nada de red aquí, porque retrasaría la reconexión o el cierre.
+			std::deque<Task> discarded;
+			discarded.swap(tasks_);
+			lock.unlock();
+			for (const Task &task : discarded)
+				if (task.discard)
+					task.discard();
 		}
 
 		// Un directo nuevo tiene otro id: se cierra este socket y la sesión siguiente entra en el nuevo.
@@ -785,7 +798,7 @@ private:
 		const QString streamId_;
 		std::mutex mutex_;
 		std::condition_variable cv_;
-		std::deque<std::function<void()>> tasks_;
+		std::deque<Task> tasks_;
 		QString pendingBeat_;
 		bool done_ = false;
 		bool joined_ = false;
@@ -867,10 +880,16 @@ private:
 			return;
 		}
 		++pendingLookups_;
-		background.enqueue([this, row] {
-			lookUpAuthor(row);
-			--pendingLookups_;
-		});
+		background.enqueue(
+			[this, row] {
+				lookUpAuthor(row);
+				--pendingLookups_;
+			},
+			// Ya está recordada y el hueco no la devolverá: se muestra con la etiqueta neutra.
+			[this, row] {
+				publish(row, false);
+				--pendingLookups_;
+			});
 	}
 
 	void lookUpAuthor(const QJsonObject &row)
