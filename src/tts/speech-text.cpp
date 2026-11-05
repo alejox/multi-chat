@@ -159,8 +159,10 @@ QString speechTextForMessage(const QJsonObject &message, const SpeechOptions &op
 		return options.authorFormat.arg(author, text);
 	};
 
-	// Las palabras bloqueadas se buscan en todo el texto, también en lo que el corte dejaría fuera.
-	if (containsBlockedWord(compose(content), options.blockedWords))
+	// Las palabras bloqueadas se buscan en el autor que se va a leer y en todo el contenido, también
+	// en lo que el corte dejaría fuera. Nunca en el texto fijo del formato: bloquear "dice" no puede
+	// silenciar todos los mensajes.
+	if (containsBlockedWord(author, options.blockedWords) || containsBlockedWord(content, options.blockedWords))
 		return {};
 	return compose(truncated(content, options.maxLength));
 }
