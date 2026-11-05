@@ -589,6 +589,24 @@ private slots:
 		QCOMPARE(p.name, QString("Ana Test"));
 		QCOMPARE(p.avatar, QString("https://starvios.com/api/public/img?p=c1%2Ffoto.png&w=128&sq=1"));
 
+		// La foto solo se pide a los sitios que usa la página: la petición saldría desde la IP del usuario.
+		const auto avatarOf = [&live](const QString &value) {
+			QJsonObject channel = live["channel"].toObject();
+			channel.insert("avatar_url", value);
+			QJsonObject response = live;
+			response.insert("channel", channel);
+			return starvios::profileFromDiscovery(response).avatar;
+		};
+		for (const char *good : {"https://starvios.com/api/public/avatar/ana_test",
+					 "https://naiijcvngtkkocligwvk.supabase.co/storage/v1/object/public/a.png"})
+			QCOMPARE(avatarOf(good), QString(good));
+		for (const char *bad :
+		     {"https://evil.example/a.png", "https://starvios.com.evil.example/a.png", "https://evil.example/starvios.com/a.png",
+		      "https://starvios.com@evil.example/a.png", "https://starvios.com:8443/a.png", "http://starvios.com/a.png",
+		      "https://evil.example\\@starvios.com/a.png", "https://starvios.com\\@evil.example/a.png",
+		      "https://user:pass@starvios.com/a.png", "https://otro-proyecto.supabase.co/a.png", "https://www.starvios.com.", ""})
+			QVERIFY(avatarOf(bad).isEmpty());
+
 		QJsonObject ended = live;
 		ended.insert("stream", QJsonObject{{"id", "s1"}, {"status", "ended"}});
 		stream.clear();
