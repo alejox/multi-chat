@@ -81,6 +81,18 @@ if(OS_WINDOWS)
   )
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp shell32 sapi ole32)
   target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /utf-8)
+
+  # Prueba del sintetizador real de SAPI (ver tests/test-tts-win.cpp). Va aquí y no en tests/ porque
+  # aquí ya están el Qt de .deps y la configuración del job de Windows; ese Qt no trae QtTest.
+  add_executable(test-tts-win EXCLUDE_FROM_ALL tests/test-tts-win.cpp src/tts/speech-backend-win.cpp)
+  target_link_libraries(test-tts-win PRIVATE Qt6::Core sapi ole32)
+  target_compile_options(test-tts-win PRIVATE /utf-8)
+  add_custom_command(
+    TARGET test-tts-win
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different $<TARGET_RUNTIME_DLLS:test-tts-win> $<TARGET_FILE_DIR:test-tts-win>
+    COMMAND_EXPAND_LISTS
+  )
 elseif(OS_MACOS)
   enable_language(OBJCXX)
   target_sources(

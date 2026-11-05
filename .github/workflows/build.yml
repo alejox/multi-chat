@@ -81,6 +81,15 @@ jobs:
         run: cmake --preset windows-ci-x64
       - name: Compilar con Visual Studio
         run: cmake --build --preset windows-ci-x64
+      - name: Compilar y ejecutar la prueba real de voz (SAPI)
+        timeout-minutes: 15
+        run: |
+          cmake --build --preset windows-ci-x64 --target test-tts-win
+          $exe = Get-ChildItem -Recurse build_x64 -Filter test-tts-win.exe | Select-Object -First 1
+          if (-not $exe) { throw "No se generó test-tts-win.exe" }
+          & $exe.FullName
+          if ($LASTEXITCODE -eq 2) { throw "El runner no tiene voces SAPI: la voz quedó sin probar" }
+          if ($LASTEXITCODE -ne 0) { throw "test-tts-win terminó con código $LASTEXITCODE" }
       - name: Empaquetar
         run: |
           cmake --install build_x64 --prefix release --config RelWithDebInfo
