@@ -47,7 +47,7 @@ public:
 	bool send(const std::string &text) override
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
-		if (closed_)
+		if (closed_ || failSends_)
 			return false;
 		sent_.push_back(QString::fromStdString(text));
 		return true;
@@ -71,6 +71,17 @@ public:
 		std::lock_guard<std::mutex> lock(mutex_);
 		return sent_;
 	}
+	// El envío falla pero receive sigue bloqueado, como en una conexión muerta sin aviso.
+	void failSends()
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		failSends_ = true;
+	}
+	bool closed()
+	{
+		std::lock_guard<std::mutex> lock(mutex_);
+		return closed_;
+	}
 
 	const std::string url;
 
@@ -80,6 +91,7 @@ private:
 	std::deque<std::string> incoming_;
 	QStringList sent_;
 	bool closed_ = false;
+	bool failSends_ = false;
 };
 
 // Entorno de una prueba del conector: respuestas de red, sockets abiertos y lo que publica.
@@ -763,22 +775,114 @@ private slots:
 	{
 		StarviosRig rig;
 		starvios::Timing t = StarviosRig::fastTiming();
-		t.heartbeatMs = 40;
+		t.heartbeatMs = 100;
 		rig.start(t);
 		auto ws = rig.joined();
 		QVERIFY(ws);
-		// Sin respuesta a un latido, cierra y vuelve a conectar.
-		QVERIFY(StarviosRig::until([&] {
+		const auto beats = [&ws] {
+			QStringList out;
 			for (const QString &sent : ws->sent())
 				if (sent.contains("\"heartbeat\""))
-					return true;
-			return false;
-		}));
-		const QJsonArray beat = QJsonDocument::fromJson(ws->sent().value(1).toUtf8()).array();
+					out << sent;
+			return out;
+		};
+		QVERIFY(StarviosRig::until([&] { return !beats().isEmpty(); }));
+		const QJsonArray beat = QJsonDocument::fromJson(beats().value(0).toUtf8()).array();
 		QVERIFY(beat[0].isNull());
 		QCOMPARE(beat[2].toString(), QString("phoenix"));
 		QCOMPARE(beat[3].toString(), QString("heartbeat"));
+
+		// Mientras se responde a cada latido, el socket sigue abierto.
+		const auto answer = [&ws](const QJsonValue &ref) {
+			ws->push(QJsonDocument(QJsonArray{QJsonValue::Null, ref, "phoenix", "phx_reply", QJsonObject{{"status", "ok"}}})
+					 .toJson(QJsonDocument::Compact));
+		};
+		qsizetype answered = 0;
+		const bool healthy = StarviosRig::until(
+			[&] {
+				const QStringList sent = beats();
+				for (; answered < sent.size(); ++answered)
+					answer(QJsonDocument::fromJson(sent[answered].toUtf8()).array()[1]);
+				return answered >= 6 || ws->closed();
+			},
+			4000);
+		QVERIFY(healthy);
+		QVERIFY(!ws->closed());
+		QVERIFY(!rig.socket(1));
+
+		// Una respuesta a otro latido no cuenta: sin la suya, cierra y vuelve a conectar.
+		answer("no-es-este");
+		QVERIFY(StarviosRig::until([&] { return ws->closed(); }, 2000));
 		QVERIFY(rig.waitSocket(1));
+	}
+
+	void starviosFailedHeartbeatReconnects()
+	{
+		StarviosRig rig;
+		starvios::Timing t = StarviosRig::fastTiming();
+		t.heartbeatMs = 30;
+		rig.start(t);
+		auto ws = rig.joined();
+		QVERIFY(ws);
+		QVERIFY(StarviosRig::until([&] { return rig.hasStatus("connected"); }));
+		ws->failSends();
+		QVERIFY(StarviosRig::until([&] { return ws->closed(); }, 2000));
+		QVERIFY(rig.waitSocket(1));
+	}
+
+	void starviosChannelClosedOrFailedReconnects()
+	{
+		for (const char *event : {"phx_close", "phx_error"}) {
+			StarviosRig rig;
+			rig.start();
+			auto ws = rig.joined();
+			QVERIFY(ws);
+			QVERIFY(StarviosRig::until([&] { return rig.hasStatus("connected"); }));
+			// El de otro canal no afecta a este.
+			ws->push(QJsonDocument(QJsonArray{QJsonValue::Null, QJsonValue::Null, "realtime:stream:otro", event, QJsonObject{}})
+					 .toJson(QJsonDocument::Compact));
+			ws->push(starviosMsg(chatRow("m1", "sigue")));
+			QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 1; }));
+			QVERIFY(!rig.hasStatus("error"));
+			ws->push(QJsonDocument(QJsonArray{QJsonValue::Null, QJsonValue::Null, "realtime:stream:s1", event, QJsonObject{}})
+					 .toJson(QJsonDocument::Compact));
+			QVERIFY(StarviosRig::until([&] { return rig.hasStatus("error:Starvios cerró el canal"); }));
+			QVERIFY(StarviosRig::until([&] { return ws->closed(); }));
+			QVERIFY(rig.waitSocket(1));
+		}
+	}
+
+	void starviosJoinTimeoutReconnects()
+	{
+		StarviosRig rig;
+		starvios::Timing t = StarviosRig::fastTiming();
+		t.joinTimeoutMs = 30;
+		rig.start(t);
+		auto ws = rig.waitSocket(0);
+		QVERIFY(ws);
+		QVERIFY(StarviosRig::until([&] { return ws->closed(); }));
+		QVERIFY(StarviosRig::until([&] { return rig.hasStatus("error:Starvios no aceptó la conexión"); }));
+		QVERIFY(!rig.hasStatus("connected"));
+		QVERIFY(rig.waitSocket(1));
+	}
+
+	void starviosStreamEndingWaitsWithoutError()
+	{
+		StarviosRig rig;
+		starvios::Timing t = StarviosRig::fastTiming();
+		t.discoveryMs = 30;
+		rig.start(t);
+		auto ws = rig.joined();
+		QVERIFY(ws);
+		QVERIFY(StarviosRig::until([&] { return rig.hasStatus("connected"); }));
+		{
+			std::lock_guard<std::mutex> lock(rig.mutex);
+			rig.status = "ended";
+		}
+		QVERIFY(StarviosRig::until([&] { return ws->closed(); }));
+		QVERIFY(StarviosRig::until([&] { return rig.hasStatus("waiting"); }));
+		QVERIFY(!rig.hasStatus("error"));
+		QVERIFY(!rig.socket(1));
 	}
 
 	void starviosMissingAuthorIsFetchedOnce()
