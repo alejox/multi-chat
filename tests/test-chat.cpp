@@ -430,14 +430,30 @@ private slots:
 		// Usuario suelto con la plataforma elegida: la ventana de chats antepone "starvios:".
 		QCOMPARE(entry("starvios:ana_test").key, QString("starvios:ana_test"));
 		QCOMPARE(entry("starvios:@ana_test").key, QString("starvios:ana_test"));
+		// La página del canal, y las demás rutas de la web que llevan al mismo canal.
+		for (const QString &path : {"ana_test", "canal/ana_test", "directo/ana_test", "live/ana_test", "Canal/Ana_Test",
+					    "DIRECTO/ana_test", "LIVE/ana_test", "Ana_Test"})
+			for (const QString &prefix : {"https://starvios.com/", "http://starvios.com/", "https://www.starvios.com/",
+						      "HTTPS://StarVios.com/", "starvios.com/", "www.starvios.com/"})
+				for (const QString &suffix : {"", "/", "?ref=x", "/?ref=x", "#chat", "  "})
+					QCOMPARE(entry(prefix + path + suffix).key, QString("starvios:ana_test"));
 		QString error;
 		SourceInfo s;
 		for (const char *bad :
 		     {"starvios:", "starvios:ab", "starvios:mal nombre", "starvios:a/b", "starvios:../etc", "starvios:a&b=c",
 		      "starvios:nombre_de_mas_de_veinticinco_letras", "https://starvios.com/clip/abc", "https://starvios.com/",
 		      "https://starvios.com/live/", "https://starvios.com/live/mal%20nombre", "https://starvios.com/live?x=1",
-		      "https://starvios.com/live/?x=1", "starvios.com/ana_test", "www.starvios.com/", "https://evil.com/live/ana_test",
-		      "https://starvios.com.evil.io/live/ana_test", "ana_test"})
+		      "https://starvios.com/live/?x=1", "www.starvios.com/", "https://evil.com/live/ana_test",
+		      "https://starvios.com.evil.io/live/ana_test", "ana_test", "https://evil.com/ana_test",
+		      "https://starvios.com.evil.io/ana_test", "https://starvios.com/canal", "https://starvios.com/canal/",
+		      "https://starvios.com/directo", "https://starvios.com/LIVE", "starvios.com/live", "starvios.com/earn",
+		      "https://starvios.com/auth", "https://starvios.com/terms/", "https://starvios.com/privacy?x=1",
+		      "https://starvios.com/api", "https://starvios.com/assets", "https://starvios.com/Settings",
+		      "https://starvios.com/explore", "https://starvios.com/clips", "https://starvios.com/studio",
+		      "https://starvios.com/api/public/discovery", "https://starvios.com/ana_test/clips",
+		      "https://starvios.com/live/ana_test/extra", "https://starvios.com/popout/chat/ana_test",
+		      "https://starvios.com/clip/new/ana_test", "https://starvios.com/@ana_test", "https://starvios.com/live/@ana_test",
+		      "https://starvios.com/ab", "https://starvios.com/mal%20nombre", "https://starvios.com/?u=ana_test"})
 			QVERIFY2(!parseEntry(bad, s, error), bad);
 		QCOMPARE(platformName("starvios"), QString("Starvios"));
 	}
