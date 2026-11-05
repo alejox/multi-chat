@@ -147,6 +147,26 @@ LiveResult checkLive(const QString &channel);
 std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn post, Connector::ReportFn report);
 } // namespace tiktok
 
+namespace starvios {
+// Una trama de Supabase Realtime. Por el mismo socket llegan tramas de control en texto JSON
+// ([join_ref, ref, topic, event, payload]) y difusiones binarias con los mensajes del chat.
+struct Frame {
+	enum class Type {
+		Invalid,   // datos mal formados
+		Ignored,   // bien formada, pero de un tipo que aquí no interesa
+		Control,   // texto: event es phx_reply, phx_error, phx_close...
+		Broadcast, // binaria: event es el de la difusión ("msg"), payload su contenido JSON
+	};
+	Type type = Type::Invalid;
+	QString ref;
+	QString topic;
+	QString event;
+	QJsonObject payload;
+};
+// Decide el formato mirando el contenido: los backends de net:: no distinguen texto de binario.
+Frame decodeFrame(QByteArrayView data);
+} // namespace starvios
+
 namespace demo {
 std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn post, Connector::ReportFn report);
 } // namespace demo
