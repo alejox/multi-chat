@@ -66,14 +66,18 @@ PcmBuffer convert(AVAudioPCMBuffer *buffer)
     }
 }
 
-void releaseSynthesizer(const std::shared_ptr<Job> &job)
+// Por valor a propósito: un bloque que captura una referencia de C++ no copia el objeto, y este
+// bloque corre cuando el sintetizador ya puede haber soltado la copia del Job de la que venía.
+void releaseSynthesizer(std::shared_ptr<Job> job)
 {
     dispatch_async(dispatch_get_main_queue(), ^{
         job->synth = nil;
     });
 }
 
-void handleBuffer(const std::shared_ptr<Job> &job, AVAudioBuffer *buffer)
+// También por valor: mantiene vivo el Job durante toda la llamada, aunque la cola principal
+// suelte el sintetizador, y con él el bloque que nos llama, mientras se procesa este búfer.
+void handleBuffer(std::shared_ptr<Job> job, AVAudioBuffer *buffer)
 {
     if (job->cancelled.load() || ![buffer isKindOfClass:[AVAudioPCMBuffer class]])
         return;
