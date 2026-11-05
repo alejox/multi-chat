@@ -288,6 +288,21 @@ private slots:
 		QVERIFY(speechTextForMessage(message("hola", "secreto"), o).isEmpty());
 	}
 
+	// Bloquear una palabra del formato ("dice") no puede silenciar todos los mensajes.
+	void blockedWordsIgnoreTheAuthorFormat()
+	{
+		SpeechOptions o = baseOptions();
+		o.includeAuthor = true;
+		o.blockedWords = {"dice"};
+		QCOMPARE(speechTextForMessage(message("hola"), o), QString("Ana dice: hola"));
+		// Sigue contando si lo escribe la persona, en el mensaje o en su nombre.
+		QVERIFY(speechTextForMessage(message("ella dice hola"), o).isEmpty());
+		QVERIFY(speechTextForMessage(message("hola", "dice"), o).isEmpty());
+		// Una frase no se forma con el final del nombre y el texto del formato.
+		o.blockedWords = {"Ana dice"};
+		QCOMPARE(speechTextForMessage(message("hola"), o), QString("Ana dice: hola"));
+	}
+
 	void blockedWordsWithRegexCharactersAreLiteral()
 	{
 		SpeechOptions o = baseOptions();

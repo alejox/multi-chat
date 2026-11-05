@@ -18,7 +18,8 @@ struct SpeechOptions {
 	QSet<QString> allowedPlatforms;
 	// Máximo de caracteres del contenido, sin contar el autor. 0 = sin límite.
 	int maxLength = 200;
-	// Una coincidencia (palabra completa, sin distinguir mayúsculas) descarta todo el mensaje.
+	// Una coincidencia (palabra completa, sin distinguir mayúsculas) en el autor que se lee o en el
+	// contenido descarta todo el mensaje. El texto fijo de authorFormat no cuenta.
 	QStringList blockedWords;
 };
 
