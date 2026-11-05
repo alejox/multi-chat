@@ -255,6 +255,52 @@ QByteArray starviosMsg(const QJsonObject &row, const QByteArray &op = "INSERT")
 	return out + topic + "msg" + payload;
 }
 
+// Difusión en texto construida según decode() del cliente de Realtime de la página (no es una captura real).
+QByteArray textBroadcast(const QString &event, const QJsonObject &payload, const QString &topic = "realtime:stream:s1")
+{
+	const QJsonArray frame{QJsonValue::Null, QJsonValue::Null, topic, "broadcast",
+			       QJsonObject{{"type", "broadcast"}, {"event", event}, {"payload", payload}}};
+	return QJsonDocument(frame).toJson(QJsonDocument::Compact);
+}
+
+// Recoge lo que se escribe en el registro mientras existe.
+class LogCapture {
+public:
+	LogCapture()
+	{
+		std::lock_guard<std::mutex> lock(mutex());
+		lines().clear();
+		previous_ = qInstallMessageHandler(&LogCapture::handler);
+	}
+	~LogCapture() { qInstallMessageHandler(previous_); }
+	bool contains(const QString &part) const
+	{
+		std::lock_guard<std::mutex> lock(mutex());
+		for (const QString &line : lines())
+			if (line.contains(part))
+				return true;
+		return false;
+	}
+
+private:
+	static void handler(QtMsgType, const QMessageLogContext &, const QString &text)
+	{
+		std::lock_guard<std::mutex> lock(mutex());
+		lines() << text;
+	}
+	static std::mutex &mutex()
+	{
+		static std::mutex m;
+		return m;
+	}
+	static QStringList &lines()
+	{
+		static QStringList l;
+		return l;
+	}
+	QtMessageHandler previous_ = nullptr;
+};
+
 QJsonObject chatRow(const QString &id, const QString &body, const QString &created = "2026-01-02T03:04:05.100000+00:00",
 		    bool profile = true)
 {
@@ -354,6 +400,16 @@ private slots:
 		QVERIFY(other.type == Frame::Type::Control);
 		QCOMPARE(other.ref, QString("5"));
 		QVERIFY(other.payload.isEmpty());
+		// Una difusión en texto se entrega igual que la binaria: el evento y el contenido de dentro.
+		const Frame text = starvios::decodeFrame(textBroadcast("msg", QJsonObject{{"op", "INSERT"}}));
+		QVERIFY(text.type == Frame::Type::Broadcast);
+		QCOMPARE(text.topic, QString("realtime:stream:s1"));
+		QCOMPARE(text.event, QString("msg"));
+		QCOMPARE(text.payload["op"].toString(), QString("INSERT"));
+		// Sin evento o sin contenido no es una difusión válida: queda como control.
+		for (const char *bad : {"[null,null,\"t\",\"broadcast\",{\"payload\":{}}]",
+					"[null,null,\"t\",\"broadcast\",{\"event\":\"msg\",\"payload\":3}]"})
+			QVERIFY(starvios::decodeFrame(QByteArray(bad)).type == Frame::Type::Control);
 	}
 
 	void starviosEntries()
@@ -605,6 +661,68 @@ private slots:
 		QCOMPARE(rig.postedAt(0)["author"].toString(), QString("Ana"));
 		// Nada del historial al conectar.
 		QCOMPARE(rig.requestCount("live_chat_messages"), 0);
+	}
+
+	void starviosTextBroadcast()
+	{
+		StarviosRig rig;
+		rig.start();
+		auto ws = rig.joined();
+		QVERIFY(ws);
+		const QByteArray frame = textBroadcast("msg", QJsonObject{{"op", "INSERT"}, {"msg", chatRow("m1", "en texto")}});
+		ws->push(frame);
+		ws->push(frame);
+		ws->push(starviosMsg(chatRow("m1", "copia binaria")));
+		ws->push(textBroadcast("msg", QJsonObject{{"op", "UPDATE"}, {"msg", chatRow("m9", "editado")}}));
+		ws->push(starviosMsg(chatRow("m2", "binario")));
+		QVERIFY(StarviosRig::until([&] { return rig.postedCount() >= 2; }));
+		QThread::msleep(50);
+		QCOMPARE(rig.postedCount(), 2);
+		QCOMPARE(firstText(rig.postedAt(0)), QString("en texto"));
+		QCOMPARE(firstText(rig.postedAt(1)), QString("binario"));
+	}
+
+	void starviosUnknownEventsAreLogged()
+	{
+		LogCapture log;
+		const QByteArray payload = QJsonDocument(QJsonObject{{"secreto", "contenido"}}).toJson(QJsonDocument::Compact);
+		{
+			StarviosRig rig;
+			rig.start();
+			auto ws = rig.joined();
+			QVERIFY(ws);
+			// Los eventos que la propia página espera en este canal no son una forma desconocida.
+			for (const char *event : {"system", "presence_state", "presence_diff", "postgres_changes", "access_token"})
+				ws->push(QJsonDocument(QJsonArray{QJsonValue::Null, QJsonValue::Null, "realtime:stream:s1", event,
+								  QJsonObject{}})
+						 .toJson(QJsonDocument::Compact));
+			for (const char *event : {"live_row", "ping", "raid", "collaboration"})
+				ws->push(realtimeFrame("realtime:stream:s1", event, "", payload));
+			// Otro canal tampoco es asunto de este conector.
+			ws->push(textBroadcast("de_otro_canal", {}, "realtime:stream:otro"));
+			ws->push(starviosMsg(chatRow("m1", "marca")));
+			QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 1; }));
+			QVERIFY(!log.contains("evento"));
+			// Un evento nuevo deja rastro con su nombre, nunca con el contenido.
+			ws->push(textBroadcast("evento_nuevo", QJsonObject{{"secreto", "contenido"}}));
+			QVERIFY(StarviosRig::until([&] { return log.contains("evento_nuevo"); }));
+			QVERIFY(!log.contains("secreto"));
+		}
+		// Cada forma, en una sesión propia: el registro admite una línea cada varios minutos.
+		const QList<QPair<QByteArray, QString>> others{
+			{realtimeFrame("realtime:stream:s1", "binario_nuevo", "", payload), "binario_nuevo"},
+			{"[null,null,\"realtime:stream:s1\",\"control_nuevo\",{}]", "control_nuevo"},
+			{"[null,null,\"realtime:stream:s1\",\"broadcast\",{\"event\":\"msg\"}]", "broadcast"},
+		};
+		for (const auto &[frame, expected] : others) {
+			LogCapture each;
+			StarviosRig rig;
+			rig.start();
+			auto ws = rig.joined();
+			QVERIFY(ws);
+			ws->push(frame);
+			QVERIFY(StarviosRig::until([&, name = expected] { return each.contains(name); }));
+		}
 	}
 
 	void starviosHeartbeats()

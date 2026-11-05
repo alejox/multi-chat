@@ -57,6 +57,15 @@ Frame decodeControl(QByteArrayView data)
 	frame.topic = fields[2].toString();
 	frame.event = fields[3].toString();
 	frame.payload = fields[4].toObject();
+	// El cliente de la página también admite las difusiones en texto. Son lo mismo que las binarias:
+	// {"event": "msg", "payload": {...}}.
+	const QJsonValue event = frame.payload.value(QStringLiteral("event"));
+	const QJsonValue content = frame.payload.value(QStringLiteral("payload"));
+	if (frame.event == QStringLiteral("broadcast") && event.isString() && content.isObject()) {
+		frame.type = Frame::Type::Broadcast;
+		frame.event = event.toString();
+		frame.payload = content.toObject();
+	}
 	return frame;
 }
 
@@ -316,6 +325,20 @@ QString joinFrame(const QString &topic)
 	};
 	const QJsonArray frame{"1", "1", topic, "phx_join", QJsonObject{{"config", config}}};
 	return QString::fromUtf8(QJsonDocument(frame).toJson(QJsonDocument::Compact));
+}
+
+// Eventos que pueden llegar al canal del directo sin que signifique nada nuevo: los del protocolo de
+// Realtime y las difusiones de la página que no son mensajes del chat (live_row, ping, raid y
+// collaboration, según sus suscripciones en el bundle).
+bool isExpectedEvent(const QString &event)
+{
+	static const QSet<QString> expected{
+		QStringLiteral("phx_reply"),        QStringLiteral("phx_join"),      QStringLiteral("phx_leave"),
+		QStringLiteral("system"),           QStringLiteral("presence_state"), QStringLiteral("presence_diff"),
+		QStringLiteral("postgres_changes"), QStringLiteral("access_token"),  QStringLiteral("live_row"),
+		QStringLiteral("ping"),             QStringLiteral("raid"),          QStringLiteral("collaboration"),
+	};
+	return expected.contains(event);
 }
 
 const QRegularExpression &emoteCodePattern()
@@ -613,6 +636,8 @@ protected:
 			} else if (frame.type == Frame::Type::Broadcast) {
 				if (frame.event == QStringLiteral("msg"))
 					onBroadcast(frame.payload, background);
+				else if (frame.topic == topic)
+					logUnknownEvent(frame.event);
 			} else if (frame.type == Frame::Type::Control) {
 				if (frame.event == QStringLiteral("phx_reply") && frame.topic == QStringLiteral("phoenix")) {
 					background.heartbeatAnswered(frame.ref);
@@ -631,6 +656,8 @@ protected:
 					recoverGap(background, streamId);
 				} else if (frame.event == QStringLiteral("phx_error") || frame.event == QStringLiteral("phx_close")) {
 					throw ChatError("Starvios cerró el canal del chat");
+				} else {
+					logUnknownEvent(frame.event);
 				}
 			}
 		}
@@ -789,6 +816,15 @@ private:
 			return;
 		lastUnknownLog_ = now;
 		warn(what);
+	}
+
+	void logUnknownEvent(QString event)
+	{
+		if (isExpectedEvent(event))
+			return;
+		// El nombre viene de fuera: solo caracteres que no puedan falsear una línea del registro.
+		static const QRegularExpression unsafe(QStringLiteral("[^A-Za-z0-9_.:-]"));
+		logUnknown(QStringLiteral("evento desconocido en el canal: %1").arg(event.remove(unsafe).left(40)));
 	}
 
 	void onBroadcast(const QJsonObject &payload, Background &background)
