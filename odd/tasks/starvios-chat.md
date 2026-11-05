@@ -62,6 +62,18 @@ The user streams or follows channels on Starvios, which the plugin does not supp
 - S3: all three new keys appear once in each locale file (157 unique keys in both); `ctest` 100% tests passed out of 2; `** BUILD SUCCEEDED **`, x86_64 and arm64. Never opened in OBS: the add box, dock, overlay, status and remove flows are inferred from the shared code paths.
 - Frame fixtures are built from `_decodeUserBroadcast` in the page bundle; they are not captured frames.
 
+## Review corrections (dual review, 2026-11-04/05)
+A blind dual review of the Starvios connector found seven defects, fixed on `feat/tts-chat-reader`:
+- `2237c23` text broadcasts and unknown events: the page client accepts text and binary broadcasts; the connector only handled binary, so a text message was silently lost. Both forms now take the same path, and unknown events on the live channel log a line with their name (except protocol and page-owned events).
+- `8b8bb23` channel main address: pasting the channel address must be enough, but only `/live/<user>` was accepted. Now `/`, `/canal/<user>` and `/directo/<user>` also work, with or without scheme, www, trailing slash, params and case; non-channel paths from the bundle are still rejected.
+- `ea94ef6` publish after removing the chat: an in-flight author or gap query could finish after the connector stopped and publish to a removed chat. A guard checks before publishing.
+- `2aae6ff` queued author lookups lost: at session end, pending lookups were discarded while the rows were already remembered, so the gap query never returned them and the counter never dropped; new authors stayed «Espectador» forever after several cuts. Discarded lookups now release the counter and the message shows the neutral label, unless the chat was removed.
+- `b8a6c91` test for the queued-author fix.
+- `6493830` channel photo download allowlist: any https address was accepted as the channel photo and would be downloaded from the user's IP. Only the Starvios site and its Supabase project are allowed now; any other leaves the channel without a photo.
+- `df5ddb9` close the socket when a heartbeat send fails: the heartbeat thread exited without closing, so nobody detected a dead connection while `receive` stayed blocked. The socket now closes and the session reconnects; tests cover an answered heartbeat keeping the socket open and an unanswered one closing it, plus `phx_close`, `phx_error`, unconfirmed entry and stream end with the session open.
+
+Verification of the corrections: `ctest --test-dir build_tests` 100% (test-chat 31.6 s, test-tts 1.1 s) against the final source, and `cmake --build --preset macos` BUILD SUCCEEDED (x86_64 and arm64).
+
 ## Engram mirror
 Pending: `mem_save` was blocked by the auto mode hook check earlier in this session. Topic: `odd/starvios-chat/tasks`.
 
