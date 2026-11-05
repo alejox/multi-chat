@@ -19,6 +19,22 @@ const char *fixture(int index)
 		R"js("videoViewCountRenderer":{"viewCount":{"simpleText":"98.765 visualizaciones"},"originalViewCount":"98765"})js",
 		R"js(<meta property="og:title" content="Alejo &amp; Tech"><meta property="og:image" content="https://yt3.googleusercontent.com/abc123=s900-c-k-c0x00ffffff-no-rj">)js",
 		R"js("videoOwnerRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.ggpht.com/xyz=s48-c-k-c0x00ffffff-no-rj","width":48}]},"title":{"runs":[{"text":"Canal"}]}} "ownerChannelName":"Mi Canal")js",
+		// 10: fila de chat de Starvios con los campos de la API REST, con datos inventados.
+		R"js({"id":"m1","user_id":"u1","body":"hola :abc_d: y https://x.io/:abc_d: fin :nada:","coins":0,"kind":"chat","meta":{},
+			"badges":["vip","donor","moderator","member","owner","staff","partner"],"pinned_until":null,"is_deleted":false,
+			"created_at":"2026-01-02T03:04:05.123456+00:00","profiles":{"username":"ana_test","display_name":"Ana Test",
+			"chat_color":"#12ab9F","is_partner":false,"is_verified":false,"is_team":false}})js",
+		// 11: respuesta de /api/public/discovery con datos inventados.
+		R"js({"channel":{"id":"c1","username":"ana_test","display_name":"Ana Test","avatar_url":"c1/foto.png"},
+			"stream":{"id":"s1","status":"live","channel_id":"c1","started_at":"2026-01-02T03:04:05+00:00"}})js",
+		// 12: catálogo de /api/public/emotes con datos inventados, incluidos valores que no se aceptan.
+		R"js({"rows":[{"id":"e1","channel_id":"c1","code":"Abc_D","storage_path":"c1/abc d.png","audience":"follower","is_animated":false},
+			{"id":"e2","code":"bad code","storage_path":"c1/x.png"},{"id":"e3","code":"salir","storage_path":"../secreto.png"},
+			{"id":"e4","code":"externo","storage_path":"https://evil.example/x.png"},{"id":"e5","code":"nulo"}]})js",
+		// 13: fragmento del HTML de la portada con los módulos de la página.
+		R"js(<link rel="modulepreload" href="/assets/index-AAA.js"/><script type="module" src="/assets/client-D8x_9-q.js" async></script>)js",
+		// 14: fragmento del bundle con las constantes de Supabase. La clave es inventada.
+		R"js(TSS_SERVER_FN_BASE:`/_serverFn/`,VITE_SUPABASE_PROJECT_ID:`abc`,VITE_SUPABASE_PUBLISHABLE_KEY:`sb_publishable_Nueva-Clave_123`,VITE_SUPABASE_URL:`https://abcdefgh.supabase.co`})js",
 	};
 	return fixtures[index];
 }

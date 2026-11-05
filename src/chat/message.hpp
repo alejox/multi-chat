@@ -1,7 +1,7 @@
 #pragma once
 
 // Modelo común de un mensaje de chat. Es un QJsonObject para mandarlo tal cual al overlay:
-//   { id, platform, channel, source, author, color, badges[], parts[], kind, amount, system, action, ts }
+//   { id, platform, channel, source, author, color, badges[], parts[], kind, amount, system, action, recovered, ts }
 //   parts: [{type:"text", text}, {type:"emote", url, name}]
 //   kind:  "chat" | "highlight" (Super Chat, bits, subs, raids...)
 
@@ -20,6 +20,7 @@ struct MessageOptions {
 	QString system; // texto de sistema: "se suscribió por 6 meses"
 	QString id;
 	bool action = false; // /me de Twitch
+	bool recovered = false; // llegó tarde al reconectar: se muestra, pero no se lee en voz alta
 };
 
 QJsonObject textPart(const QString &text);

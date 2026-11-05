@@ -29,7 +29,8 @@ QString cleanSpeechText(const QString &text);
 // Separa la lista de palabras bloqueadas (por comas o saltos de línea).
 QStringList parseBlockedWords(const QString &text);
 
-// Texto a leer, o vacío si el mensaje no se debe leer. El orden de lectura es:
+// Texto a leer, o vacío si el mensaje no se debe leer (plataforma no elegida, mensaje recuperado al
+// reconectar). En Starvios se omiten los :código: de los emotes. El orden de lectura es:
 //   - /me (action): "autor acción", sin el formato, porque el autor es el sujeto de la frase.
 //   - Texto de sistema (suscripciones, regalos...): se lee tal cual y después el comentario, si
 //     lo hay. Ya suele nombrar a la persona; si no la nombra, se antepone "autor, ".

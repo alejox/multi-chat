@@ -99,6 +99,16 @@ QString bodyText(const QJsonObject &message)
 	return body;
 }
 
+// Quita los :código: de los emotes de Starvios, que llegan dentro del texto y no se deben leer. Un
+// código va separado del texto: "12:30:45" o "clave:valor:otro" no lo son.
+QString withoutEmoteCodes(const QString &text)
+{
+	static const QRegularExpression code(
+		QStringLiteral("(?<![\\p{L}\\p{N}_/]):[A-Za-z0-9_]{2,20}:(?![\\p{L}\\p{N}_/])"));
+	QString out = text;
+	return out.replace(code, QStringLiteral(" "));
+}
+
 QString spokenOrEmpty(const QString &text)
 {
 	const QString clean = cleanSpeechText(text);
@@ -131,11 +141,18 @@ QStringList parseBlockedWords(const QString &text)
 
 QString speechTextForMessage(const QJsonObject &message, const SpeechOptions &options)
 {
-	if (!options.allowedPlatforms.contains(message.value(QStringLiteral("platform")).toString()))
+	const QString platform = message.value(QStringLiteral("platform")).toString();
+	if (!options.allowedPlatforms.contains(platform))
+		return {};
+	// Llegó tarde al reconectar: se muestra, pero leerlo ahora sonaría fuera de tiempo.
+	if (message.value(QStringLiteral("recovered")).toBool())
 		return {};
 
-	const QString body = spokenOrEmpty(bodyText(message));
-	const QString system = spokenOrEmpty(message.value(QStringLiteral("system")).toString());
+	const auto spokenPart = [&platform](const QString &text) {
+		return spokenOrEmpty(platform == QStringLiteral("starvios") ? withoutEmoteCodes(text) : text);
+	};
+	const QString body = spokenPart(bodyText(message));
+	const QString system = spokenPart(message.value(QStringLiteral("system")).toString());
 	if (body.isEmpty() && system.isEmpty())
 		return {};
 

@@ -18,6 +18,8 @@ LiveResult checkLive(const SourceInfo &s)
 		return youtube::checkLive(s);
 	if (s.platform == "tiktok")
 		return tiktok::checkLive(s.channel);
+	if (s.platform == "starvios")
+		return starvios::checkLive(s.channel);
 	if (s.platform == "demo")
 	{
 		LiveResult r;
@@ -37,6 +39,8 @@ Profile fetchProfile(const SourceInfo &s)
 		return youtube::fetchProfile(s);
 	if (s.platform == "tiktok")
 		return tiktok::fetchProfile(s.channel);
+	if (s.platform == "starvios")
+		return starvios::fetchProfile(s.channel);
 	return {};
 }
 
@@ -50,6 +54,8 @@ std::shared_ptr<Connector> createConnector(const SourceInfo &s, Connector::PostF
 		return youtube::create(s, std::move(post), std::move(report));
 	if (s.platform == "tiktok")
 		return tiktok::create(s, std::move(post), std::move(report));
+	if (s.platform == "starvios")
+		return starvios::create(s, std::move(post), std::move(report));
 	return demo::create(s, std::move(post), std::move(report));
 }
 
@@ -94,6 +100,20 @@ bool tiktokChannel(QString user, SourceInfo &out, QString &error)
 	return true;
 }
 
+// Usuario de Starvios: la misma regla que aplica su web. Va a URLs y al nombre visible del canal.
+bool starviosChannel(QString user, SourceInfo &out, QString &error)
+{
+	if (user.startsWith('@'))
+		user.remove(0, 1);
+	static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9_]{3,25}$"));
+	if (!valid.match(user).hasMatch()) {
+		error = QStringLiteral("usuario de Starvios no válido: %1").arg(user);
+		return false;
+	}
+	out = make("starvios", user.toLower());
+	return true;
+}
+
 } // namespace
 
 bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
@@ -104,7 +124,8 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 		return false;
 	}
 
-	// URLs: twitch.tv/canal, kick.com/canal, youtube.com/@canal, youtube.com/watch?v=..., tiktok.com/@usuario
+	// URLs: twitch.tv/canal, kick.com/canal, youtube.com/@canal, youtube.com/watch?v=..., tiktok.com/@usuario,
+	// starvios.com/live/usuario
 	static const QRegularExpression scheme(QStringLiteral("^https?://(www\\.|m\\.)?"),
 					       QRegularExpression::CaseInsensitiveOption);
 	QString url = raw;
@@ -121,6 +142,12 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 	}
 	if (host == "tiktok.com" && seg.size() > 1 && seg[1].startsWith('@'))
 		return tiktokChannel(seg[1], out, error);
+	if (host == "starvios.com" || host == "www.starvios.com") {
+		if (seg.size() > 2 && seg[1] == "live")
+			return starviosChannel(seg[2].section('?', 0, 0).section('#', 0, 0), out, error);
+		error = QStringLiteral("URL de Starvios no reconocida: %1").arg(raw);
+		return false;
+	}
 	if (host == "youtube.com" || host == "youtu.be") {
 		if (!youtube::parseVideoId(url).isEmpty())
 			return youtubeChannel(url, out);
@@ -157,11 +184,13 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 		return youtubeChannel(channel, out);
 	if (platform == "tiktok" || platform == "tt")
 		return tiktokChannel(channel, out, error);
+	if (platform == "starvios")
+		return starviosChannel(channel, out, error);
 	if (platform == "demo") {
 		out = make("demo", channel);
 		return true;
 	}
-	error = QStringLiteral("plataforma no soportada: %1 (usa twitch, youtube, kick o tiktok)").arg(platform);
+	error = QStringLiteral("plataforma no soportada: %1 (usa twitch, youtube, kick, tiktok o starvios)").arg(platform);
 	return false;
 }
 
@@ -189,6 +218,8 @@ protected:
 			{"kick", "zeta_arg", "#FF69B4", "subscriber"},
 			{"tiktok", "vale.tok", "", ""},
 			{"tiktok", "rodri_live", "", "moderator"},
+			{"starvios", "nova_estelar", "#A78BFA", ""},
+			{"starvios", "lucho_star", "#38BDF8", "vip"},
 		};
 		static const char *lines[] = {
 			"¡Holaaa desde Buenos Aires!",
