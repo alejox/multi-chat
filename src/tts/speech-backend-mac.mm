@@ -109,28 +109,33 @@ public:
 
         const QByteArray text = request.text.toUtf8();
         const QByteArray voiceId = request.voiceId.toUtf8();
-        NSString *nsText = [NSString stringWithUTF8String:text.constData()];
-        NSString *nsVoice = voiceId.isEmpty() ? nil : [NSString stringWithUTF8String:voiceId.constData()];
         const double rate = std::clamp(request.rate, 0.0, 1.0);
 
-        // Los bloques se quedan con su propia referencia al Job, no con este objeto, y nadie
-        // espera a la cola principal: destruir el motor desde ella no puede bloquearse.
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (job->cancelled.load() || !nsText)
-                return;
-            AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:nsText];
-            // Una voz que ya no existe queda en nil, que es la predeterminada del sistema.
-            if (nsVoice)
-                utterance.voice = [AVSpeechSynthesisVoice voiceWithIdentifier:nsVoice];
-            utterance.rate = static_cast<float>(AVSpeechUtteranceMinimumSpeechRate +
-                                                rate * (AVSpeechUtteranceMaximumSpeechRate -
-                                                        AVSpeechUtteranceMinimumSpeechRate));
-            job->synth = [[AVSpeechSynthesizer alloc] init];
-            [job->synth writeUtterance:utterance
-                      toBufferCallback:^(AVAudioBuffer *buffer) {
-                          handleBuffer(job, buffer);
-                      }];
-        });
+        // speak() y stop() corren en el hilo del motor, que no drena ninguna reserva por sí solo.
+        // El bloque retiene sus propias referencias fuertes a las cadenas.
+        @autoreleasepool {
+            NSString *nsText = [NSString stringWithUTF8String:text.constData()];
+            NSString *nsVoice = voiceId.isEmpty() ? nil : [NSString stringWithUTF8String:voiceId.constData()];
+
+            // Los bloques se quedan con su propia referencia al Job, no con este objeto, y nadie
+            // espera a la cola principal: destruir el motor desde ella no puede bloquearse.
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (job->cancelled.load() || !nsText)
+                    return;
+                AVSpeechUtterance *utterance = [AVSpeechUtterance speechUtteranceWithString:nsText];
+                // Una voz que ya no existe queda en nil, que es la predeterminada del sistema.
+                if (nsVoice)
+                    utterance.voice = [AVSpeechSynthesisVoice voiceWithIdentifier:nsVoice];
+                utterance.rate = static_cast<float>(AVSpeechUtteranceMinimumSpeechRate +
+                                                    rate * (AVSpeechUtteranceMaximumSpeechRate -
+                                                            AVSpeechUtteranceMinimumSpeechRate));
+                job->synth = [[AVSpeechSynthesizer alloc] init];
+                [job->synth writeUtterance:utterance
+                          toBufferCallback:^(AVAudioBuffer *buffer) {
+                              handleBuffer(job, buffer);
+                          }];
+            });
+        }
     }
 
     void stop() override
@@ -140,10 +145,12 @@ public:
         if (!job)
             return;
         job->cancelled.store(true);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [job->synth stopSpeakingAtBoundary:AVSpeechBoundaryImmediate];
-            job->synth = nil;
-        });
+        @autoreleasepool {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [job->synth stopSpeakingAtBoundary:AVSpeechBoundaryImmediate];
+                job->synth = nil;
+            });
+        }
     }
 
 private:
