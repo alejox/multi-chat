@@ -803,6 +803,36 @@ private slots:
 		QVERIFY(!rig.socket(1));
 	}
 
+	void starviosNothingIsPublishedAfterStop()
+	{
+		std::atomic<bool> release{false};
+		StarviosRig rig;
+		rig.extra = [&](const std::string &url, const std::string &) {
+			net::Response res;
+			if (url.find("id=eq.") == std::string::npos)
+				return res;
+			StarviosRig::until([&] { return release.load(); }, 5000);
+			res.status = 200;
+			res.body = QJsonDocument(QJsonArray{chatRow("m1", "uno")}).toJson().toStdString();
+			return res;
+		};
+		rig.start();
+		auto ws = rig.joined();
+		QVERIFY(ws);
+		// Una consulta en curso y otra en cola cuando se quita el chat.
+		ws->push(starviosMsg(chatRow("m1", "uno", {}, false)));
+		QVERIFY(StarviosRig::until([&] { return rig.requestCount("id=eq.m1") == 1; }));
+		QJsonObject queued = chatRow("m2", "dos", {}, false);
+		queued.insert("user_id", "u2");
+		ws->push(starviosMsg(queued));
+		ws->push(starviosMsg(chatRow("m3", "marca")));
+		QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 1; }));
+		rig.connector->stop();
+		release = true;
+		rig.connector->join();
+		QCOMPARE(rig.postedCount(), 1);
+	}
+
 	void starviosReconnectRecoversGap()
 	{
 		StarviosRig rig;

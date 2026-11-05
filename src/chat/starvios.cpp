@@ -918,6 +918,9 @@ private:
 
 	void publish(const QJsonObject &row, bool recovered)
 	{
+		// Una consulta en segundo plano puede terminar cuando el chat ya se ha quitado.
+		if (stopped())
+			return;
 		QString ownerId;
 		{
 			std::lock_guard<std::mutex> lock(stateMutex_);
