@@ -38,10 +38,10 @@ Los HRESULT de `SetOutput`, `Speak` y `WaitUntilDone` se ignoran, así que todo 
 - [x] T1 RED: prueba real de SAPI en el CI de Windows. Route: delegated (writer; toca 3 archivos no triviales). Commits: `8e3ef7e`, `a030593`.
   - Accept: `test-tts-win` corre en el job de Windows, falla con límite de tiempo, y distingue "sin voces" de un fallo.
   - Check: run de CI en rojo con la salida real.
-- [ ] T2 GREEN: arreglar el backend. Route: delegated (writer). Commit: pendiente.
+- [x] T2 GREEN: arreglar el backend. Route: delegated (writer). Commits: `11fdfb6`, `5596bb5`.
   - Accept: formato explícito, PCM directo, HRESULT informados, cancelación igual que antes, `wav.hpp` retirado si queda sin uso.
   - Check: los 4 jobs de CI en verde con `test-tts-win` ejecutada en Windows.
-- [ ] T3 Comprobación local. Route: delegated (writer). Commit: ninguno.
+- [x] T3 Comprobación local. Route: delegated (writer). Commit: ninguno.
   - Check: `ctest --test-dir build_tests`; `cmake --build --preset macos`.
 
 ## Verification evidence
@@ -52,6 +52,14 @@ Los HRESULT de `SetOutput`, `Speak` y `WaitUntilDone` se ignoran, así que todo 
   - Sonda con PCM 16 bits mono a 22050 Hz: `SetBaseStream`, `SetOutput` y `Speak` en `hr=0x00000000`; `bytes=153870`; `primeros 4 bytes: 00 00 00 00` (sin RIFF).
   - Voz predeterminada, David, Zira y voz inexistente: `llamadas PCM=0 ... FALLO: terminó sin entregar audio`. Texto vacío: `FALLO: terminó sin audio y sin ningún aviso en el log`. `stop()`: ok.
 - Causa observada: las dos hipótesis son ciertas. `SetBaseStream` rechaza el formato nulo con `E_INVALIDARG` y el error se tragaba; con formato válido el stream recibe PCM crudo, que `fromWav` habría rechazado por no llevar RIFF.
+- Primer intento de GREEN, run https://github.com/alejox/multi-chat/actions/runs/41977150129 (`11fdfb6`): ya había audio (`frecuencia=22050 canales=1 muestras=76935 duracion=3.49s pico=0.881`), pero la prueba falló porque `SetOutput(nullptr, TRUE)` devolvía `0x8004503A` en el runner y la prueba no admite avisos en un caso correcto. El audio ya estaba completo antes de esa llamada, así que `5596bb5` la quita.
+- T2 GREEN, run https://github.com/alejox/multi-chat/actions/runs/41977505057 (`5596bb5`): `tests`, `macos`, `windows` y `linux` en `success`. Salida de `test-tts-win`:
+  - Voz predeterminada y David: `frecuencia=22050 canales=1 muestras=76935 duracion=3.49s pico=0.881`. Zira: `muestras=77816 duracion=3.53s pico=0.679`.
+  - Voz inexistente: audio y aviso `no existe la voz ...; se usa la predeterminada`. Texto vacío: aviso `un texto terminó sin audio`. `stop()`: sin audio.
+  - `RESULTADO: todo bien`.
+- `wav.hpp` quedó sin uso y se retiró con sus 5 pruebas de `test-tts.cpp`.
+- T3 en `11fdfb6`: `ctest --test-dir build_tests` 100% (2 de 2), contra el QtTest stand-in local de `build_tests`; el QtTest real corre en el job `tests`. `cmake --build --preset macos`: BUILD SUCCEEDED. `5596bb5` solo cambia un archivo de Windows, que aquí no se compila.
+- No verificado: que OBS reproduzca ese PCM en la máquina del usuario. El CI demuestra que el backend produce audio, no que se oiga, ni que el tono sea correcto de oído.
 
 ## Next step
-T2: subir el arreglo y observar los 4 jobs en verde.
+Quien coordina decide la revisión, el merge, la versión y la release. Después, el usuario prueba de oído en Windows; si sigue sin sonar, el log de OBS debería mostrar líneas `[multichat] voz de Windows`.
