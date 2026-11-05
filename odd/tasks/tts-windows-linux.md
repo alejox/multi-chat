@@ -58,9 +58,11 @@ La voz es una fuente de audio de OBS separada del resto del plugin. El motor (vo
 - `cmake --build --preset macos`: BUILD SUCCEEDED, x86_64 y arm64 (el guard `__APPLE__` retirado no rompe macOS; los archivos de Win/Linux no se compilan aquí).
 - `rg -i "solo en macos|voz de macOS|esta fuente no aparece" README.md src/`: sin coincidencias.
 - No verificado en esta máquina: la compilación de Windows (SAPI) y Linux (espeak-ng) y el sonido real. Lo confirma el CI de GitHub Actions en el próximo push.
+- CI (push de `feat/tts-chat-reader`, run 41971725471): `success` en los 4 jobs — `tests`, `macos`, `windows`, `linux`. SAPI y espeak-ng compilaron a la primera y las pruebas pasaron con el QtTest real de Ubuntu.
+- Versión subida a 2.1.0 (`buildspec.json` + `manifest.json`), commit `b07bb2b`; `main` avanzó con fast-forward hasta ese commit y el push disparó el flujo *Publicar versión* (run 41972411070).
 
 ## Next step
-Push de `feat/tts-chat-reader` y esperar el CI (compila Windows, macOS y Linux). Si el CI pasa, subir la versión a 2.1.0 en `buildspec.json` y `data/manifest.json` y pasar a `main` para disparar la release.
+Esperar el flujo *Publicar versión* (crea el tag `v2.1.0` y la Release con los tres paquetes). Si algo falla en la release, se revisa el job y se corrige antes de reintentar.
 
 ## Log
 - L1 (2026-11-04 23:08): "ya todo quedo en orden, ajusta ahora para windows y linux y sube todo a main y haz release"
