@@ -830,7 +830,7 @@ private slots:
 		// Tantas consultas en cola como admite el conector, y el socket se cae antes de hacerlas.
 		for (int i = 0; i < 16; ++i) {
 			QJsonObject row = chatRow(QStringLiteral("q%1").arg(i), QStringLiteral("en cola %1").arg(i), {}, false);
-			row.insert("user_id", QStringLiteral("u%1").arg(i));
+			row.insert("user_id", QStringLiteral("espectador%1").arg(i)); // nadie conocido: todos necesitan consulta
 			ws->push(starviosMsg(row));
 		}
 		ws->push(starviosMsg(chatRow("marca", "marca")));
