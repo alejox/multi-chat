@@ -105,7 +105,7 @@ jobs:
                             'obs-multichat\data\locale\es-ES.ini', 'obs-multichat\data\locale\en-US.ini') {
             if (-not (Test-Path (Join-Path $dir $file))) { throw "Falta $file en el zip" }
           }
-          # El plugin solo debe depender de OBS, Qt y del sistema (WinHTTP).
+          # El plugin solo debe depender de OBS, Qt y del sistema (WinHTTP y SAPI).
           $dumpbin = Get-ChildItem -Recurse "${env:ProgramFiles}\Microsoft Visual Studio" -Filter dumpbin.exe | Where-Object FullName -like '*Hostx64\x64*' | Select-Object -First 1
           & $dumpbin.FullName /dependents (Join-Path $dir 'obs-multichat\obs-multichat.dll')
       - uses: actions/upload-artifact@v4
@@ -120,12 +120,12 @@ jobs:
       - name: Versión
         id: version
         run: echo "v=$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")" >> "$GITHUB_OUTPUT"
-      - name: OBS (PPA oficial), Qt 6 y libcurl
+      - name: OBS (PPA oficial), Qt 6, libcurl y espeak-ng
         run: |
           sudo add-apt-repository --yes ppa:obsproject/obs-studio
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends obs-studio qt6-base-dev qt6-base-private-dev \
-            libcurl4-openssl-dev libsimde-dev libgles2-mesa-dev ninja-build
+            libcurl4-openssl-dev libespeak-ng-dev libsimde-dev libgles2-mesa-dev ninja-build
           dpkg -s obs-studio | grep '^Version'
       - name: Configurar
         run: cmake --preset ubuntu-ci-x86_64
@@ -145,7 +145,7 @@ jobs:
                       data/overlay/styles.css data/overlay/icons.js; do
             test -f "package/obs-multichat/$file" || { echo "Falta $file"; exit 1; }
           done
-          # El plugin solo debe depender de OBS, Qt, libcurl y el sistema.
+          # El plugin solo debe depender de OBS, Qt, libcurl, espeak-ng y el sistema.
           ldd package/obs-multichat/bin/64bit/obs-multichat.so
           mkdir -p dist
           tar -czf "dist/obs-multichat-${{ steps.version.outputs.v }}-linux-x86_64.tar.gz" -C package obs-multichat

@@ -27,7 +27,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en los recuadros de espectadores y de fecha y hora. |
 | 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en vivo, y el total. En fila o en columna, con o sin el nombre del canal. |
-| 🔊 **Fuente "Multichat (voz)"** | Lee el chat en voz alta como una fuente de audio más, que llega a la emisión y se controla en el mezclador. Solo en macOS, por ahora. |
+| 🔊 **Fuente "Multichat (voz)"** | Lee el chat en voz alta como una fuente de audio más, que llega a la emisión y se controla en el mezclador. |
 | 🙈 **Filtrar** | Clic en un canal del dock para ocultar o mostrar sus mensajes. |
 | 🧪 **Mensajes de prueba** | Para ver el dock y colocar el overlay sin estar en directo. Nunca salen mientras transmites. |
 
@@ -106,11 +106,11 @@ Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha.
 4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
 5. Para la fecha y la hora sueltas: **Fuentes → + → Multichat (fecha y hora)**.
-6. Para que lea el chat en voz alta (macOS): **Fuentes → + → Multichat (voz)**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
+6. Para que lea el chat en voz alta: **Fuentes → + → Multichat (voz)**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
 
 ### 🔊 Leer el chat en voz alta
 
-Solo en **macOS** por ahora: en Windows y Linux esta fuente no aparece. Usa las voces del sistema, sin servicios externos.
+Funciona en Windows, macOS y Linux con las voces del sistema, sin servicios externos. En Linux usa **espeak-ng**: la voz es más robótica que las de Windows y macOS.
 
 1. Añade **Fuentes → + → Multichat (voz)** a tu escena.
 2. En sus **Propiedades**, activa *Leer el chat en voz alta*: viene desactivada. Ahí eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen, el máximo de caracteres por mensaje y las palabras bloqueadas.
@@ -149,7 +149,7 @@ YouTube, Kick, TikTok y Starvios no tienen una API pública oficial para leer el
 
 ## 🛠️ Compilar
 
-El plugin usa la [plantilla oficial de plugins de OBS](https://github.com/obsproject/obs-plugintemplate) actualizada a **OBS 33.0.0**: obs-deps y Qt 6.11 del `2026-10-23`, macOS 13+ universal, Windows x64. La configuración descarga las dependencias sola. En Linux usa el OBS, Qt 6 y libcurl del sistema.
+El plugin usa la [plantilla oficial de plugins de OBS](https://github.com/obsproject/obs-plugintemplate) actualizada a **OBS 33.0.0**: obs-deps y Qt 6.11 del `2026-10-23`, macOS 13+ universal, Windows x64. La configuración descarga las dependencias sola. En Linux usa el OBS, Qt 6, libcurl y espeak-ng del sistema.
 
 ```bash
 # macOS (Xcode 26.5+: OBS 33 exige el SDK de macOS 26.5)
@@ -160,7 +160,7 @@ cmake --preset windows-x64
 cmake --build --preset windows-x64
 
 # Ubuntu 24.04 (con el OBS del PPA oficial)
-sudo apt install obs-studio qt6-base-dev qt6-base-private-dev libcurl4-openssl-dev libsimde-dev ninja-build
+sudo apt install obs-studio qt6-base-dev qt6-base-private-dev libcurl4-openssl-dev libespeak-ng-dev libsimde-dev ninja-build
 cmake --preset ubuntu-x86_64 && cmake --build --preset ubuntu-x86_64
 ```
 
@@ -178,7 +178,7 @@ Cada push compila en GitHub Actions para Windows, macOS y Linux (`.github/workfl
 src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
 src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
 src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
-src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz de macOS
+src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
 src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
