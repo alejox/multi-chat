@@ -47,7 +47,7 @@ public:
 
 		auto *addRow = new QHBoxLayout();
 		platform_ = new QComboBox(chatsBox);
-		for (const char *p : {"twitch", "youtube", "kick", "tiktok"})
+		for (const char *p : {"twitch", "youtube", "kick", "tiktok", "starvios"})
 			platform_->addItem(QIcon(ui::platformIcon(p, 16, devicePixelRatioF())), chat::platformName(p),
 					   QString::fromLatin1(p));
 		channel_ = new QLineEdit(chatsBox);

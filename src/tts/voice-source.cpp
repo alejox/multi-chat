@@ -45,7 +45,7 @@ std::set<VoiceSource *> sources;
 bool shuttingDown = false;
 QMetaObject::Connection messageConnection;
 
-const char *const kPlatforms[] = {"twitch", "youtube", "kick", "tiktok"};
+const char *const kPlatforms[] = {"twitch", "youtube", "kick", "tiktok", "starvios"};
 
 std::string platformKey(const char *platform)
 {
