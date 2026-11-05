@@ -277,6 +277,16 @@ net::Response rest(const QString &pathAndQuery, const QByteArray *postBody = nul
 	return res;
 }
 
+// La página solo sirve imágenes desde su web y su proyecto de Supabase, y la petición saldría desde la
+// IP del usuario: una dirección a cualquier otro sitio no se descarga.
+bool isPlatformImageUrl(const QString &address)
+{
+	const QUrl url(address, QUrl::StrictMode);
+	if (!url.isValid() || url.scheme() != QStringLiteral("https") || !url.userInfo().isEmpty() || url.port() != -1)
+		return false;
+	return url.host() == QUrl(QLatin1String(kSiteUrl)).host() || url.host() == QUrl(credentials().projectUrl).host();
+}
+
 QString encoded(const QString &value)
 {
 	return QString::fromLatin1(QUrl::toPercentEncoding(value));
@@ -515,7 +525,7 @@ Profile profileFromDiscovery(const QJsonObject &response)
 	if (profile.name.isEmpty())
 		profile.name = jsonText(channel.value(QStringLiteral("username")));
 	const QString avatar = jsonText(channel.value(QStringLiteral("avatar_url")));
-	if (avatar.startsWith(QStringLiteral("https://")))
+	if (isPlatformImageUrl(avatar))
 		profile.avatar = avatar;
 	else if (validPath(avatar))
 		profile.avatar = imageUrl(avatar, 128);
