@@ -20,6 +20,7 @@
 #include <QListWidget>
 #include <QPlainTextEdit>
 #include <QPointer>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
@@ -60,10 +61,12 @@ public:
 			platform_->addItem(QIcon(ui::platformIcon(p, 16, devicePixelRatioF())), chat::platformName(p),
 					   QString::fromLatin1(p));
 		channel_ = new QLineEdit(chatsBox);
-		auto *add = new QPushButton(ui::T("Settings.Add"), chatsBox);
+		channel_->setAccessibleName(ui::T("Settings.Chats"));
+		add_ = new QPushButton(ui::T("Settings.Add"), chatsBox);
+		add_->setAutoDefault(false);
 		addRow->addWidget(platform_);
 		addRow->addWidget(channel_, 1);
-		addRow->addWidget(add);
+		addRow->addWidget(add_);
 		chatsLayout->addLayout(addRow);
 
 		// Vista previa del canal escrito o pegado: foto de perfil y nombre.
@@ -74,14 +77,41 @@ public:
 		avatar_->setFixedSize(40, 40);
 		previewText_ = new QLabel(preview_);
 		previewText_->setTextFormat(Qt::PlainText);
+		previewText_->setWordWrap(true);
+		// Indeterminate bar while the profile is being looked up.
+		busy_ = new QProgressBar(preview_);
+		busy_->setRange(0, 0);
+		busy_->setTextVisible(false);
+		busy_->setFixedWidth(60);
+		busy_->setAccessibleName(ui::T("Settings.Preview.Loading"));
 		previewLayout->addWidget(avatar_);
 		previewLayout->addWidget(previewText_, 1);
+		previewLayout->addWidget(busy_, 0, Qt::AlignVCenter);
 		preview_->hide();
 		chatsLayout->addWidget(preview_);
+		// What is wrong with the typed channel (format, repeated, not found), right under it.
+		check_ = new QLabel(chatsBox);
+		check_->setWordWrap(true);
+		check_->setTextFormat(Qt::PlainText);
+		{
+			QPalette p = check_->palette();
+			p.setColor(QPalette::WindowText, ui::alertColor(p.color(QPalette::Window)));
+			check_->setPalette(p);
+		}
+		check_->hide();
+		chatsLayout->addWidget(check_);
 		previewTimer_.setSingleShot(true);
 		previewTimer_.setInterval(500);
 		connect(&previewTimer_, &QTimer::timeout, this, [this] { updatePreview(); });
-		connect(channel_, &QLineEdit::textChanged, this, [this] { previewTimer_.start(); });
+		connect(channel_, &QLineEdit::textChanged, this, [this] {
+			// A new text needs a new check: no stale "add anyway" nor pending add.
+			pendingAdd_.clear();
+			notFound_.clear();
+			add_->setText(ui::T("Settings.Add"));
+			add_->setEnabled(true);
+			check_->hide();
+			previewTimer_.start();
+		});
 		// Perfiles y fotos llegan en segundo plano (y el dock pide emotes a la misma caché):
 		// se agrupan en una sola actualización.
 		refreshTimer_.setSingleShot(true);
@@ -144,8 +174,9 @@ public:
 			updateHint();
 			previewTimer_.start();
 		});
-		connect(add, &QPushButton::clicked, this, [this] { addEntry(); });
-		connect(channel_, &QLineEdit::returnPressed, this, [this] { addEntry(); });
+		// The button confirms a channel that was not found; Enter alone never adds it silently.
+		connect(add_, &QPushButton::clicked, this, [this] { addEntry(!notFound_.isEmpty() && notFound_ == entryFromInput()); });
+		connect(channel_, &QLineEdit::returnPressed, this, [this] { addEntry(false); });
 		auto *removeKey = new QShortcut(QKeySequence::Delete, list_);
 		connect(removeKey, &QShortcut::activated, this, [this] {
 			if (QListWidgetItem *item = list_->currentItem())
@@ -300,45 +331,136 @@ private:
 		return ui::avatarPixmap(photo, info.platform, size, devicePixelRatioF());
 	}
 
-	void updatePreview()
-	{
+	// What is known about the typed channel.
+	enum class Check { Empty, Invalid, Duplicate, Loading, Found, NotFound };
+	struct Validation {
+		Check state = Check::Empty;
+		QString entry;
 		chat::SourceInfo info;
-		QString error;
-		const QString entry = entryFromInput();
-		if (entry.isEmpty() || !chat::parseEntry(entry, info, error)) {
-			preview_->hide();
-			return;
-		}
 		chat::Profile profile;
-		const bool known = ProfileCache::instance().get(info, profile);
-		QString text = chat::platformName(info.platform) + QStringLiteral(" · ") + info.channel;
-		if (!known)
-			text = ui::T("Settings.Preview.Loading") + "  " + text;
-		else if (profile.name.isEmpty() && profile.avatar.isEmpty())
-			text += "  —  " + ui::T("Settings.Preview.NotFound");
-		else if (!profile.name.isEmpty())
-			text = profile.name + "\n" + text;
-		previewText_->setText(text);
-		avatar_->setPixmap(avatarFor(info, 40));
-		preview_->show();
-	}
+		QString message; // why it cannot be added (Invalid, Duplicate)
+	};
 
-	void addEntry()
+	Validation validate()
 	{
-		const QString entry = entryFromInput();
-		if (entry.isEmpty())
-			return;
-		chat::SourceInfo info;
+		Validation v;
+		v.entry = entryFromInput();
+		if (v.entry.isEmpty())
+			return v;
 		chat::EntryError code = chat::EntryError::None;
 		QString arg;
-		if (!chat::parseEntry(entry, info, code, arg)) {
-			error_->setText(errorText(code, arg));
-			error_->show();
+		if (!chat::parseEntry(v.entry, v.info, code, arg)) {
+			v.state = Check::Invalid;
+			v.message = errorText(code, arg);
+			return v;
+		}
+		for (const chat::ChatEntry &e : entries_) {
+			chat::SourceInfo other;
+			QString ignored;
+			if (chat::parseEntry(e.entry, other, ignored) && other.key == v.info.key) {
+				v.state = Check::Duplicate;
+				v.message = ui::T("Settings.Validate.Duplicate");
+				return v;
+			}
+		}
+		if (chat::isDemo(v.info)) { // no profile to look up
+			v.state = Check::Found;
+			return v;
+		}
+		if (!ProfileCache::instance().get(v.info, v.profile))
+			v.state = Check::Loading;
+		else if (v.profile.name.isEmpty() && v.profile.avatar.isEmpty())
+			v.state = Check::NotFound;
+		else
+			v.state = Check::Found;
+		return v;
+	}
+
+	void updatePreview()
+	{
+		const Validation v = validate();
+		if (v.state == Check::Empty || v.state == Check::Invalid) {
+			preview_->hide();
+		} else {
+			QString text = chat::platformName(v.info.platform) + QStringLiteral(" · ") + v.info.channel;
+			if (v.state == Check::Loading)
+				text = ui::T("Settings.Preview.Loading") + "\n" + text;
+			else if (!v.profile.name.isEmpty())
+				text = v.profile.name + "\n" + text;
+			previewText_->setText(text);
+			avatar_->setPixmap(avatarFor(v.info, 40));
+			busy_->setVisible(v.state == Check::Loading);
+			preview_->show();
+		}
+
+		// A pending add finishes when the lookup answers.
+		const bool pending = !pendingAdd_.isEmpty() && pendingAdd_ == v.entry;
+		if (pending && v.state == Check::Found) {
+			commit(v.entry);
 			return;
 		}
+		if (pending && v.state != Check::Loading)
+			pendingAdd_.clear();
+
+		QString message = v.message;
+		if (v.state == Check::NotFound) {
+			message = ui::T("Settings.Validate.NotFound").arg(chat::platformName(v.info.platform));
+			notFound_ = v.entry;
+		} else {
+			notFound_.clear();
+		}
+		check_->setText(message);
+		check_->setVisible(!message.isEmpty());
+		add_->setText(ui::T(v.state == Check::NotFound ? "Settings.AddAnyway"
+				    : pendingAdd_.isEmpty()   ? "Settings.Add"
+							      : "Settings.Checking"));
+		add_->setEnabled(pendingAdd_.isEmpty());
+		if (pending && v.state == Check::NotFound)
+			add_->setFocus(); // one more press confirms
+	}
+
+	// `confirmed`: the user pressed "Add anyway" for a channel that was not found.
+	void addEntry(bool confirmed)
+	{
+		previewTimer_.stop();
+		const Validation v = validate();
+		switch (v.state) {
+		case Check::Empty:
+			return;
+		case Check::Invalid:
+		case Check::Duplicate:
+			updatePreview();
+			return;
+		case Check::Loading:
+			// Added as soon as the lookup confirms it exists (or asks again if it does not).
+			pendingAdd_ = v.entry;
+			updatePreview();
+			return;
+		case Check::NotFound:
+			if (confirmed)
+				commit(v.entry);
+			else
+				updatePreview();
+			return;
+		case Check::Found:
+			commit(v.entry);
+			return;
+		}
+	}
+
+	void commit(const QString &entry)
+	{
+		pendingAdd_.clear();
+		notFound_.clear();
 		error_->hide();
-		channel_->clear();
+		check_->hide();
 		preview_->hide();
+		{
+			const QSignalBlocker block(channel_);
+			channel_->clear();
+		}
+		add_->setText(ui::T("Settings.Add"));
+		add_->setEnabled(true);
 		entries_ << chat::ChatEntry{entry, true};
 		apply();
 	}
@@ -447,6 +569,11 @@ private:
 	QWidget *preview_ = nullptr;
 	QLabel *avatar_ = nullptr;
 	QLabel *previewText_ = nullptr;
+	QProgressBar *busy_ = nullptr;
+	QLabel *check_ = nullptr;
+	QPushButton *add_ = nullptr;
+	QString pendingAdd_; // entry to add once its lookup answers
+	QString notFound_;   // entry shown as "not found": the button confirms it
 	QTimer previewTimer_;
 	QTimer refreshTimer_;
 	QRadioButton *auto_ = nullptr;

@@ -1256,17 +1256,27 @@ private slots:
 		QCOMPARE(code("tiktok:mal nombre", &arg), EntryError::TikTokUser);
 		QCOMPARE(arg, QString("mal nombre"));
 		QCOMPARE(code("starvios:ab"), EntryError::StarviosUser);
+		// Twitch and Kick names: a typo with spaces or symbols is caught before looking it up.
+		QCOMPARE(code("twitch:mal nombre", &arg), EntryError::TwitchUser);
+		QCOMPARE(arg, QString("mal nombre"));
+		QCOMPARE(code("twitch:#a/b"), EntryError::TwitchUser);
+		QCOMPARE(code("https://twitch.tv/mal%20x"), EntryError::TwitchUser);
+		QCOMPARE(code("twitch:#Mi_Canal"), EntryError::None);
+		QCOMPARE(code("kick:mal nombre"), EntryError::KickUser);
+		QCOMPARE(code("https://kick.com/a.b"), EntryError::KickUser);
+		QCOMPARE(code("kick:mi-canal_2#123"), EntryError::None);
 		QCOMPARE(code("https://www.youtube.com/feed"), EntryError::YouTubeUrl);
 		QCOMPARE(code("https://starvios.com/clip/abc"), EntryError::StarviosUrl);
 		// Every error has its own translation key.
 		QSet<QString> keys;
-		for (EntryError e : {EntryError::Empty, EntryError::Format, EntryError::Platform, EntryError::TikTokUser,
-				     EntryError::StarviosUser, EntryError::YouTubeUrl, EntryError::StarviosUrl}) {
+		for (EntryError e : {EntryError::Empty, EntryError::Format, EntryError::Platform, EntryError::TwitchUser,
+				     EntryError::KickUser, EntryError::TikTokUser, EntryError::StarviosUser,
+				     EntryError::YouTubeUrl, EntryError::StarviosUrl}) {
 			const QString key = QString::fromLatin1(entryErrorKey(e));
 			QVERIFY(key.startsWith("Entry.Error."));
 			keys.insert(key);
 		}
-		QCOMPARE(keys.size(), 7);
+		QCOMPARE(keys.size(), 9);
 		QVERIFY(entryErrorKey(EntryError::None) == nullptr);
 		// The text overload still explains the problem (logs, tests).
 		SourceInfo s;
