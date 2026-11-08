@@ -244,12 +244,12 @@ bool recoverCredentials(const QString &rejectedKey)
 			credentialsFromScript(QString::fromStdString(client.body), key, projectUrl);
 	}
 	if (key.isEmpty()) {
-		warn(QStringLiteral("rechazó la clave y no se pudo leer una nueva de su web; puede que haya que "
-				    "actualizar el plugin"));
+		warn(QStringLiteral("rejected the key and a new one could not be read from its site; the plugin may "
+				    "need an update"));
 		return false;
 	}
 	if (key == rejectedKey) {
-		warn(QStringLiteral("rechazó la clave, pero su web sigue usando la misma"));
+		warn(QStringLiteral("rejected the key, but its site still uses the same one"));
 		return false;
 	}
 	{
@@ -257,7 +257,7 @@ bool recoverCredentials(const QString &rejectedKey)
 		s.key = key;
 		s.projectUrl = projectUrl;
 	}
-	warn(QStringLiteral("la clave pública cambió; se usará la de su web"));
+	warn(QStringLiteral("the public key changed; using the one from its site"));
 	return true;
 }
 
@@ -313,10 +313,8 @@ LiveResult fetchDiscovery(const QString &channel, QString &streamId, QString &ow
 	const QJsonObject json = QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object();
 	if (profile)
 		*profile = profileFromDiscovery(json);
-	const LiveResult result = parseDiscovery(json, streamId, ownerId);
-	if (result.live == -1)
-		error = QStringLiteral("respuesta inesperada");
-	return result;
+	// An unexpected answer leaves `error` empty.
+	return parseDiscovery(json, streamId, ownerId);
 }
 
 QByteArray compactJson(const QJsonObject &object)
@@ -442,10 +440,12 @@ QJsonObject toMessage(const QJsonObject &row, const QString &channel, const QStr
 	};
 
 	QString author = authorOf(row);
-	if (author.isEmpty())
-		author = QStringLiteral("Espectador");
-
 	MessageOptions o;
+	if (author.isEmpty()) {
+		o.authorKey = QStringLiteral("Author.Viewer");
+		author = translate(Text{o.authorKey, {}});
+	}
+
 	o.id = id;
 	o.recovered = recovered;
 	o.badges = mapBadges(row, profile, ownerId);
@@ -458,40 +458,43 @@ QJsonObject toMessage(const QJsonObject &row, const QString &channel, const QStr
 	bool showBody = true;
 	if (kind == QStringLiteral("raid")) {
 		const int viewers = metaInt("viewers", 0);
-		// arg() con varios argumentos sustituye a la vez: un "%2" en el nombre queda como texto.
-		o.system = QStringLiteral("%1 está haciendo una raid con %2 %3")
-				   .arg(author, QString::number(viewers),
-					viewers == 1 ? QStringLiteral("espectador") : QStringLiteral("espectadores"));
+		o.systemText = viewers == 1 ? Text{"Event.RaidOne", {author}}
+					    : Text{"Event.Raid", {author, QString::number(viewers)}};
 		showBody = false;
 	} else if (kind == QStringLiteral("reward")) {
 		const QString title = metaText("reward_title");
 		const QString emoji = metaText("emoji");
-		o.system = QStringLiteral("%1 canjeó %2%3")
-				   .arg(author, emoji.isEmpty() ? QString() : emoji + QLatin1Char(' '),
-					title.isEmpty() ? QStringLiteral("una recompensa") : title);
+		const QString prefix = emoji.isEmpty() ? QString() : emoji + QLatin1Char(' ');
+		o.systemText = title.isEmpty() ? Text{"Event.RewardUnnamed", {author, prefix}}
+					       : Text{"Event.Reward", {author, prefix, title}};
 		if (metaInt("cost", 0) > 0)
 			o.amount = QString::number(metaInt("cost", 0));
 		showBody = meta.value(QStringLiteral("has_input")).toBool();
 	} else if (kind == QStringLiteral("sub")) {
 		const int months = metaInt("months", 1);
-		o.system = months > 1 ? QStringLiteral("%1 se ha suscrito (%2 meses)").arg(author, QString::number(months))
-				      : QStringLiteral("%1 se ha suscrito").arg(author);
+		o.systemText = months > 1 ? Text{"Event.SubMonths", {author, QString::number(months)}}
+					  : Text{"Event.Sub", {author}};
 		showBody = false;
 	} else if (kind == QStringLiteral("gift_sub")) {
-		if (meta.value(QStringLiteral("anonymous")).toBool())
-			author = QStringLiteral("Anónimo");
 		const QString recipient = metaText("recipient");
-		o.system = recipient.isEmpty() ? QStringLiteral("%1 regaló una suscripción").arg(author)
-					       : QStringLiteral("%1 regaló una suscripción a %2").arg(author, recipient);
+		if (meta.value(QStringLiteral("anonymous")).toBool()) {
+			o.authorKey = QStringLiteral("Author.Anonymous");
+			author = translate(Text{o.authorKey, {}});
+			o.systemText = recipient.isEmpty() ? Text{"Event.GiftSubAnonymous", {}}
+							   : Text{"Event.GiftSubAnonymousTo", {recipient}};
+		} else {
+			o.systemText = recipient.isEmpty() ? Text{"Event.GiftSub", {author}}
+							   : Text{"Event.GiftSubTo", {author, recipient}};
+		}
 		showBody = false;
 	} else if (kind == QStringLiteral("starfall")) {
 		o.system = body.trimmed();
 		showBody = false;
 	} else if (kind == QStringLiteral("pumpkin_win")) {
-		o.system = QStringLiteral("¡Enhorabuena, %1! Ha cazado 10 calabazas y ha recibido 100 Starvies").arg(author);
+		o.systemText = Text{"Event.PumpkinWin", {author}};
 		showBody = false;
 	}
-	if (!o.system.isEmpty())
+	if (!o.system.isEmpty() || !o.systemText.isEmpty())
 		o.kind = QStringLiteral("highlight");
 	if (coins > 0) {
 		o.kind = QStringLiteral("highlight");
@@ -500,7 +503,7 @@ QJsonObject toMessage(const QJsonObject &row, const QString &channel, const QStr
 	}
 
 	const QJsonArray parts = showBody && !body.trimmed().isEmpty() ? splitBody(body, emotes) : QJsonArray();
-	if (parts.isEmpty() && o.system.isEmpty() && coins <= 0)
+	if (parts.isEmpty() && o.system.isEmpty() && o.systemText.isEmpty() && coins <= 0)
 		return {};
 	return makeMessage(QStringLiteral("starvios"), channel, author, parts, o);
 }
@@ -620,8 +623,9 @@ protected:
 			if (live.live == 1)
 				break;
 			if (live.live == -1)
-				throw ChatError(QStringLiteral("no se pudo consultar Starvios (%1)").arg(error));
-			report_("waiting", QStringLiteral("esperando a que empiece el directo"));
+				throw ChatError(error.isEmpty() ? Text{"Error.Unexpected", {QStringLiteral("Starvios")}}
+								: Text{"Error.Query", {QStringLiteral("Starvios"), error}});
+			report_("waiting", Text{"Detail.WaitingLive", {}});
 			if (wait(timing_.offlineMs))
 				return;
 		}
@@ -634,8 +638,7 @@ protected:
 		std::string connectError;
 		auto ws = net::connectWebSocket(socketUrl.toStdString(), {{"Origin", kSiteUrl}}, connectError);
 		if (!ws)
-			throw ChatError(scrubbed(QStringLiteral("no se pudo conectar: %1")
-							 .arg(QString::fromStdString(connectError))));
+			throw ChatError(Text{"Error.Connect", {scrubbed(QString::fromStdString(connectError))}});
 		setSocket(ws);
 
 		const QString topic = QStringLiteral("realtime:stream:%1").arg(streamId);
@@ -649,13 +652,13 @@ protected:
 				if (stopped() || background.streamChanged())
 					return;
 				if (joined)
-					throw ChatError("Starvios cerró la conexión");
+					throw ChatError(Text{"Error.Closed", {QStringLiteral("Starvios")}});
 				recoverCredentials(used.key);
-				throw ChatError("Starvios no aceptó la conexión (puede que haya cambiado algo)");
+				throw ChatError(Text{"Error.Rejected", {QStringLiteral("Starvios")}});
 			}
 			const Frame frame = decodeFrame(QByteArrayView(raw.data(), qsizetype(raw.size())));
 			if (frame.type == Frame::Type::Invalid) {
-				logUnknown(QStringLiteral("trama no reconocida de %1 bytes").arg(raw.size()));
+				logUnknown(QStringLiteral("unrecognized frame of %1 bytes").arg(raw.size()));
 			} else if (frame.type == Frame::Type::Broadcast) {
 				if (frame.event == QStringLiteral("msg"))
 					onBroadcast(frame.payload, background);
@@ -670,15 +673,16 @@ protected:
 					const QJsonObject response = frame.payload.value(QStringLiteral("response")).toObject();
 					if (jsonText(frame.payload.value(QStringLiteral("status"))) != QStringLiteral("ok")) {
 						recoverCredentials(used.key);
-						throw ChatError(scrubbed(QStringLiteral("Starvios rechazó la conexión (%1)")
-										 .arg(jsonText(response.value(QStringLiteral("reason"))).left(120))));
+						throw ChatError(Text{"Error.RejectedReason",
+								     {QStringLiteral("Starvios"),
+								      scrubbed(jsonText(response.value(QStringLiteral("reason"))).left(120))}});
 					}
 					joined = true;
 					background.joined();
-					report_("connected", QString());
+					report_("connected", Text());
 					recoverGap(background, streamId);
 				} else if (frame.event == QStringLiteral("phx_error") || frame.event == QStringLiteral("phx_close")) {
-					throw ChatError("Starvios cerró el canal del chat");
+					throw ChatError(Text{"Error.ChannelClosed", {QStringLiteral("Starvios")}});
 				} else {
 					logUnknownEvent(frame.event);
 				}
@@ -862,7 +866,7 @@ private:
 			return;
 		// El nombre viene de fuera: solo caracteres que no puedan falsear una línea del registro.
 		static const QRegularExpression unsafe(QStringLiteral("[^A-Za-z0-9_.:-]"));
-		logUnknown(QStringLiteral("evento desconocido en el canal: %1").arg(event.remove(unsafe).left(40)));
+		logUnknown(QStringLiteral("unknown event on the channel: %1").arg(event.remove(unsafe).left(40)));
 	}
 
 	void onBroadcast(const QJsonObject &payload, Background &background)
@@ -871,7 +875,7 @@ private:
 		const QJsonObject row = payload.value(QStringLiteral("msg")).toObject();
 		if (jsonText(row.value(QStringLiteral("id"))).isEmpty()) {
 			QStringList keys = (row.isEmpty() ? payload : row).keys();
-			logUnknown(QStringLiteral("mensaje con una forma desconocida (campos: %1)").arg(keys.mid(0, 16).join(',').left(200)));
+			logUnknown(QStringLiteral("message with an unknown shape (fields: %1)").arg(keys.mid(0, 16).join(',').left(200)));
 			return;
 		}
 		// Una edición o un borrado de un mensaje ya emitido no es un mensaje nuevo.
@@ -1011,7 +1015,7 @@ private:
 				res.ok() ? parseEmoteCatalog(QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object())
 					 : EmoteMap();
 			if (emotes.isEmpty()) {
-				warn(QStringLiteral("no se pudo cargar la lista de emotes"));
+				warn(QStringLiteral("couldn't load the emote list"));
 				return;
 			}
 			Shared &state = shared();

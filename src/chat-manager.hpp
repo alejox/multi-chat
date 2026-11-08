@@ -105,7 +105,7 @@ private:
 	void disconnectSource(Source &s);
 	void reapRetired(bool wait);
 	void publishState();
-	void receive(const QJsonObject &object);
+	void receive(QJsonObject object);
 	void applyDeletion(QJsonObject deletion);
 	Source *find(const QString &key, quint64 generation);
 

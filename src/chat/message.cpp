@@ -9,6 +9,98 @@
 
 namespace chat {
 
+QString fillArgs(const QString &pattern, const QStringList &args)
+{
+	QString out;
+	out.reserve(pattern.size());
+	for (qsizetype i = 0; i < pattern.size(); ++i) {
+		const QChar c = pattern.at(i);
+		if (c == QLatin1Char('%') && i + 1 < pattern.size() && pattern.at(i + 1).isDigit()) {
+			qsizetype end = i + 1;
+			int number = 0;
+			while (end < pattern.size() && pattern.at(end).isDigit() && end - i <= 2)
+				number = number * 10 + pattern.at(end++).digitValue();
+			if (number >= 1 && number <= args.size()) {
+				out += args.at(number - 1);
+				i = end - 1;
+				continue;
+			}
+		}
+		out += c;
+	}
+	return out;
+}
+
+const QHash<QString, QString> &englishTexts()
+{
+	// Keep in sync with data/locale/en-US.ini (tests/test-chat.cpp checks it).
+	static const QHash<QString, QString> texts{
+		{"Author.Anonymous", "Anonymous"},
+		{"Author.Viewer", "Viewer"},
+		{"Event.Raid", "%1 is raiding with %2 viewers"},
+		{"Event.RaidOne", "%1 is raiding with 1 viewer"},
+		{"Event.Reward", "%1 redeemed %2%3"},
+		{"Event.RewardUnnamed", "%1 redeemed %2a reward"},
+		{"Event.Sub", "%1 subscribed"},
+		{"Event.SubMonths", "%1 subscribed for %2 months"},
+		{"Event.GiftSub", "%1 gifted a sub"},
+		{"Event.GiftSubTo", "%1 gifted a sub to %2"},
+		{"Event.GiftSubAnonymous", "Anonymous gifted a sub"},
+		{"Event.GiftSubAnonymousTo", "Anonymous gifted a sub to %1"},
+		{"Event.PumpkinWin", "Congratulations, %1! They caught 10 pumpkins and got 100 Starvies"},
+		{"Event.Gift", "%1 sent %2%3"},
+		{"Event.GiftUnnamed", "%1 sent %2a gift"},
+		{"Detail.WaitingLive", "waiting for the stream to start"},
+		{"Error.Connect", "couldn't connect: %1"},
+		{"Error.Responded", "%1 responded %2"},
+		{"Error.Query", "couldn't reach %1 (%2)"},
+		{"Error.Unexpected", "unexpected response from %1"},
+		{"Error.Closed", "%1 closed the connection"},
+		{"Error.Rejected", "%1 didn't accept the connection (something may have changed)"},
+		{"Error.RejectedReason", "%1 rejected the connection (%2)"},
+		{"Error.ChannelClosed", "%1 closed the chat channel"},
+		{"Error.Reconnect", "%1 asked to reconnect"},
+		{"Error.LiveEnded", "the live stream ended"},
+		{"Error.LiveChatEnded", "the live chat ended"},
+		{"Error.NoLiveChat", "the live stream has no chat available"},
+		{"Error.YouTubeVideo", "couldn't open the YouTube video"},
+		{"Error.TikTokNoUser", "the user doesn't exist or can't go live"},
+		{"Error.SignLimit", "Euler Stream (TikTok signing): too many connections, retrying in 10 min"},
+		{"Error.SignResponded", "Euler Stream (TikTok signing) responded %1"},
+		{"Error.SignNoServer", "Euler Stream didn't return the TikTok server"},
+		{"Error.Compressed", "TikTok sent compressed messages (%1)"},
+		{"Error.KickChannel", "couldn't look up the Kick channel (%1). Enter the chat by hand: kick:%2#ID"},
+		{"Error.KickNoChat", "couldn't find the Kick channel's chat. Enter it by hand: kick:%1#ID"},
+		{"Error.Pusher", "Pusher %1: %2"},
+		{"Error.Suspended", "channel suspended or doesn't exist"},
+	};
+	return texts;
+}
+
+QString translate(const Text &text, const Translator &translator)
+{
+	if (text.key.isEmpty())
+		return text.args.value(0);
+	QString pattern = translator ? translator(text.key) : QString();
+	if (pattern.isEmpty() || pattern == text.key)
+		pattern = englishTexts().value(text.key, text.key);
+	return fillArgs(pattern, text.args);
+}
+
+void localizeMessage(QJsonObject &message, const Translator &translator)
+{
+	const QString systemKey = message.value("systemKey").toString();
+	if (!systemKey.isEmpty()) {
+		QStringList args;
+		for (const QJsonValue v : message.value("systemArgs").toArray())
+			args << v.toString();
+		message.insert("system", translate(Text{systemKey, args}, translator));
+	}
+	const QString authorKey = message.value("authorKey").toString();
+	if (!authorKey.isEmpty())
+		message.insert("author", translate(Text{authorKey, {}}, translator));
+}
+
 QJsonObject textPart(const QString &text)
 {
 	return QJsonObject{{"type", "text"}, {"text", text}};
@@ -36,8 +128,15 @@ QJsonObject makeMessage(const QString &platform, const QString &channel, const Q
 		m.insert("color", o.color);
 	if (!o.amount.isEmpty())
 		m.insert("amount", o.amount);
-	if (!o.system.isEmpty())
+	if (!o.systemText.isEmpty()) {
+		m.insert("systemKey", o.systemText.key);
+		m.insert("systemArgs", QJsonArray::fromStringList(o.systemText.args));
+		m.insert("system", translate(o.systemText));
+	} else if (!o.system.isEmpty()) {
 		m.insert("system", o.system);
+	}
+	if (!o.authorKey.isEmpty())
+		m.insert("authorKey", o.authorKey);
 	if (!o.authorId.isEmpty())
 		m.insert("authorId", o.authorId);
 	if (o.action)

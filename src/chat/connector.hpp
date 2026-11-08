@@ -3,6 +3,7 @@
 // Conector de chat: un hilo que mantiene la conexión con una plataforma y reconecta solo.
 
 #include "../net/net.hpp"
+#include "message.hpp"
 
 #include <QJsonObject>
 #include <QString>
@@ -26,16 +27,21 @@ struct SourceInfo {
 	bool videoFixed = false; // YouTube: el usuario indicó un directo concreto
 };
 
-// Lanza esto dentro de session() para reportar un error al usuario.
+// Throw this inside session() to report an error to the user. what() is the English text; the
+// UI shows text() translated.
 struct ChatError : std::runtime_error {
-	using std::runtime_error::runtime_error;
-	explicit ChatError(const QString &message) : std::runtime_error(message.toStdString()) {}
+	explicit ChatError(Text text) : std::runtime_error(translate(text).toStdString()), text_(std::move(text)) {}
+	const Text &text() const { return text_; }
+
+private:
+	Text text_;
 };
 
 class Connector : public std::enable_shared_from_this<Connector> {
 public:
 	using PostFn = std::function<void(QJsonObject)>;
-	using ReportFn = std::function<void(const QString &status, const QString &detail)>;
+	// detail is translated on the main thread (see chat::translate).
+	using ReportFn = std::function<void(const QString &status, const Text &detail)>;
 
 	Connector(SourceInfo source, PostFn post, ReportFn report);
 	virtual ~Connector();

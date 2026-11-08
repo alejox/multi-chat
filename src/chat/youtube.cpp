@@ -80,9 +80,9 @@ QString findLiveVideo(const QString &channel, int *viewers = nullptr)
 {
 	net::Response res = net::get((channelUrl(channel) + "/live").toStdString(), kCookies);
 	if (!res.ok())
-		throw ChatError(
-			QStringLiteral("YouTube respondió %1")
-				.arg(res.status ? QString::number(res.status) : QString::fromStdString(res.error)));
+		throw ChatError(Text{"Error.Responded",
+				     {QStringLiteral("YouTube"),
+				      res.status ? QString::number(res.status) : QString::fromStdString(res.error)}});
 	const QString html = QString::fromUtf8(res.body);
 	const QString video = liveVideoFromPage(html);
 	if (viewers && !video.isEmpty())
@@ -94,7 +94,7 @@ bool videoIsLive(const QString &videoId, int &viewers)
 {
 	net::Response res = net::get(("https://www.youtube.com/watch?v=" + videoId).toStdString(), kCookies);
 	if (!res.ok())
-		throw ChatError("no se pudo abrir el vídeo de YouTube");
+		throw ChatError(Text{"Error.YouTubeVideo", {}});
 	const QString html = QString::fromUtf8(res.body);
 	if (!html.contains("\"isLiveNow\":true"))
 		return false;
@@ -278,7 +278,7 @@ protected:
 			video = findLiveVideo(source_.channel);
 			if (!video.isEmpty())
 				break;
-			report_("waiting", "esperando a que empiece el directo");
+			report_("waiting", Text{"Detail.WaitingLive", {}});
 			if (wait(30000))
 				return;
 		}
@@ -294,7 +294,7 @@ protected:
 		if (continuation.isEmpty()) {
 			if (!source_.videoFixed)
 				source_.extra.clear();
-			throw ChatError("el directo no tiene chat disponible");
+			throw ChatError(Text{"Error.NoLiveChat", {}});
 		}
 		if (version.isEmpty())
 			version = "2.20250101.00.00";
@@ -303,16 +303,16 @@ protected:
 			url += "?key=" + key.toStdString();
 		const QJsonObject context{{"client", QJsonObject{{"clientName", "WEB"}, {"clientVersion", version}}}};
 
-		report_("connected", QString());
+		report_("connected", Text());
 		bool first = true;
 		while (!stopped() && !continuation.isEmpty()) {
 			QJsonObject body{{"context", context}, {"continuation", continuation}};
 			net::Response res = net::postJson(
 				url, QJsonDocument(body).toJson(QJsonDocument::Compact).toStdString(), kCookies);
 			if (!res.ok())
-				throw ChatError(QStringLiteral("YouTube respondió %1")
-							.arg(res.status ? QString::number(res.status)
-									: QString::fromStdString(res.error)));
+				throw ChatError(Text{"Error.Responded",
+						     {QStringLiteral("YouTube"), res.status ? QString::number(res.status)
+											     : QString::fromStdString(res.error)}});
 			const QJsonObject lc = QJsonDocument::fromJson(QByteArray::fromStdString(res.body))
 						       .object()
 						       .value("continuationContents")
@@ -339,7 +339,7 @@ protected:
 		}
 		if (!source_.videoFixed)
 			source_.extra.clear(); // el directo terminó: la próxima vez se busca uno nuevo
-		throw ChatError("el chat del directo terminó");
+		throw ChatError(Text{"Error.LiveChatEnded", {}});
 	}
 };
 

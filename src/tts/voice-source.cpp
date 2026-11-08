@@ -67,7 +67,7 @@ std::unique_ptr<tts::VoiceEngine> makeEngine(obs_source_t *self)
 		audio.timestamp = chunk.timestampNs;
 		obs_source_output_audio(self, &audio);
 	};
-	config.onStall = [] { obs_log(LOG_WARNING, "el sintetizador de voz no respondió; se pasa al siguiente mensaje"); };
+	config.onStall = [] { obs_log(LOG_WARNING, "the speech synthesizer did not respond; moving on to the next message"); };
 	return std::make_unique<tts::VoiceEngine>(std::move(config));
 }
 

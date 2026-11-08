@@ -101,10 +101,14 @@ function authorColor(c, m) {
   return nameColor(m.color, m.author);
 }
 
-const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MIEMBRO', verified: '✓', staff: 'STAFF' };
+const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MEMBER', verified: '✓', staff: 'STAFF' };
+// The plugin sends the member label in OBS's language.
+function badgeLabel(b) {
+  return b === 'member' && typeof config.memberBadge === 'string' && config.memberBadge ? config.memberBadge : BADGES[b];
+}
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 const SAMPLE = { id: 'sample', platform: 'twitch', author: 'LunaGamer', color: '#FF7F50', badges: ['subscriber'],
-  parts: [{ type: 'text', text: '¡Este es un mensaje destacado de ejemplo!' }], kind: 'chat' };
+  parts: [{ type: 'text', text: 'This is a sample featured message!' }], kind: 'chat' };
 const DURATION = 300; // ms de la animación de entrada y salida
 
 let config = { size: 34, animation: 'slide', autoHide: true, hideBase: 8, hidePerChar: 60, hideMax: 30,
@@ -183,7 +187,7 @@ function build(m) {
   if (m.system) content.appendChild(el('div', 'sys', m.system));
   const head = el('div', 'head');
   for (const b of Array.isArray(m.badges) ? m.badges : [])
-    if (own(BADGES, b)) head.appendChild(el('span', 'badge b-' + b, BADGES[b]));
+    if (own(BADGES, b)) head.appendChild(el('span', 'badge b-' + b, badgeLabel(b)));
   if (m.amount) head.appendChild(el('span', 'amount', m.amount));
   const author = el('span', 'author', m.author || '');
   author.style.color = authorColor(config, m);
@@ -249,7 +253,8 @@ function update() {
     key = (m.id || '') + '@' + state.at;
     remaining = duration(m) - (Date.now() + state.offset - state.at);
   } else if (config.preview && !config.streaming) {
-    m = SAMPLE;
+    m = typeof config.sampleText === 'string' && config.sampleText
+      ? { ...SAMPLE, parts: [{ type: 'text', text: config.sampleText }] } : SAMPLE;
     key = 'sample';
   }
   if (!m || remaining <= 0) {

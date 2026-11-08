@@ -235,9 +235,9 @@ QJsonObject giftMessage(QByteArrayView data, const QString &channel)
 	o.kind = "highlight";
 	if (diamonds > 0)
 		o.amount = QStringLiteral("%1 💎").arg(diamonds * qMax<quint64>(repeat, 1));
-	o.system = QStringLiteral("%1 envió %2%3")
-			   .arg(authorName(user), repeat > 1 ? QStringLiteral("%1× ").arg(repeat) : QString(),
-				name.isEmpty() ? QStringLiteral("un regalo") : name);
+	const QString count = repeat > 1 ? QStringLiteral("%1× ").arg(repeat) : QString();
+	o.systemText = name.isEmpty() ? Text{"Event.GiftUnnamed", {authorName(user), count}}
+				      : Text{"Event.Gift", {authorName(user), count, name}};
 	return makeMessage("tiktok", channel, authorName(user), QJsonArray(), o);
 }
 
@@ -285,7 +285,8 @@ QString cleanHandle(const QString &channel)
 	return channel.startsWith('@') ? channel.mid(1) : channel;
 }
 
-LiveResult fetchRoom(const QString &channel, QString &roomId, QString &error, Profile *profile = nullptr)
+// On failure `error` is the full user-facing text.
+LiveResult fetchRoom(const QString &channel, QString &roomId, Text &error, Profile *profile = nullptr)
 {
 	const QString url = "https://www.tiktok.com/api-live/user/room/?aid=1988&app_name=tiktok_web"
 			    "&device_platform=web_pc&sourceType=54&uniqueId=" +
@@ -293,17 +294,18 @@ LiveResult fetchRoom(const QString &channel, QString &roomId, QString &error, Pr
 	net::Response res = net::get(url.toStdString(), {{"Accept", "application/json"},
 							 {"Referer", "https://www.tiktok.com/"}});
 	if (!res.ok()) {
-		error = res.status ? QStringLiteral("HTTP %1").arg(res.status) : QString::fromStdString(res.error);
+		error = Text{"Error.Query", {QStringLiteral("TikTok"), res.status ? QStringLiteral("HTTP %1").arg(res.status)
+										 : QString::fromStdString(res.error)}};
 		return {};
 	}
 	const QJsonObject json = QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object();
 	if (json.value("message").toString() == "user_not_found") {
-		error = QStringLiteral("el usuario no existe o no puede hacer directos");
+		error = Text{"Error.TikTokNoUser", {}};
 		return {};
 	}
 	if (!json.value("data").isObject()) {
 		// TikTok responde con una página HTML cuando bloquea o limita las consultas.
-		error = QStringLiteral("respuesta inesperada de TikTok");
+		error = Text{"Error.Unexpected", {QStringLiteral("TikTok")}};
 		return {};
 	}
 	if (profile)
@@ -342,13 +344,15 @@ QByteArray pushFrame(const char *type, QByteArrayView payload, quint64 logId = 0
 
 LiveResult checkLive(const QString &channel)
 {
-	QString roomId, error;
+	QString roomId;
+	Text error;
 	return fetchRoom(channel, roomId, error);
 }
 
 Profile fetchProfile(const QString &channel)
 {
-	QString roomId, error;
+	QString roomId;
+	Text error;
 	Profile profile;
 	fetchRoom(channel, roomId, error, &profile);
 	return profile;
@@ -361,14 +365,15 @@ public:
 protected:
 	void session() override
 	{
-		QString roomId, error;
+		QString roomId;
+		Text error;
 		for (;;) {
 			LiveResult room = fetchRoom(source_.channel, roomId, error);
 			if (room.live == 1 && !roomId.isEmpty())
 				break;
 			if (room.live == -1 && !error.isEmpty())
-				throw ChatError("no se pudo consultar TikTok (" + error + ")");
-			report_("waiting", "esperando a que empiece el directo");
+				throw ChatError(error);
+			report_("waiting", Text{"Detail.WaitingLive", {}});
 			if (wait(30000))
 				return;
 		}
@@ -381,19 +386,18 @@ protected:
 		net::Response res = net::get(signUrl.toStdString(), {{"Accept", "application/protobuf"}}, 20000);
 		if (res.status == 429) {
 			// Límite diario del servicio gratuito: no tiene sentido reintentar enseguida.
-			const QString msg = "Euler Stream (firma de TikTok): demasiadas conexiones, se reintentará en 10 min";
+			const Text msg{"Error.SignLimit", {}};
 			report_("error", msg);
 			if (wait(600000))
 				return;
 			throw ChatError(msg);
 		}
 		if (!res.ok() || res.body.empty())
-			throw ChatError(QStringLiteral("Euler Stream (firma de TikTok) respondió %1")
-						.arg(res.status ? QString::number(res.status)
-								: QString::fromStdString(res.error)));
+			throw ChatError(Text{"Error.SignResponded", {res.status ? QString::number(res.status)
+										  : QString::fromStdString(res.error)}});
 		const FetchResult first = parseFetchResult(QByteArrayView(res.body.data(), qsizetype(res.body.size())));
 		if (first.pushServer.isEmpty())
-			throw ChatError("Euler Stream no devolvió el servidor de TikTok");
+			throw ChatError(Text{"Error.SignNoServer", {}});
 
 		// 2. URL del WebSocket: parámetros firmados + los de la web de TikTok.
 		QStringList query;
@@ -429,12 +433,11 @@ protected:
 			if (ws->receive(raw) == net::WebSocket::Result::Closed) {
 				if (stopped())
 					return;
-				throw ChatError(connected ? "TikTok cerró la conexión"
-							  : "TikTok rechazó la conexión (puede que haya cambiado algo)");
+				throw ChatError(connected ? Text{"Error.Closed", {"TikTok"}} : Text{"Error.Rejected", {"TikTok"}});
 			}
 			if (!connected) {
 				connected = true;
-				report_("connected", QString());
+				report_("connected", Text());
 			}
 			QString type, compress;
 			quint64 logId = 0;
@@ -459,7 +462,7 @@ protected:
 			if (type != "msg")
 				continue;
 			if (!compress.isEmpty() && compress != "none")
-				throw ChatError("TikTok envió los mensajes comprimidos (" + compress + ")");
+				throw ChatError(Text{"Error.Compressed", {compress}});
 			const FetchResult r = parseFetchResult(payload);
 			if (r.needAck)
 				ws->sendBinary(pushFrame("ack", r.internalExt.isEmpty() ? QByteArray("-")
@@ -468,7 +471,7 @@ protected:
 						       .toStdString());
 			for (const Event &e : r.events) {
 				if (e.method == "WebcastControlMessage" && streamEnded(e.payload))
-					throw ChatError("el directo terminó");
+					throw ChatError(Text{"Error.LiveEnded", {}});
 				QJsonObject m = toMessage(e, source_.channel);
 				if (!m.isEmpty())
 					post_(m);

@@ -2,23 +2,53 @@
 
 // Modelo común de un mensaje de chat. Es un QJsonObject para mandarlo tal cual al overlay:
 //   { id, platform, channel, source, author, authorId, color, badges[], parts[], kind, amount, system,
-//     action, recovered, ts }
+//     systemKey, systemArgs[], authorKey, action, recovered, ts }
+//   system/author hold English until ChatManager calls localizeMessage().
 //   parts: [{type:"text", text}, {type:"emote", url, name}]
 //   kind:  "chat" | "highlight" (Super Chat, bits, subs, raids...)
 
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
 
+#include <functional>
+
 namespace chat {
+
+// A user-facing text built off the main thread (connectors) and translated on it: a locale key
+// from data/locale plus its %1..%N arguments. An empty key means args[0] is shown as is.
+struct Text {
+	QString key;
+	QStringList args;
+
+	static Text raw(const QString &text) { return Text{QString(), {text}}; }
+	bool isEmpty() const { return key.isEmpty() && args.value(0).isEmpty(); }
+};
+
+// Looks up a locale key; returns an empty string (or the key itself, like obs_module_text) when
+// the key is missing.
+using Translator = std::function<QString(const QString &key)>;
+
+// Replaces %1..%99 in one pass: a "%2" inside an argument stays as text.
+QString fillArgs(const QString &pattern, const QStringList &args);
+// Built-in English patterns of every Text key (the same values as en-US.ini).
+const QHash<QString, QString> &englishTexts();
+// The text in the translator's language, falling back to English, then to the key.
+QString translate(const Text &text, const Translator &translator = {});
+// Replaces `system` and `author` with their translation when the message carries `systemKey` /
+// `authorKey` (set by connectors through MessageOptions). Called on the main thread.
+void localizeMessage(QJsonObject &message, const Translator &translator);
 
 struct MessageOptions {
 	QString color;
 	QStringList badges; // owner, moderator, vip, subscriber, member, verified, staff
 	QString kind = QStringLiteral("chat");
 	QString amount;
-	QString system; // texto de sistema: "se suscribió por 6 meses"
+	QString system;    // platform-provided system line, shown as is
+	Text systemText;   // or a translatable one (wins over `system`): {"Event.Sub", {"Ana"}}
+	QString authorKey; // translatable author name ("Author.Anonymous"), replaces `author`
 	QString id;
 	QString authorId; // stable platform user id, used to match moderation events
 	bool action = false; // /me de Twitch

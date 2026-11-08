@@ -268,7 +268,7 @@ protected:
 			if (ws->receive(data) == net::WebSocket::Result::Closed) {
 				if (stopped())
 					return;
-				throw ChatError("Twitch cerró la conexión");
+				throw ChatError(Text{"Error.Closed", {"Twitch"}});
 			}
 			for (const QString &line : QString::fromUtf8(data).split("\r\n", Qt::SkipEmptyParts)) {
 				IrcMessage msg = parseIrc(line);
@@ -276,12 +276,12 @@ protected:
 					ws->send("PONG :" + (msg.params.isEmpty() ? std::string("tmi.twitch.tv")
 										  : msg.params.last().toStdString()));
 				} else if (msg.command == "ROOMSTATE" || msg.command == "366") {
-					report_("connected", QString());
+					report_("connected", Text());
 				} else if (msg.command == "RECONNECT") {
-					throw ChatError("Twitch pidió reconectar");
+					throw ChatError(Text{"Error.Reconnect", {"Twitch"}});
 				} else if (msg.command == "NOTICE" &&
 					   msg.tags.value("msg-id").startsWith("msg_channel_suspended")) {
-					throw ChatError("canal suspendido o inexistente");
+					throw ChatError(Text{"Error.Suspended", {}});
 				} else if (msg.command == "CLEARMSG" || msg.command == "CLEARCHAT") {
 					QJsonObject d = toDeletion(msg);
 					if (!d.isEmpty())
