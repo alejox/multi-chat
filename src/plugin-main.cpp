@@ -28,6 +28,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "chat-manager.hpp"
 #include "overlay-source.hpp"
 #include "ui/chat-dock.hpp"
+#include "ui/first-run-wizard.hpp"
 #include "ui/image-cache.hpp"
 #include "ui/profile-cache.hpp"
 #include "updater.hpp"
@@ -179,6 +180,12 @@ void on_frontend_event(enum obs_frontend_event event, void *)
 			ChatManager::instance().setStreaming(true, streamingService());
 			overlay_set_streaming(true);
 		}
+		// First run: guide the user once OBS's window is ready.
+		if (first_run_wizard_wanted())
+			QMetaObject::invokeMethod(
+				&ChatManager::instance(),
+				[] { open_first_run_wizard(static_cast<QWidget *>(obs_frontend_get_main_window())); },
+				Qt::QueuedConnection);
 		break;
 	case OBS_FRONTEND_EVENT_EXIT:
 		saveHotkeys();
@@ -207,6 +214,9 @@ bool obs_module_load(void)
 	obs_frontend_add_dock_by_id("multichat_dock", obs_module_text("Dock.Title"), new ChatDock(main_window));
 	obs_frontend_add_tools_menu_item(
 		obs_module_text("Menu.Settings"), [](void *) { open_multichat_settings_from_source(); }, nullptr);
+	obs_frontend_add_tools_menu_item(
+		obs_module_text("Menu.Wizard"),
+		[](void *) { open_first_run_wizard(static_cast<QWidget *>(obs_frontend_get_main_window())); }, nullptr);
 	obs_frontend_add_tools_menu_item(
 		obs_module_text("Update.MenuItem"), [](void *) { Updater::instance().check(true); }, nullptr);
 	obs_frontend_add_event_callback(on_frontend_event, nullptr);

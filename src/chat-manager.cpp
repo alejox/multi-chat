@@ -80,6 +80,14 @@ void ChatManager::save() const
 		obs_log(LOG_WARNING, "no se pudo guardar %s", path.toUtf8().constData());
 }
 
+void ChatManager::setWizardShown()
+{
+	if (wizardShown())
+		return;
+	config_.insert("wizardShown", true);
+	save();
+}
+
 QStringList ChatManager::configure(const QList<chat::ChatEntry> &chats, Mode mode, bool demo)
 {
 	QList<chat::ChatEntry> clean;
