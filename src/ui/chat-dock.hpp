@@ -132,3 +132,5 @@ private:
 };
 
 void open_multichat_settings(QWidget *parent);
+// Makes the dock visible and brings it to the front (the assistant does this when it finishes).
+void show_multichat_dock();

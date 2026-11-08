@@ -35,6 +35,8 @@ public:
 	std::function<void(const QString &entry)> onAdd;
 
 	void focusInput();
+	// Selects a platform in the list ("twitch", "youtube"...); unknown names are ignored.
+	void setPlatform(const QString &platform);
 
 private:
 	// Unknown: the lookup failed (network, server), so it is not known whether the channel exists.

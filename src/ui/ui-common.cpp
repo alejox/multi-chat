@@ -287,6 +287,19 @@ QIcon themedIcon(const QString &name, const QColor &color, int size, qreal dpr)
 	return icon;
 }
 
+QString streamingServiceName()
+{
+	obs_service_t *service = obs_frontend_get_streaming_service();
+	if (!service)
+		return {};
+	obs_data_t *settings = obs_service_get_settings(service);
+	QString name = QString::fromUtf8(obs_data_get_string(settings, "service"));
+	if (name.isEmpty())
+		name = QString::fromUtf8(obs_service_get_display_name(obs_service_get_type(service)));
+	obs_data_release(settings);
+	return name;
+}
+
 // ---- Scenes ----
 
 namespace {

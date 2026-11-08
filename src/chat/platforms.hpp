@@ -69,6 +69,10 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error);
 // Text typed in the settings dialog as an entry: kept as is when it is a URL or starts with a
 // platform word and ":", otherwise prefixed with `platform`. Empty for blank text.
 QString entryFromInput(const QString &text, const QString &platform);
+// Platform to preselect from the name of OBS's streaming service (Settings → Stream): "Twitch",
+// "YouTube - RTMPS", "Kick", "TikTok LIVE"... Anything else (custom servers, multistream services)
+// gives "twitch".
+QString platformForService(const QString &service);
 // The test chat ("demo:demo", added by the "test messages" option).
 inline bool isDemo(const SourceInfo &source)
 {

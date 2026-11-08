@@ -1,7 +1,9 @@
 #include "first-run-wizard.hpp"
+#include "chat-dock.hpp"
 #include "settings-dialog.hpp"
 #include "ui-common.hpp"
 #include "../chat-manager.hpp"
+#include "../chat/platforms.hpp"
 
 #include <obs-module.h>
 
@@ -77,6 +79,9 @@ public:
 	{
 		// Finished, skipped or closed: it does not open by itself again.
 		ChatManager::instance().setWizardShown();
+		// Finished: the dock is where everything happens, so it must be on screen.
+		if (result == QDialog::Accepted)
+			show_multichat_dock();
 		QDialog::done(result);
 	}
 
@@ -113,6 +118,8 @@ private:
 		layout->addWidget(title(ui::T("Wizard.Chat.Title"), page));
 		layout->addWidget(wrapped(ui::T("Wizard.Chat.Text"), page));
 		input_ = new ChannelInput(page);
+		// One decision less: the platform follows the streaming service set in OBS.
+		input_->setPlatform(chat::platformForService(ui::streamingServiceName()));
 		input_->existing = [] { return ChatManager::instance().chats(); };
 		input_->onAdd = [this](const QString &entry) {
 			ChatManager &m = ChatManager::instance();
@@ -154,15 +161,12 @@ private:
 		auto *layout = new QVBoxLayout(page);
 		layout->addWidget(title(ui::T("Wizard.Sources.Title"), page));
 		layout->addWidget(wrapped(ui::T("Wizard.Sources.Text"), page));
-		chatSource_ = new QCheckBox(QString::fromUtf8(obs_source_get_display_name("multichat_overlay")), page);
-		chatSource_->setChecked(true);
-		featuredSource_ =
-			new QCheckBox(QString::fromUtf8(obs_source_get_display_name("multichat_featured")), page);
-		layout->addWidget(chatSource_);
-		layout->addWidget(featuredSource_);
-		layout->addWidget(wrapped(ui::T("Wizard.Sources.FeaturedHelp"), page));
+		// One button adds the three sources; the boxes are there to leave one out.
 		addSources_ = new QPushButton(page);
 		addSources_->setAutoDefault(false);
+		QFont bold = addSources_->font();
+		bold.setBold(true);
+		addSources_->setFont(bold);
 		auto *row = new QHBoxLayout();
 		row->addWidget(addSources_);
 		row->addStretch(1);
@@ -170,11 +174,29 @@ private:
 		result_ = wrapped(QString(), page);
 		result_->hide();
 		layout->addWidget(result_);
+		auto source = [page, layout](const char *id) {
+			auto *box = new QCheckBox(QString::fromUtf8(obs_source_get_display_name(id)), page);
+			box->setChecked(true);
+			layout->addWidget(box);
+			return box;
+		};
+		chatSource_ = source("multichat_overlay");
+		featuredSource_ = source("multichat_featured");
+		auto *featuredHelp = wrapped(ui::T("Wizard.Sources.FeaturedHelp"), page);
+		featuredHelp->setContentsMargins(22, 0, 0, 0);
+		layout->addWidget(featuredHelp);
+		voiceSource_ = source("multichat_voice");
+		auto *voiceHelp = wrapped(ui::T("Wizard.Sources.VoiceHelp"), page);
+		voiceHelp->setContentsMargins(22, 0, 0, 0);
+		layout->addWidget(voiceHelp);
 		layout->addStretch(1);
 		connect(addSources_, &QPushButton::clicked, this, [this] { addSources(); });
-		auto enable = [this] { addSources_->setEnabled(chatSource_->isChecked() || featuredSource_->isChecked()); };
-		connect(chatSource_, &QCheckBox::toggled, this, enable);
-		connect(featuredSource_, &QCheckBox::toggled, this, enable);
+		auto enable = [this] {
+			addSources_->setEnabled(chatSource_->isChecked() || featuredSource_->isChecked() ||
+						voiceSource_->isChecked());
+		};
+		for (QCheckBox *box : {chatSource_, featuredSource_, voiceSource_})
+			connect(box, &QCheckBox::toggled, this, enable);
 		return page;
 	}
 
@@ -187,8 +209,8 @@ private:
 
 	void addSources()
 	{
-		const QStringList lines =
-			ui::addMultichatSources(chatSource_->isChecked(), featuredSource_->isChecked(), false);
+		const QStringList lines = ui::addMultichatSources(chatSource_->isChecked(), featuredSource_->isChecked(),
+								  voiceSource_->isChecked());
 		result_->setText(lines.join('\n'));
 		result_->show();
 		updateScene();
@@ -218,6 +240,7 @@ private:
 	QLabel *added_ = nullptr;
 	QCheckBox *chatSource_ = nullptr;
 	QCheckBox *featuredSource_ = nullptr;
+	QCheckBox *voiceSource_ = nullptr;
 	QPushButton *addSources_ = nullptr;
 	QLabel *result_ = nullptr;
 };

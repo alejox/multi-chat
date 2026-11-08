@@ -8,6 +8,9 @@
 
 namespace ui {
 
+// Name of the service in Settings → Stream ("Twitch", "YouTube - RTMPS", "Restream.io"...).
+QString streamingServiceName();
+
 // ---- Scenes (shared by the settings window and the first-run assistant) ----
 
 enum class AddResult { Added, AlreadyThere, NoScene, Failed };
