@@ -46,12 +46,17 @@ Hoy Twitch solo procesa `USERNOTICE`: `CLEARMSG` y `CLEARCHAT` se ignoran, así 
   - Starvios: la difusión `{op, msg}` con `op` `DELETE`, o `UPDATE` con `msg.is_deleted`, quita el mensaje `msg.id`. Sin evidencia de baneos ni de vaciado.
   - TikTok: no soportado; el parser no guarda id de mensaje ni lee ningún mensaje de borrado del protocolo.
   - Checks: RED observado con stubs vacíos (`kickModeration`, `youtubeModeration`, `starviosModeration`: 3 failed); GREEN: `test-chat` 49 passed, 0 failed; `ctest` 2/2. Compilación macOS OK, 0 warnings.
-  - Commit: ver T3.
-- [ ] T3 Filtros de bots, comandos y palabras, con UI en el diálogo de configuración y pruebas. Route: delegated (writer).
+  - Commit: `2aa932c`.
+- [x] T3 Filtros de bots, comandos y palabras, con UI en el diálogo de configuración y pruebas. Route: delegated (writer).
+  - Lógica pura en `chat::FilterRules`, `chat::foldText` (NFD sin marcas + case fold) e `chat::isFiltered` (`src/chat/message.cpp`). La regla de comandos (`^\s*!\S`) solo aplica a `kind == "chat"`; usuarios ocultos y palabras aplican a todo.
+  - Persistencia: clave `filters` del mismo `config.json` que los chats (`ChatManager::load/save`); sin la clave se usan los valores por defecto. `ChatManager::receive` filtra antes del historial y de emitir (dock, overlay y TTS no lo ven).
+  - UI: pestañas "Chats" y "Filtros" en el diálogo; listas de una entrada por línea (o separadas por comas), botón "Añadir bots conocidos", guardado 400 ms después de cada cambio y al cerrar.
+  - Checks: RED observado con stubs (5 failed: `filterFold`, `filterHiddenUsers`, `filterCommands`, `filterBlockedWords`, `filterJson`); GREEN: `test-chat` 54 passed, 0 failed; `ctest` 2/2. Compilación macOS OK, 0 warnings.
+  - Commit: ver T4.
 - [ ] T4 README, compilación e instalación local en macOS. Route: delegated (writer).
 
 ## Progress
 - Rama creada desde `feat/featured-messages` (6c93ea1). Bloque 1 probado por el usuario en OBS: funciona.
 
 ## Next step
-T3: filtros.
+T4: README, compilación e instalación.

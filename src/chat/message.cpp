@@ -88,6 +88,105 @@ bool deletionMatches(const QJsonObject &d, const QJsonObject &m)
 	return !author.isEmpty() && author.compare(m.value("author").toString(), Qt::CaseInsensitive) == 0;
 }
 
+QStringList defaultHiddenUsers()
+{
+	return {"Nightbot", "StreamElements", "Streamlabs", "Moobot", "Fossabot", "Wizebot", "Botrix"};
+}
+
+FilterRules FilterRules::defaults()
+{
+	FilterRules r;
+	r.hiddenUsers = defaultHiddenUsers();
+	return r;
+}
+
+FilterRules FilterRules::fromJson(const QJsonObject &json)
+{
+	FilterRules r = defaults();
+	const auto list = [](const QJsonValue &v) {
+		QStringList out;
+		for (const QJsonValue item : v.toArray())
+			out << item.toString();
+		return out;
+	};
+	if (json.contains("hiddenUsers"))
+		r.hiddenUsers = list(json.value("hiddenUsers"));
+	if (json.contains("blockedWords"))
+		r.blockedWords = list(json.value("blockedWords"));
+	r.hideCommands = json.value("hideCommands").toBool(r.hideCommands);
+	return r;
+}
+
+QJsonObject FilterRules::toJson() const
+{
+	return QJsonObject{{"hiddenUsers", QJsonArray::fromStringList(hiddenUsers)},
+			   {"hideCommands", hideCommands},
+			   {"blockedWords", QJsonArray::fromStringList(blockedWords)}};
+}
+
+QString foldText(const QString &text)
+{
+	const QString decomposed = text.normalized(QString::NormalizationForm_D);
+	QString out;
+	out.reserve(decomposed.size());
+	for (const QChar c : decomposed)
+		if (c.category() != QChar::Mark_NonSpacing && c.category() != QChar::Mark_Enclosing)
+			out += c;
+	return out.toCaseFolded();
+}
+
+namespace {
+
+QString messageText(const QJsonObject &message)
+{
+	QString text;
+	for (const QJsonValue v : message.value("parts").toArray()) {
+		const QJsonObject p = v.toObject();
+		// An emote counts as a word break, so "hey <emote> word" is still checked.
+		text += p.value("type").toString() == QLatin1String("text") ? p.value("text").toString()
+									      : QStringLiteral(" ");
+	}
+	return text;
+}
+
+bool containsWord(const QString &foldedText, const QString &foldedWord)
+{
+	// Whole word: no letter, digit or underscore right before or after the match.
+	const QRegularExpression re(QStringLiteral("(?<![\\p{L}\\p{N}_])%1(?![\\p{L}\\p{N}_])")
+					    .arg(QRegularExpression::escape(foldedWord)),
+				    QRegularExpression::UseUnicodePropertiesOption);
+	return re.match(foldedText).hasMatch();
+}
+
+} // namespace
+
+bool isFiltered(const QJsonObject &message, const FilterRules &rules)
+{
+	const QString author = foldText(message.value("author").toString().trimmed());
+	for (const QString &user : rules.hiddenUsers) {
+		const QString hidden = foldText(user.trimmed());
+		if (!hidden.isEmpty() && hidden == author)
+			return true;
+	}
+
+	const QString text = messageText(message);
+	if (rules.hideCommands && message.value("kind").toString() == QLatin1String("chat")) {
+		static const QRegularExpression command(QStringLiteral("^\\s*!\\S"));
+		if (command.match(text).hasMatch())
+			return true;
+	}
+
+	if (!rules.blockedWords.isEmpty()) {
+		const QString folded = foldText(text);
+		for (const QString &word : rules.blockedWords) {
+			const QString w = foldText(word.trimmed());
+			if (!w.isEmpty() && containsWord(folded, w))
+				return true;
+		}
+	}
+	return false;
+}
+
 QString platformName(const QString &platform)
 {
 	if (platform == "twitch")

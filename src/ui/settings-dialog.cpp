@@ -18,10 +18,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QRegularExpression>
 #include <QShortcut>
+#include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -36,9 +39,15 @@ public:
 		setAttribute(Qt::WA_DeleteOnClose);
 		setMinimumWidth(460);
 		auto *root = new QVBoxLayout(this);
+		auto *tabs = new QTabWidget(this);
+		auto *chatsPage = new QWidget(tabs);
+		auto *chatsPageLayout = new QVBoxLayout(chatsPage);
+		tabs->addTab(chatsPage, ui::T("Settings.Tab.Chats"));
+		tabs->addTab(buildFilters(tabs), ui::T("Settings.Tab.Filters"));
+		root->addWidget(tabs);
 
 		// Lista de chats.
-		auto *chatsBox = new QGroupBox(ui::T("Settings.Chats"), this);
+		auto *chatsBox = new QGroupBox(ui::T("Settings.Chats"), chatsPage);
 		auto *chatsLayout = new QVBoxLayout(chatsBox);
 		list_ = new QListWidget(chatsBox);
 		list_->setIconSize(QSize(18, 18));
@@ -95,10 +104,10 @@ public:
 		error_->setStyleSheet("color: #ff6b6b;");
 		error_->hide();
 		chatsLayout->addWidget(error_);
-		root->addWidget(chatsBox);
+		chatsPageLayout->addWidget(chatsBox);
 
 		// Cuándo conectar.
-		auto *modeBox = new QGroupBox(ui::T("Settings.When"), this);
+		auto *modeBox = new QGroupBox(ui::T("Settings.When"), chatsPage);
 		auto *modeLayout = new QVBoxLayout(modeBox);
 		auto_ = new QRadioButton(ui::T("Settings.Mode.Auto"), modeBox);
 		always_ = new QRadioButton(ui::T("Settings.Mode.Always"), modeBox);
@@ -110,7 +119,8 @@ public:
 		modeLayout->addWidget(always_);
 		demo_ = new QCheckBox(ui::T("Settings.Demo"), modeBox);
 		modeLayout->addWidget(demo_);
-		root->addWidget(modeBox);
+		chatsPageLayout->addWidget(modeBox);
+		chatsPageLayout->addStretch(1);
 
 		auto *overlayHelp = new QLabel(ui::T("Settings.OverlayHelp"), this);
 		overlayHelp->setWordWrap(true);
@@ -144,7 +154,103 @@ public:
 		refreshList();
 	}
 
+	~SettingsDialog() override
+	{
+		// Closed right after an edit: do not lose it.
+		if (filtersTimer_.isActive())
+			applyFilters();
+	}
+
 private:
+	// "Filters" tab: hidden users, commands and blocked words. Saved a moment after each change.
+	QWidget *buildFilters(QWidget *parent)
+	{
+		auto *page = new QWidget(parent);
+		auto *layout = new QVBoxLayout(page);
+		const chat::FilterRules rules = ChatManager::instance().filters();
+		auto help = [page](const char *key) {
+			auto *label = new QLabel(ui::T(key), page);
+			label->setWordWrap(true);
+			label->setStyleSheet("color: palette(mid);");
+			return label;
+		};
+		auto listEdit = [page](const QStringList &items, const char *placeholder) {
+			auto *edit = new QPlainTextEdit(page);
+			edit->setPlainText(items.join('\n'));
+			edit->setPlaceholderText(ui::T(placeholder));
+			edit->setTabChangesFocus(true);
+			edit->setMinimumHeight(90);
+			return edit;
+		};
+
+		auto *usersBox = new QGroupBox(ui::T("Settings.Filters.Users"), page);
+		auto *usersLayout = new QVBoxLayout(usersBox);
+		hiddenUsers_ = listEdit(rules.hiddenUsers, "Settings.Filters.UsersPlaceholder");
+		usersLayout->addWidget(hiddenUsers_);
+		auto *usersRow = new QHBoxLayout();
+		usersRow->addWidget(help("Settings.Filters.UsersHelp"), 1);
+		auto *restore = new QPushButton(ui::T("Settings.Filters.RestoreBots"), usersBox);
+		usersRow->addWidget(restore, 0, Qt::AlignTop);
+		usersLayout->addLayout(usersRow);
+		layout->addWidget(usersBox);
+
+		auto *commandsBox = new QGroupBox(ui::T("Settings.Filters.Commands"), page);
+		auto *commandsLayout = new QVBoxLayout(commandsBox);
+		hideCommands_ = new QCheckBox(ui::T("Settings.Filters.HideCommands"), commandsBox);
+		hideCommands_->setChecked(rules.hideCommands);
+		commandsLayout->addWidget(hideCommands_);
+		commandsLayout->addWidget(help("Settings.Filters.CommandsHelp"));
+		layout->addWidget(commandsBox);
+
+		auto *wordsBox = new QGroupBox(ui::T("Settings.Filters.Words"), page);
+		auto *wordsLayout = new QVBoxLayout(wordsBox);
+		blockedWords_ = listEdit(rules.blockedWords, "Settings.Filters.WordsPlaceholder");
+		wordsLayout->addWidget(blockedWords_);
+		wordsLayout->addWidget(help("Settings.Filters.WordsHelp"));
+		layout->addWidget(wordsBox);
+		layout->addWidget(help("Settings.Filters.Note"));
+		layout->addStretch(1);
+
+		filtersTimer_.setSingleShot(true);
+		filtersTimer_.setInterval(400);
+		connect(&filtersTimer_, &QTimer::timeout, this, [this] { applyFilters(); });
+		auto changed = [this] { filtersTimer_.start(); };
+		connect(hiddenUsers_, &QPlainTextEdit::textChanged, this, changed);
+		connect(blockedWords_, &QPlainTextEdit::textChanged, this, changed);
+		connect(hideCommands_, &QCheckBox::toggled, this, changed);
+		connect(restore, &QPushButton::clicked, this, [this] {
+			QStringList users = splitList(hiddenUsers_->toPlainText());
+			for (const QString &bot : chat::defaultHiddenUsers())
+				if (!users.contains(bot, Qt::CaseInsensitive))
+					users << bot;
+			hiddenUsers_->setPlainText(users.join('\n'));
+		});
+		return page;
+	}
+
+	// One entry per line (commas also separate), without blanks or repeats.
+	static QStringList splitList(const QString &text)
+	{
+		QStringList out;
+		for (QString item : text.split(QRegularExpression(QStringLiteral("[\\n,]")), Qt::SkipEmptyParts)) {
+			item = item.trimmed();
+			if (!item.isEmpty() && !out.contains(item, Qt::CaseInsensitive))
+				out << item;
+		}
+		return out;
+	}
+
+	void applyFilters()
+	{
+		chat::FilterRules rules;
+		rules.hiddenUsers = splitList(hiddenUsers_->toPlainText());
+		rules.hideCommands = hideCommands_->isChecked();
+		rules.blockedWords = splitList(blockedWords_->toPlainText());
+		ChatManager &m = ChatManager::instance();
+		m.setFilters(rules);
+		m.save();
+	}
+
 	void updateHint()
 	{
 		const QString p = platform_->currentData().toString();
@@ -323,6 +429,10 @@ private:
 	QRadioButton *auto_ = nullptr;
 	QRadioButton *always_ = nullptr;
 	QCheckBox *demo_ = nullptr;
+	QPlainTextEdit *hiddenUsers_ = nullptr;
+	QCheckBox *hideCommands_ = nullptr;
+	QPlainTextEdit *blockedWords_ = nullptr;
+	QTimer filtersTimer_;
 };
 
 } // namespace

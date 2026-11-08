@@ -1,7 +1,5 @@
 #include "chat-manager.hpp"
 
-#include "chat/message.hpp"
-
 #include <obs-module.h>
 #include <plugin-support.h>
 
@@ -64,6 +62,7 @@ void ChatManager::load()
 	QStringList list;
 	for (const QJsonValue v : cfg.value("chats").toArray())
 		list << v.toString();
+	filters_ = chat::FilterRules::fromJson(cfg.value("filters").toObject());
 	configure(list, cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto, false);
 }
 
@@ -72,7 +71,8 @@ void ChatManager::save() const
 	const QString path = configPath();
 	QDir().mkpath(QFileInfo(path).absolutePath());
 	QJsonObject cfg{{"chats", QJsonArray::fromStringList(entries_)},
-			{"mode", mode_ == Mode::Always ? "always" : "auto"}};
+			{"mode", mode_ == Mode::Always ? "always" : "auto"},
+			{"filters", filters_.toJson()}};
 	QFile file(path);
 	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
 		file.write(QJsonDocument(cfg).toJson());
@@ -213,6 +213,8 @@ void ChatManager::receive(const QJsonObject &object)
 		applyDeletion(object);
 		return;
 	}
+	if (chat::isFiltered(object, filters_))
+		return;
 	history_.append(object);
 	while (history_.size() > kHistory)
 		history_.removeFirst();

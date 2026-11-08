@@ -4,6 +4,7 @@
 // conecta y desconecta los chats y reparte los mensajes al dock y al overlay.
 // Vive en el hilo principal de Qt; los conectores y las consultas corren en hilos aparte.
 
+#include "chat/message.hpp"
 #include "chat/platforms.hpp"
 
 #include <QJsonArray>
@@ -45,6 +46,10 @@ public:
 	bool demo() const { return demo_; }
 	// Cambia la lista de chats. Devuelve los errores de las entradas no válidas.
 	QStringList configure(const QStringList &entries, Mode mode, bool demo);
+
+	// Hidden users, commands and blocked words. They apply to messages that arrive from now on.
+	chat::FilterRules filters() const { return filters_; }
+	void setFilters(const chat::FilterRules &rules) { filters_ = rules; }
 
 	void setStreaming(bool active, const QString &service = {});
 	void refresh();
@@ -97,6 +102,7 @@ private:
 	std::vector<std::unique_ptr<Source>> sources_;
 	std::vector<std::shared_ptr<chat::Connector>> retired_;
 	QJsonArray history_;
+	chat::FilterRules filters_ = chat::FilterRules::defaults();
 	QJsonObject featured_;
 	QJsonObject lastFeatured_;
 	qint64 featuredAt_ = 0;

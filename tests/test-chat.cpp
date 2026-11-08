@@ -1407,6 +1407,78 @@ private slots:
 		QVERIFY(starvios::toDeletion(QJsonObject{{"op", "DELETE"}, {"msg", QJsonObject()}}).isEmpty());
 	}
 
+	void filterFold()
+	{
+		QCOMPARE(foldText(QString::fromUtf8("ÁrbOL Pingüino ñandú")), QString::fromUtf8("arbol pinguino nandu"));
+	}
+
+	void filterHiddenUsers()
+	{
+		const FilterRules rules = FilterRules::defaults();
+		QVERIFY(rules.hideCommands);
+		QVERIFY(rules.blockedWords.isEmpty());
+		QVERIFY(isFiltered(makeMessage("twitch", "c", "nightbot", QJsonArray{textPart("hola")}), rules));
+		QVERIFY(isFiltered(makeMessage("kick", "c", "BotRix", QJsonArray{textPart("hola")}), rules));
+		QVERIFY(!isFiltered(makeMessage("twitch", "c", "Nightbotito", QJsonArray{textPart("hola")}), rules));
+		FilterRules accents;
+		accents.hiddenUsers = {QString::fromUtf8("  José  ")};
+		QVERIFY(isFiltered(makeMessage("youtube", "c", "jose", QJsonArray{textPart("hola")}), accents));
+	}
+
+	void filterCommands()
+	{
+		FilterRules rules;
+		QVERIFY(isFiltered(makeMessage("twitch", "c", "ana", QJsonArray{textPart("!discord")}), rules));
+		QVERIFY(isFiltered(makeMessage("twitch", "c", "ana", QJsonArray{textPart("  !so @pepe")}), rules));
+		QVERIFY(!isFiltered(makeMessage("twitch", "c", "ana", QJsonArray{textPart("hola !discord")}), rules));
+		QVERIFY(!isFiltered(makeMessage("twitch", "c", "ana", QJsonArray{textPart("!")}), rules));
+		// A sub or a donation with a "!" message is still shown.
+		MessageOptions highlight;
+		highlight.kind = "highlight";
+		QVERIFY(!isFiltered(makeMessage("youtube", "c", "ana", QJsonArray{textPart("!gracias")}, highlight),
+				    rules));
+		rules.hideCommands = false;
+		QVERIFY(!isFiltered(makeMessage("twitch", "c", "ana", QJsonArray{textPart("!discord")}), rules));
+	}
+
+	void filterBlockedWords()
+	{
+		FilterRules rules;
+		rules.blockedWords = {QString::fromUtf8("Tonto"), QString::fromUtf8("mala palabra"), "  "};
+		auto text = [](const char *t) {
+			return makeMessage("twitch", "c", "ana", QJsonArray{textPart(QString::fromUtf8(t))});
+		};
+		QVERIFY(isFiltered(text("eres un TONTO."), rules));
+		QVERIFY(isFiltered(text("tóntó"), rules));
+		QVERIFY(isFiltered(text("una Mala  palabra no, mala palabra si"), rules));
+		QVERIFY(!isFiltered(text("tontería"), rules));
+		QVERIFY(!isFiltered(text("atonto"), rules));
+		QVERIFY(!isFiltered(text("hola"), rules));
+		// Text split by an emote is still checked as a whole.
+		QVERIFY(isFiltered(makeMessage("twitch", "c", "ana",
+					       QJsonArray{textPart("hey "), emotePart("https://e/1.png", "Kappa"),
+							  textPart(" tonto")}),
+				   rules));
+	}
+
+	void filterJson()
+	{
+		FilterRules missing = FilterRules::fromJson(QJsonObject());
+		QCOMPARE(missing.hiddenUsers, defaultHiddenUsers());
+		QVERIFY(missing.hideCommands);
+		FilterRules r;
+		r.hiddenUsers = {"x"};
+		r.hideCommands = false;
+		r.blockedWords = {"y"};
+		const FilterRules back = FilterRules::fromJson(r.toJson());
+		QCOMPARE(back.hiddenUsers, QStringList{"x"});
+		QVERIFY(!back.hideCommands);
+		QCOMPARE(back.blockedWords, QStringList{"y"});
+		// An empty list saved by the user stays empty (no bots hidden).
+		r.hiddenUsers.clear();
+		QVERIFY(FilterRules::fromJson(r.toJson()).hiddenUsers.isEmpty());
+	}
+
 	void kickMessage()
 	{
 		QJsonArray parts = kick::splitContent("hola [emote:37226:KEKW] que tal");
