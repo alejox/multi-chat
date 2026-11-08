@@ -99,6 +99,8 @@ function el(tag, cls, text) {
 
 function render(m) {
   const row = el('div', 'msg' + (m.kind === 'highlight' ? ' hl' : ''));
+  row.dataset.id = m.id || '';
+  row.dataset.source = m.source || '';
   row.style.setProperty('--pc', PLATFORMS[m.platform] || '#888');
   if (m.system) row.appendChild(el('div', 'sys', m.system));
   const icon = el('span', 'pf');
@@ -257,13 +259,26 @@ function applyConfig(c) {
   trimOverflow();
 }
 
+// Moderation: the platform deleted messages (by id) or cleared a whole channel (all).
+// Never touches rows from another source.
+function removeDeleted(d) {
+  const ids = new Set(d.ids || []);
+  if (d.id) ids.add(d.id);
+  for (const row of [...list.children]) {
+    if (row.classList.contains('out')) continue;
+    const hit = d.all ? row.dataset.source === d.source : ids.has(row.dataset.id);
+    if (hit && row.dataset.source === (d.source || '')) remove(row);
+  }
+}
+
 window.addEventListener('multichat', e => {
   const data = e.detail || {};
   if (data.type === 'config') applyConfig(data.config || {});
   else if (data.type === 'message' && data.message) {
     if (data.message.channel !== 'demo') lastReal = Date.now();
     add(data.message);
-  } else if (data.type === 'clear') list.textContent = '';
+  } else if (data.type === 'delete') removeDeleted(data);
+  else if (data.type === 'clear') list.textContent = '';
 });
 
 // Mensajes de ejemplo para colocar el overlay mientras no llega chat de verdad.

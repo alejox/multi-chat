@@ -1,5 +1,7 @@
 #include "chat-manager.hpp"
 
+#include "chat/message.hpp"
+
 #include <obs-module.h>
 #include <plugin-support.h>
 
@@ -205,6 +207,37 @@ void ChatManager::reshowLast()
 		feature(QJsonObject(lastFeatured_));
 }
 
+void ChatManager::receive(const QJsonObject &object)
+{
+	if (chat::isDeletion(object)) {
+		applyDeletion(object);
+		return;
+	}
+	history_.append(object);
+	while (history_.size() > kHistory)
+		history_.removeFirst();
+	emit message(object);
+}
+
+void ChatManager::applyDeletion(QJsonObject deletion)
+{
+	QJsonArray ids;
+	for (qsizetype i = history_.size() - 1; i >= 0; --i) {
+		const QJsonObject m = history_.at(i).toObject();
+		if (chat::deletionMatches(deletion, m)) {
+			ids.append(m.value("id"));
+			history_.removeAt(i);
+		}
+	}
+	deletion.insert("ids", ids);
+	// A moderated message cannot stay on screen nor come back with "show the last one again".
+	if (!lastFeatured_.isEmpty() && chat::deletionMatches(deletion, lastFeatured_))
+		lastFeatured_ = QJsonObject();
+	if (!featured_.isEmpty() && chat::deletionMatches(deletion, featured_))
+		clearFeatured();
+	emit deleted(deletion);
+}
+
 bool ChatManager::wants(const Source &s) const
 {
 	if (mode_ == Mode::Always || s.info.platform == "demo")
@@ -231,12 +264,8 @@ void ChatManager::connectSource(Source &s)
 		QMetaObject::invokeMethod(
 			self,
 			[self, msg] {
-				if (!self)
-					return;
-				self->history_.append(msg);
-				while (self->history_.size() > kHistory)
-					self->history_.removeFirst();
-				emit self->message(msg);
+				if (self)
+					self->receive(msg);
 			},
 			Qt::QueuedConnection);
 	};

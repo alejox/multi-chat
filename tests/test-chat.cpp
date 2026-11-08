@@ -1277,6 +1277,67 @@ private slots:
 		QVERIFY(twitch::toMessage(twitch::parseIrc(":tmi.twitch.tv 366 justinfan #c :End"), "c").isEmpty());
 	}
 
+	void twitchModeration()
+	{
+		// CLEARMSG: one message by the IRC id that PRIVMSG stored as the message id.
+		QJsonObject msg = twitch::toMessage(
+			twitch::parseIrc("@display-name=Ronni;id=abc-1;user-id=42 :ronni!ronni@ronni.tmi.twitch.tv "
+					 "PRIVMSG #dallas :hola"),
+			"dallas");
+		QCOMPARE(msg["id"].toString(), QString("abc-1"));
+		QCOMPARE(msg["authorId"].toString(), QString("42"));
+		msg.insert("source", "twitch:dallas");
+
+		QJsonObject d = twitch::toDeletion(
+			twitch::parseIrc("@login=ronni;room-id=;target-msg-id=abc-1;tmi-sent-ts=1642720582342 "
+					 ":tmi.twitch.tv CLEARMSG #dallas :hola"));
+		QVERIFY(isDeletion(d));
+		QCOMPARE(d["platform"].toString(), QString("twitch"));
+		QCOMPARE(d["id"].toString(), QString("abc-1"));
+		d.insert("source", "twitch:dallas");
+		QVERIFY(deletionMatches(d, msg));
+
+		// CLEARCHAT with a user: ban or timeout, matched by target-user-id.
+		QJsonObject ban = twitch::toDeletion(twitch::parseIrc("@ban-duration=350;room-id=1;target-user-id=42;tmi-sent-ts=1 "
+								      ":tmi.twitch.tv CLEARCHAT #dallas :ronni"));
+		QCOMPARE(ban["authorId"].toString(), QString("42"));
+		QCOMPARE(ban["author"].toString(), QString("ronni"));
+		QVERIFY(!ban["all"].toBool());
+		ban.insert("source", "twitch:dallas");
+		QVERIFY(deletionMatches(ban, msg));
+		QJsonObject other = msg;
+		other.insert("authorId", "43");
+		QVERIFY(!deletionMatches(ban, other));
+
+		// CLEARCHAT without a user: the whole channel, and only that channel.
+		QJsonObject clear = twitch::toDeletion(
+			twitch::parseIrc("@room-id=1;tmi-sent-ts=1 :tmi.twitch.tv CLEARCHAT #dallas"));
+		QVERIFY(clear["all"].toBool());
+		clear.insert("source", "twitch:dallas");
+		QVERIFY(deletionMatches(clear, msg));
+		QJsonObject elsewhere = msg;
+		elsewhere.insert("source", "twitch:otro");
+		QVERIFY(!deletionMatches(clear, elsewhere));
+		QVERIFY(!deletionMatches(d, elsewhere));
+
+		// Chat lines are not deletions and vice versa.
+		QVERIFY(twitch::toDeletion(twitch::parseIrc(":u!u@u PRIVMSG #c :hola")).isEmpty());
+		QVERIFY(twitch::toMessage(twitch::parseIrc(":tmi.twitch.tv CLEARCHAT #c"), "c").isEmpty());
+	}
+
+	void deletionByAuthorName()
+	{
+		// Without a user id on either side, the author name is compared case-insensitively.
+		QJsonObject m = makeMessage("kick", "canal", "Pepe", QJsonArray{textPart("hola")});
+		m.insert("source", "kick:canal");
+		QJsonObject d = deleteAuthor("kick", QString(), "pepe");
+		d.insert("source", "kick:canal");
+		QVERIFY(deletionMatches(d, m));
+		d.insert("platform", "twitch");
+		QVERIFY(!deletionMatches(d, m));
+		QVERIFY(!deletionMatches(QJsonObject{{"source", "kick:canal"}, {"platform", "kick"}}, m));
+	}
+
 	void kickMessage()
 	{
 		QJsonArray parts = kick::splitContent("hola [emote:37226:KEKW] que tal");

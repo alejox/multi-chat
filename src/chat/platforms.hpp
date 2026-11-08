@@ -53,6 +53,8 @@ IrcMessage parseIrc(const QString &line);
 QJsonArray splitEmotes(const QString &body, const QString &emotesTag);
 // Devuelve un objeto vacío si la línea no es un mensaje de chat.
 QJsonObject toMessage(const IrcMessage &msg, const QString &channel);
+// CLEARMSG / CLEARCHAT as a moderation event (see message.hpp); empty for anything else.
+QJsonObject toDeletion(const IrcMessage &msg);
 LiveResult checkLive(const QString &channel);
 // En la respuesta de GQL a {user{displayName profileImageURL}}.
 Profile profileFromGql(const QJsonObject &response);
