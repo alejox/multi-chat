@@ -1357,6 +1357,16 @@ void register_overlay_source()
 	QObject::connect(&manager, &ChatManager::message, &manager,
 			 [](const QJsonObject &m) { sendAll(QJsonObject{{"type", "message"}, {"message", m}}); });
 	QObject::connect(&manager, &ChatManager::cleared, &manager, [] { sendAll(QJsonObject{{"type", "clear"}}); });
+	// Undo after clearing: the chat sources get the history back with their own event, not
+	// through "message", so the voice source (which listens to ChatManager::message) does
+	// not read them again. The page keeps at most its own limit anyway.
+	QObject::connect(&manager, &ChatManager::restored, &manager, [] {
+		const QJsonArray history = ChatManager::instance().history();
+		QJsonArray recent;
+		for (qsizetype i = std::max<qsizetype>(0, history.size() - 50); i < history.size(); ++i)
+			recent.append(history.at(i));
+		sendAll(QJsonObject{{"type", "restore"}, {"messages", recent}});
+	});
 	// The deletion event already has type "delete", source and the ids to remove.
 	QObject::connect(&manager, &ChatManager::deleted, &manager, [](const QJsonObject &d) { sendAll(d); });
 	auto pushViewers = [] {

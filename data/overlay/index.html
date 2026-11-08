@@ -6,7 +6,7 @@
 <!-- La fuente "Multichat" del plugin carga esta página y le manda los mensajes con el
      evento "multichat" (javascript_event de obs-browser):
        {type: "config", config: {...}} · {type: "message", message: {...}} · {type: "clear"}
-       · {type: "delete", ...} -->
+       · {type: "delete", ...} · {type: "restore", messages: [...]} (deshacer tras vaciar) -->
 <style>
   :root { --fs: 22px; --gap: 5px; --pad-y: 6px; --pad-x: 10px; --msg-py: 5px; --msg-px: 11px; --bg-rgb: 0, 0, 0; --bg-alpha: .6; --bg-radius: 9px; --bg-bw: 0px; --bg-brgb: 255, 255, 255;
     --panel-rgb: 0, 0, 0; --panel-alpha: .5; --panel-radius: 0px; --panel-bw: 0px; --panel-brgb: 255, 255, 255; }
@@ -314,6 +314,18 @@ function removeDeleted(d) {
   }
 }
 
+// Undo after clearing: the plugin sends the history again (oldest first). The list starts
+// over with it; the ticker only gets the last few so it does not replay a long backlog.
+function restore(messages) {
+  list.textContent = '';
+  seen.clear();
+  const items = (Array.isArray(messages) ? messages : []).filter(m => m && typeof m === 'object');
+  for (const m of config.layout === 'horizontal' ? items.slice(-3) : items) {
+    if (m.channel !== 'demo') lastReal = Date.now();
+    add(m);
+  }
+}
+
 window.addEventListener('multichat', e => {
   const data = e.detail || {};
   if (data.type === 'config') applyConfig(data.config || {});
@@ -322,6 +334,7 @@ window.addEventListener('multichat', e => {
     add(data.message);
   } else if (data.type === 'delete') removeDeleted(data);
   else if (data.type === 'clear') list.textContent = '';
+  else if (data.type === 'restore') restore(data.messages);
 });
 
 // Mensajes de ejemplo para colocar el overlay mientras no llega chat de verdad.

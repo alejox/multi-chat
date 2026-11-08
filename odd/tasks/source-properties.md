@@ -54,7 +54,12 @@ Auditoría: `src/overlay-source.cpp` registra unas 71 llamadas `obs_properties_a
   - Pruebas (RED → GREEN): con stubs, `legacyKeysKeepTheirDefaults` falló y `newTextDefaultsKeepThePreviousLook` lanzó excepción y cortó la ejecución (7 pasadas, 2 fallos); con la implementación 17/17. Cubre: claves y tipos de los preajustes ⊂ valores por defecto de cada tipo, 6 preajustes distintos, sin claves duplicadas, CSS (se conserva, no cierra el `<style>`, tope).
   - Tamaño: ~820 líneas, sobre todo tablas de valores y pruebas; no se partió para no separar la tabla de sus pruebas.
   - Checks: build macOS `BUILD SUCCEEDED`, 0 errores, 0 warnings; ctest 3/3 (test-chat 57, test-tts OK, test-overlay 17); `node --check` de las 4 páginas OK.
-- [ ] T4 Deshacer al vaciar también en el overlay, sin voz. Route: delegated (writer).
+  - Commit: `d9a464e`.
+- [x] T4 Deshacer al vaciar también en el overlay, sin voz. Route: delegated (writer).
+  - `ChatManager::restored` → las fuentes de chat reciben `{type: "restore", messages: [...]}` (los últimos 50 del historial, en orden). No pasa por `ChatManager::message`, que es lo único que escucha la voz (`src/tts/voice-source.cpp:234`), así que no se vuelven a leer.
+  - La página vacía la lista y el conjunto de ids vistos y vuelve a añadirlos con `add()` (respeta plataformas, máximo y «ocultar después de»); en la cinta horizontal solo los 3 últimos para no repetir una cola larga.
+  - Sin prueba RED/GREEN: la conexión depende de OBS y la página no tiene runner de pruebas; `node --check` OK y prueba manual en el checklist de T5.
+  - Checks: build macOS `BUILD SUCCEEDED`, 0 errores, 0 warnings.
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
 
 ## Progress
