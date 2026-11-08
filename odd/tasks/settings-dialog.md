@@ -41,7 +41,10 @@ Auditoría (snapshot de `main`, líneas pueden haber cambiado con los bloques 2�
   - Formato: `chats` sigue siendo la lista de textos en el orden del usuario; los pausados van en `disabled` (se omite si está vacío). También se leen objetos `{entry, enabled}`; sin `enabled` cuenta como activado. `save()` conserva las claves que no conoce.
   - Errores de entrada como `chat::EntryError` + clave `Entry.Error.*` (traducidos en la UI y en ChatManager); `chat::entryFromInput` sustituye a `contains(':')`; `chat::isDemo`; `chat::planSources` decide fuentes y orden (demo al final).
   - RED: test-chat no compilaba (20 errores, `EntryError` sin declarar). GREEN: test-chat 61, test-tts 48, test-overlay 17. Compatibilidad: prueba `chatConfigCompat` con un `config.json` del formato anterior (se lee igual y se reescribe idéntico). macOS: BUILD SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T2 Validación al añadir (carga, no existe, formato) con confirmación. Route: delegated (writer).
+- [x] T2 Validación al añadir (carga, no existe, formato) con confirmación. Route: delegated (writer).
+  - T1 = commit `4b867b5`.
+  - Estados de la entrada escrita: vacía, inválida (mensaje por plataforma), repetida, buscando (barra indeterminada), encontrada, no encontrada. "No encontrada" muestra el aviso y el botón pasa a «Añadir igualmente»; Intro nunca añade en silencio. Pulsar Añadir mientras se busca deja la entrada pendiente y se añade al confirmarse.
+  - Nuevas validaciones de Twitch y Kick (`EntryError::TwitchUser`/`KickUser`). RED: test-chat no compilaba (`TwitchUser` no existe). GREEN: test-chat 61 (con los casos nuevos), test-tts 48, test-overlay 17. UI: solo compilación (BUILD SUCCEEDED, 0 errores, 0 warnings); prueba manual pendiente del usuario.
 - [ ] T3 Filas nuevas: interruptor, estado separado, arrastrar para ordenar; orden en los chips del dock. Route: delegated (writer).
 - [ ] T4 Asistente de primera ejecución con inserción de fuentes en la escena. Route: delegated (writer).
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).

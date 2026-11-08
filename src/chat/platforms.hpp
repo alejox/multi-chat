@@ -42,7 +42,18 @@ std::shared_ptr<Connector> createConnector(const SourceInfo &source, Connector::
 
 // Why an entry is not valid. The UI translates it with entryErrorKey(); `arg` in parseEntry is the
 // offending text (the whole entry, the platform word or the user name).
-enum class EntryError { None, Empty, Format, Platform, TikTokUser, StarviosUser, YouTubeUrl, StarviosUrl };
+enum class EntryError {
+	None,
+	Empty,
+	Format,
+	Platform,
+	TwitchUser,
+	KickUser,
+	TikTokUser,
+	StarviosUser,
+	YouTubeUrl,
+	StarviosUrl,
+};
 // "Entry.Error.<Name>" in data/locale; nullptr for None. The text has a %1 for `arg`.
 const char *entryErrorKey(EntryError error);
 

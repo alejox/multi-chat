@@ -87,6 +87,35 @@ bool youtubeChannel(const QString &channel, SourceInfo &out)
 	return true;
 }
 
+// Twitch login: letters, numbers and "_". Kick slug: also "-". Lenient on length (old accounts).
+bool twitchChannel(QString user, SourceInfo &out, EntryError &error, QString &arg)
+{
+	if (user.startsWith('#'))
+		user.remove(0, 1);
+	static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9_]{1,25}$"));
+	if (!valid.match(user).hasMatch()) {
+		error = EntryError::TwitchUser;
+		arg = user;
+		return false;
+	}
+	out = make("twitch", user.toLower());
+	return true;
+}
+
+bool kickChannel(const QString &channel, SourceInfo &out, EntryError &error, QString &arg)
+{
+	// kick:canal#12345 indica a mano el id del chat (si Kick bloquea su API).
+	const QString slug = channel.section('#', 0, 0);
+	static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9_-]{1,50}$"));
+	if (!valid.match(slug).hasMatch()) {
+		error = EntryError::KickUser;
+		arg = slug;
+		return false;
+	}
+	out = make("kick", slug.toLower(), channel.section('#', 1));
+	return true;
+}
+
 // Usuario de TikTok: letras, números, "_" y ".".
 bool tiktokChannel(QString user, SourceInfo &out, EntryError &error, QString &arg)
 {
@@ -174,14 +203,10 @@ bool parseEntry(const QString &entry, SourceInfo &out, EntryError &error, QStrin
 	url.remove(scheme);
 	const QStringList seg = url.split('/', Qt::SkipEmptyParts);
 	const QString host = seg.value(0).toLower();
-	if (host == "twitch.tv" && seg.size() > 1) {
-		out = make("twitch", seg[1].toLower());
-		return true;
-	}
-	if (host == "kick.com" && seg.size() > 1) {
-		out = make("kick", seg[1].toLower());
-		return true;
-	}
+	if (host == "twitch.tv" && seg.size() > 1)
+		return twitchChannel(seg[1].section('?', 0, 0).section('#', 0, 0), out, error, arg);
+	if (host == "kick.com" && seg.size() > 1)
+		return kickChannel(seg[1].section('?', 0, 0).section('#', 0, 0), out, error, arg);
 	if (host == "tiktok.com" && seg.size() > 1 && seg[1].startsWith('@'))
 		return tiktokChannel(seg[1], out, error, arg);
 	if (host == "starvios.com" || host == "www.starvios.com")
@@ -208,18 +233,10 @@ bool parseEntry(const QString &entry, SourceInfo &out, EntryError &error, QStrin
 		arg = raw;
 		return false;
 	}
-	if (platform == "twitch") {
-		if (channel.startsWith('#'))
-			channel.remove(0, 1);
-		out = make("twitch", channel.toLower());
-		return true;
-	}
-	if (platform == "kick") {
-		// kick:canal#12345 indica a mano el id del chat (si Kick bloquea su API).
-		const QString slug = channel.section('#', 0, 0).toLower();
-		out = make("kick", slug, channel.section('#', 1));
-		return true;
-	}
+	if (platform == "twitch")
+		return twitchChannel(channel, out, error, arg);
+	if (platform == "kick")
+		return kickChannel(channel, out, error, arg);
 	if (platform == "youtube")
 		return youtubeChannel(channel, out);
 	if (platform == "tiktok" || platform == "tt")
@@ -246,6 +263,10 @@ const char *entryErrorKey(EntryError error)
 		return "Entry.Error.Format";
 	case EntryError::Platform:
 		return "Entry.Error.Platform";
+	case EntryError::TwitchUser:
+		return "Entry.Error.TwitchUser";
+	case EntryError::KickUser:
+		return "Entry.Error.KickUser";
 	case EntryError::TikTokUser:
 		return "Entry.Error.TikTokUser";
 	case EntryError::StarviosUser:
@@ -273,6 +294,12 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 		break;
 	case EntryError::Platform:
 		error = QStringLiteral("unsupported platform: %1").arg(arg);
+		break;
+	case EntryError::TwitchUser:
+		error = QStringLiteral("invalid Twitch channel: %1").arg(arg);
+		break;
+	case EntryError::KickUser:
+		error = QStringLiteral("invalid Kick channel: %1").arg(arg);
 		break;
 	case EntryError::TikTokUser:
 		error = QStringLiteral("invalid TikTok username: %1").arg(arg);
