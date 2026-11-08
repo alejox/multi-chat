@@ -94,7 +94,7 @@ std::map<std::string, V> legacyDefaults(SourceKind kind)
 		addBox(m, "", 75, 16);
 		break;
 	}
-	// Block 6 (simplify-ux): the "Show advanced options" switch of every source starts off.
+	// Block 6 (simplify-ux): the "Show more options" switch of every source starts off.
 	m["advanced"] = V(false);
 	return m;
 }

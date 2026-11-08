@@ -106,12 +106,17 @@ void addTextStyle(obs_properties_t *props, Kind kind)
 	obs_property_t *blur =
 		obs_properties_add_int_slider(props, "shadow_blur", obs_module_text("Text.ShadowBlur"), 0, 30, 1);
 	obs_property_int_set_suffix(blur, " px");
+}
 
-	if (hasNamesAndLines(kind)) {
-		obs_property_t *lines =
-			obs_properties_add_int_slider(props, "line_height", obs_module_text("Text.LineHeight"), 80, 250, 5);
-		obs_property_int_set_suffix(lines, " %");
-	}
+// Line height, only for sources with names and wrapped lines (chat and featured). It lives with
+// the rarely changed options, apart from the rest of the text style.
+void addLineHeight(obs_properties_t *props, Kind kind)
+{
+	if (!hasNamesAndLines(kind))
+		return;
+	obs_property_t *lines =
+		obs_properties_add_int_slider(props, "line_height", obs_module_text("Text.LineHeight"), 80, 250, 5);
+	obs_property_int_set_suffix(lines, " %");
 }
 
 // Controls that only matter with another option: the fixed name color, the outline color and
@@ -296,7 +301,7 @@ obs_properties_t *addGroup(obs_properties_t *props, const char *name, const char
 	return group;
 }
 
-// The switch that reveals the text, background, animation and fine-tuning groups.
+// The switch that reveals the "More options" group; it sits right before that group.
 void addAdvancedSwitch(obs_properties_t *props)
 {
 	obs_property_t *advanced = obs_properties_add_bool(props, "advanced", obs_module_text("Source.Advanced"));
@@ -312,11 +317,29 @@ void addPlatforms(obs_properties_t *props)
 	obs_properties_add_bool(props, "show_starvios", obs_module_text("Source.ShowStarvios"));
 }
 
+// Chat source, ordered by what users change most: style, background, layout, date and time,
+// and the rarely used options last, behind "Show more options".
 obs_properties_t *ov_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
-	addPreset(props);
+
+	obs_properties_t *style = addGroup(props, "group_style", "Group.Style");
+	addPreset(style);
+	obs_property_t *size =
+		obs_properties_add_int_slider(style, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
+	obs_property_int_set_suffix(size, " px");
+	addTextStyle(style, Kind::Chat);
+
+	// Both backgrounds in one place: the style list applies to whichever is on, then the box
+	// behind each message and the panel behind the whole chat, each shown with its checkbox.
+	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
+	addStyleList(background);
+	obs_properties_add_bool(background, "background", obs_module_text("Source.Background"));
+	addBoxStyle(background, "");
+	addPadding(background, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
+	obs_properties_add_bool(background, "panel", obs_module_text("Source.Panel"));
+	addBoxStyle(background, "panel_");
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	obs_property_t *layout = obs_properties_add_list(design, "layout", obs_module_text("Source.Layout"),
@@ -344,11 +367,6 @@ obs_properties_t *ov_properties(void *)
 		obs_properties_add_int_slider(design, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
 	obs_property_int_set_suffix(speed, " px/s");
 
-	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
-	addPlatforms(platforms);
-	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
-	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
-
 	obs_properties_t *clock = addGroup(props, "group_clock", "Group.Clock");
 	obs_property_t *clockOn = obs_properties_add_bool(clock, "clock", obs_module_text("Source.Clock"));
 	obs_property_set_long_description(clockOn, obs_module_text("Source.Clock.Help"));
@@ -362,22 +380,13 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(clock, "clock_hour24", obs_module_text("Clock.Hour24"));
 	obs_properties_add_bool(clock, "clock_bar", obs_module_text("Clock.Bar"));
 
+	// More options: platforms, icons and badges, disappearing, limits, spacing, margins, line
+	// height and custom CSS.
 	addAdvancedSwitch(props);
-
-	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
-	obs_property_t *size =
-		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
-	obs_property_int_set_suffix(size, " px");
-	addTextStyle(text, Kind::Chat);
-
-	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	obs_properties_add_bool(background, "background", obs_module_text("Source.Background"));
-	addStyleList(background);
-	addBoxStyle(background, "");
-	addPadding(background, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
-
-	// Fine tuning: disappearing, limits, spacing, margins and the panel behind the whole chat.
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	addPlatforms(advanced);
+	obs_properties_add_bool(advanced, "icons", obs_module_text("Source.Icons"));
+	obs_properties_add_bool(advanced, "badges", obs_module_text("Source.Badges"));
 	obs_property_t *fade = obs_properties_add_int(advanced, "fade", obs_module_text("Source.Fade"), 0, 600, 1);
 	obs_property_int_set_suffix(fade, " s");
 	obs_property_set_long_description(fade, obs_module_text("Source.Fade.Help"));
@@ -389,8 +398,7 @@ obs_properties_t *ov_properties(void *)
 		obs_properties_add_int_slider(advanced, "hspacing", obs_module_text("Source.Spacing"), -200, 400, 2);
 	obs_property_int_set_suffix(hspacing, " px");
 	addPadding(advanced, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
-	obs_properties_add_bool(advanced, "panel", obs_module_text("Source.Panel"));
-	addBoxStyle(advanced, "panel_");
+	addLineHeight(advanced, Kind::Chat);
 	addCustomCss(advanced);
 	hookAll(props, Kind::Chat);
 	return props;
@@ -499,6 +507,7 @@ obs_properties_t *fe_properties(void *)
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 12, 120, 1);
 	obs_property_int_set_suffix(size, " px");
 	addTextStyle(text, Kind::Featured);
+	addLineHeight(text, Kind::Featured);
 
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
 	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
