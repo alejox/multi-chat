@@ -25,5 +25,13 @@ bool badgeStyle(const QString &badge, QString &label, QColor &background);
 
 // Aclara u oscurece el color del nombre para que se lea sobre `background`.
 QColor readableColor(const QString &hex, const QString &name, const QColor &background);
+// Red for errors and "on air", readable on `background`.
+QColor alertColor(const QColor &background);
+// `from` moved toward `to` by `t` (0..1).
+QColor blend(const QColor &from, const QColor &to, float t);
+
+// Monochrome icon from data/icons/<name>.svg painted in `color` (the theme's text color), with a
+// faded copy for the disabled state. Empty if the file is missing.
+QIcon themedIcon(const QString &name, const QColor &color, int size, qreal dpr);
 
 } // namespace ui

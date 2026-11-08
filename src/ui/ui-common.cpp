@@ -241,4 +241,48 @@ QColor readableColor(const QString &hex, const QString &name, const QColor &back
 	return c;
 }
 
+QColor alertColor(const QColor &background)
+{
+	return readableColor(QStringLiteral("#ff5c5c"), QString(), background);
+}
+
+QColor blend(const QColor &from, const QColor &to, float t)
+{
+	auto mix = [t](float x, float y) {
+		return x + (y - x) * t;
+	};
+	return QColor::fromRgbF(mix(float(from.redF()), float(to.redF())), mix(float(from.greenF()), float(to.greenF())),
+				mix(float(from.blueF()), float(to.blueF())));
+}
+
+QIcon themedIcon(const QString &name, const QColor &color, int size, qreal dpr)
+{
+	char *file = obs_module_file(("icons/" + name + ".svg").toUtf8().constData());
+	if (!file)
+		return {};
+	// QIcon reads SVG through Qt's icon engine plugin, which OBS ships for its own icons.
+	const QIcon source(QString::fromUtf8(file));
+	bfree(file);
+	const QPixmap shape = source.pixmap(QSize(size, size), dpr);
+	if (shape.isNull())
+		return {};
+	auto paint = [&shape, dpr](const QColor &c) {
+		QImage image = shape.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+		image.setDevicePixelRatio(1.0);
+		QPainter p(&image);
+		// Keep the shape, take the color.
+		p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+		p.fillRect(image.rect(), c);
+		p.end();
+		image.setDevicePixelRatio(dpr);
+		return QPixmap::fromImage(image);
+	};
+	QIcon icon;
+	icon.addPixmap(paint(color), QIcon::Normal);
+	QColor faded = color;
+	faded.setAlphaF(0.4f);
+	icon.addPixmap(paint(faded), QIcon::Disabled);
+	return icon;
+}
+
 } // namespace ui

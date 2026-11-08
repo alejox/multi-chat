@@ -96,12 +96,16 @@ public:
 		auto *hintRow = new QHBoxLayout();
 		hint_ = new QLabel(chatsBox);
 		hint_->setWordWrap(true);
-		hint_->setStyleSheet("color: palette(mid);");
+		hint_->setForegroundRole(QPalette::PlaceholderText);
 		hintRow->addWidget(hint_, 1);
 		chatsLayout->addLayout(hintRow);
 		error_ = new QLabel(chatsBox);
 		error_->setWordWrap(true);
-		error_->setStyleSheet("color: #ff6b6b;");
+		{
+			QPalette p = error_->palette();
+			p.setColor(QPalette::WindowText, ui::alertColor(p.color(QPalette::Window)));
+			error_->setPalette(p);
+		}
 		error_->hide();
 		chatsLayout->addWidget(error_);
 		chatsPageLayout->addWidget(chatsBox);
@@ -113,7 +117,8 @@ public:
 		always_ = new QRadioButton(ui::T("Settings.Mode.Always"), modeBox);
 		auto *autoHelp = new QLabel(ui::T("Settings.Mode.AutoHelp"), modeBox);
 		autoHelp->setWordWrap(true);
-		autoHelp->setStyleSheet("color: palette(mid); margin-left: 22px;");
+		autoHelp->setForegroundRole(QPalette::PlaceholderText);
+		autoHelp->setContentsMargins(22, 0, 0, 0);
 		modeLayout->addWidget(auto_);
 		modeLayout->addWidget(autoHelp);
 		modeLayout->addWidget(always_);
@@ -171,7 +176,7 @@ private:
 		auto help = [page](const char *key) {
 			auto *label = new QLabel(ui::T(key), page);
 			label->setWordWrap(true);
-			label->setStyleSheet("color: palette(mid);");
+			label->setForegroundRole(QPalette::PlaceholderText);
 			return label;
 		};
 		auto listEdit = [page](const QStringList &items, const char *placeholder) {
