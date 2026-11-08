@@ -23,7 +23,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en directo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
 | ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat…** (o la rueda del dock → *Configurar…*). Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Si no se pudo comprobar (sin conexión o la plataforma no respondió), lo dice y deja añadirlo con **Añadir**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades muestran lo esencial (Preajuste, Diseño, Plataformas e insignias) y, con *Mostrar opciones avanzadas*, el resto (Texto, Fondo, Avanzado). |
+| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van en el orden de lo que más se cambia (Estilo, Fondo, Diseño, Fecha y hora) y, con *Mostrar más opciones*, el resto. |
 | ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
 | 🕒 **Fecha y hora en el chat** | La fuente "Multichat" puede mostrar la fecha y la hora (con o sin segundos, 24 h o 12 h, barra opcional): al final de la cinta en horizontal, o encima o debajo de los mensajes en vertical. La antigua fuente "Multichat (fecha y hora)" sigue funcionando en las escenas que ya la tienen, pero ya no aparece en **Añadir fuente**. |
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en el recuadro de espectadores y en la fecha y hora. |
@@ -147,9 +147,17 @@ Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si a�
 
 ### 🎨 Aspecto de las fuentes
 
-Las Propiedades de las fuentes (chat, destacado y espectadores; también la antigua de fecha y hora) muestran primero lo esencial: **Preajuste**, **Diseño** y **Plataformas**. La casilla **Mostrar opciones avanzadas** (apagada de serie) despliega **Texto**, **Fondo**, **Animación** (destacado) y **Avanzado** (desaparecer después de, máximo de mensajes, espacios, márgenes, fondo general y CSS). Las escenas guardadas siguen igual: no cambió ninguna opción existente, solo dónde se ve.
+Las Propiedades de las fuentes (chat, destacado y espectadores; también la antigua de fecha y hora) siguen el orden de lo que más se cambia:
 
-- **Preajuste** (arriba): elige uno y se ajustan varias opciones a la vez; puedes seguir tocando todo. Si cambias algo de lo que puso el preajuste, la lista vuelve a *Personalizado*.
+1. **Estilo**: preajuste, tamaño de letra, fuente, grosor y colores del texto y del nombre. El color del contorno y el color y desenfoque de la sombra solo aparecen si los usas.
+2. **Fondo**: en el chat, el *Estilo del fondo* (común a los dos), *Detrás de cada mensaje* (color, opacidad, redondeo y borde según el estilo, y relleno de cada mensaje) y *Detrás de todo el chat* (el fondo general, con su color, opacidad, redondeo y borde). En las demás, el fondo del recuadro con su estilo. Cada parte solo muestra sus controles con su casilla activada.
+3. **Diseño**: vertical u horizontal, tamaño o ajustar al lienzo, apilado y velocidad (chat); posición y tamaño (destacado); fila o columna, total y nombres (espectadores).
+4. **Fecha y hora** (chat): la casilla y, al activarla, sus opciones.
+5. **Más opciones**, plegadas de serie con la casilla **Mostrar más opciones** justo encima: plataformas, iconos e insignias, animación y *Se quita solo* (destacado), desaparecer después de, máximo de mensajes, espacios, márgenes, interlineado y CSS personalizado.
+
+Las escenas guardadas siguen igual: no cambió ninguna opción existente, solo dónde se ve.
+
+- **Preajuste** (arriba, en *Estilo*): elige uno y se ajustan varias opciones a la vez; puedes seguir tocando todo. Si cambias algo de lo que puso el preajuste, la lista vuelve a *Personalizado*.
 
   | Preajuste | Cómo se ve |
   |---|---|
@@ -160,8 +168,8 @@ Las Propiedades de las fuentes (chat, destacado y espectadores; también la anti
   | Alto contraste | Recuadros negros opacos con borde blanco, texto en negrita y nombres amarillos. |
   | Vertical 1080×1920 | Burbujas de cristal grandes para un lienzo vertical (chat de 1000×1400). |
 
-- **Texto**: fuente (las instaladas en el equipo; si falta, se usa la del sistema), grosor, color del texto, color del nombre (el del usuario, el de la plataforma o uno fijo; chat y destacado), contorno, sombra (*Automática*, como antes: solo sin fondo; *Siempre*; *Nunca*) con su color y desenfoque, e interlineado (chat y destacado). El tamaño sigue siendo *Tamaño de letra*.
-- **Avanzado → CSS personalizado**: CSS que se añade a la página después de los estilos del plugin (hasta 20 KB). Solo CSS: nunca se ejecuta código. Por ejemplo `.author { text-transform: uppercase; }`.
+- **Estilo**: fuente (las instaladas en el equipo; si falta, se usa la del sistema), grosor, color del texto, color del nombre (el del usuario, el de la plataforma o uno fijo; chat y destacado), contorno y sombra (*Automática*, como antes: solo sin fondo; *Siempre*; *Nunca*) con su color y desenfoque. El interlineado (chat y destacado) está en *Más opciones*.
+- **Más opciones → CSS personalizado**: CSS que se añade a la página después de los estilos del plugin (hasta 20 KB). Solo CSS: nunca se ejecuta código. Por ejemplo `.author { text-transform: uppercase; }`.
 
 ### 🛡 Moderación y filtros
 

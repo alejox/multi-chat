@@ -130,6 +130,7 @@ void addPadding(obs_properties_t *props, const char *keyY, const char *keyX, con
 void addStyleList(obs_properties_t *props);
 void showBoxStyle(obs_properties_t *props, obs_data_t *settings, const std::string &prefix, bool visible);
 void addTextStyle(obs_properties_t *props, Kind kind);
+void addLineHeight(obs_properties_t *props, Kind kind);
 void showTextStyle(obs_properties_t *props, obs_data_t *settings);
 void showAdvancedGroups(obs_properties_t *props, obs_data_t *settings);
 bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings);
@@ -144,6 +145,8 @@ bool ov_open_settings(obs_properties_t *, obs_property_t *, void *);
 obs_properties_t *addGroup(obs_properties_t *props, const char *name, const char *text);
 void addAdvancedSwitch(obs_properties_t *props);
 void addPlatforms(obs_properties_t *props);
+void addStyleGroup(obs_properties_t *props, Kind kind, int maxFontSize);
+void addBoxBackgroundGroup(obs_properties_t *props);
 obs_properties_t *ov_properties(void *);
 obs_properties_t *vw_properties(void *);
 obs_properties_t *ck_properties(void *);
