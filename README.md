@@ -256,18 +256,29 @@ Cada push compila en GitHub Actions para Windows, macOS y Linux (`.github/workfl
 ### Estructura
 
 ```
-src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
-src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
-src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)", "Multichat (fecha y hora)" y "Multichat (destacado)" (fuentes de navegador privadas)
+src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión; conecta el manager con OBS
+src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats (sin OBS: recibe config, traductor y log)
+src/chat-history.*         historial reciente, borrados y "deshacer limpiar"
+src/featured-state.*       mensaje destacado: actual, último, copia para deshacer y tiempo en pantalla
+src/config-store.*         config.json (con "version") y guardado atómico de los JSON del plugin
+src/i18n.*                 textos traducidos (i18n::tr) de data/locale
+src/platforms-registry.hpp plataformas: id, nombre, color y orden (data/overlay/icons.js lleva una copia comprobada por las pruebas)
+src/overlay/               fuentes "Multichat", "Multichat (espectadores)", "Multichat (fecha y hora)" y "Multichat (destacado)" (fuentes de navegador privadas)
+  source.cpp               callbacks de OBS y registro de las fuentes
+  properties.cpp           ventana de propiedades
+  config.cpp               ajustes → configuración que recibe cada página
+  viewers-layout.cpp       tamaño de los recuadros y ajuste de la cinta al lienzo
+  wiring.cpp               estado compartido y reparto de los eventos del manager a las páginas
 src/overlay-presets.*      valores por defecto, preajustes y saneado de CSS/colores/fuentes (sin OBS, con pruebas en tests/test-overlay.cpp)
 src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
-src/ui/                    dock, ventana de configuración, asistente de inicio, cachés de emotes y de perfiles
+src/ui/                    dock (chat-dock, chat-view, dock-prefs), ventana de configuración (settings-dialog, channel-input, chat-list), asistente de inicio, cachés de emotes y de perfiles
 data/icons/                íconos SVG monocromos del dock (se tiñen con el color del tema)
 src/updater.*              actualizaciones automáticas desde las Releases de GitHub
-data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
+data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la fecha y hora (clock.html); icons.js y overlay.js son el código compartido
 data/locale/               textos en español e inglés (también los avisos del chat y los errores de conexión, según el idioma de OBS)
+tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts), overlay (test-overlay), manager (test-manager) y JS de las páginas (overlay-js.test.js, con node si está instalado)
 ```
 
 ¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra. En Linux, libcurl (que OBS ya usa) hace HTTPS y la conexión TLS del WebSocket; el protocolo WebSocket va en `src/net/net-linux.cpp`.

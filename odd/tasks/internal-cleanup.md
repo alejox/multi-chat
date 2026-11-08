@@ -73,7 +73,10 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
   - `settings-dialog.cpp` 850 → `channel-input.{hpp,cpp}` 73+297 (con `ui::entryErrorText` y `ui::chatAvatar`), `chat-list.{hpp,cpp}` 15+10, `settings-dialog.cpp` 580; `settings-dialog.hpp` queda solo con `open_multichat_settings`. `first-run-wizard.cpp` incluye `channel-input.hpp`.
   - Movimiento puro comprobado línea a línea (solo cambian includes, cabeceras, los nombres de las preferencias del dock y `ChatList::dropEvent` fuera de la clase).
   - Checks: ctest 5/5; `cmake --preset macos` + build SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T8 Compilación, pruebas, instalación y README. Route: delegated (writer).
+- [x] T8 Compilación, pruebas, instalación y README. Route: delegated (writer). Previo: T7 `75fd9bd`.
+  - README: sección "Estructura" al día (archivos nuevos, `src/overlay/`, partición de `src/ui/`, pruebas).
+  - Checks: build de pruebas limpio desde cero (0 warnings) y ctest 5/5: test-chat 71, test-tts 56, test-overlay 19, test-manager 30, overlay-js 6. `cmake --preset macos` + build SUCCEEDED, 0 errores, 0 warnings.
+  - Instalación local: OBS cerrado; bundle reemplazado con `ditto`, `codesign -v` correcto y `overlay.js` presente en `Contents/Resources/overlay/`.
 
 ## Progress
 - Rama creada desde `feat/simplify-ux` (b137ee7). Fase A instalada; prueba manual del usuario pendiente.
@@ -83,4 +86,4 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
 - `nameColor` (páginas): para colores muy oscuros el factor de aclarado pasa de 1 y da componentes > 255 (`#000000` → `rgb(272,272,272)`); el navegador lo recorta a blanco, así que se ve blanco puro. Sin arreglar; la prueba describe el comportamiento actual.
 
 ## Next step
-T1–T8 con un writer delegado.
+Prueba manual del usuario en OBS (dock, ajustes, las 4 fuentes, voz, destacado, deshacer) para confirmar que nada visible cambió. Sin push.
