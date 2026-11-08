@@ -39,3 +39,6 @@ function clockLabel(now, o) {
       second: o.seconds ? '2-digit' : undefined, hour12: o.hour24 === false }).toUpperCase());
   return parts.join(' ');
 }
+
+// Node (tests/overlay-js.test.js) loads this file as a module; the pages ignore this.
+if (typeof module !== 'undefined') module.exports = { PLATFORMS, ICONS, rgbTriplet, applyBoxStyle, clockLabel };
