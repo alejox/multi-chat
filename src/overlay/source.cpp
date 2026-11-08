@@ -216,11 +216,10 @@ void register_overlay_source()
 	viewers.get_properties = vw_properties;
 	obs_register_source(&viewers);
 
-	// The date and time are now an option of the chat source. The old source still loads so
-	// saved scenes look the same, but it no longer appears in "Add Source".
+	// Standalone date and time, to place them anywhere in the scene. The chat source can also
+	// show them attached to the chat (its "Date and time" group).
 	obs_source_info clock = info;
 	clock.id = "multichat_clock";
-	clock.output_flags |= OBS_SOURCE_DEPRECATED | OBS_SOURCE_CAP_OBSOLETE;
 	clock.get_name = ck_get_name;
 	clock.create = ck_create;
 	clock.get_defaults = ck_defaults;

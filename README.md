@@ -25,7 +25,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat…** (o la rueda del dock → *Configurar…*). Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Si no se pudo comprobar (sin conexión o la plataforma no respondió), lo dice y deja añadirlo con **Añadir**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
 | 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van en el orden de lo que más se cambia (Estilo, Fondo, Diseño, Fecha y hora) y, con *Mostrar más opciones*, el resto. |
 | ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
-| 🕒 **Fecha y hora en el chat** | La fuente "Multichat" puede mostrar la fecha y la hora (con o sin segundos, 24 h o 12 h, barra opcional): al final de la cinta en horizontal, o encima o debajo de los mensajes en vertical. La antigua fuente "Multichat (fecha y hora)" sigue funcionando en las escenas que ya la tienen, pero ya no aparece en **Añadir fuente**. |
+| 🕒 **Fecha y hora en el chat** | La fuente "Multichat" puede mostrar la fecha y la hora (con o sin segundos, 24 h o 12 h, barra opcional): al final de la cinta en horizontal, o encima o debajo de los mensajes en vertical. Para ponerlas en cualquier otro lugar de la escena, separadas del chat, está la fuente **Multichat (fecha y hora)**. |
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en el recuadro de espectadores y en la fecha y hora. |
 | 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en directo, y el total. En fila o en columna, con o sin el nombre del canal. |
 | ⭐ **Mensaje destacado** | Clic en un mensaje del dock y aparece en grande en pantalla con la fuente **"Multichat (destacado)"**: logo de la plataforma, nombre con su color, insignias, emotes y monto de las donaciones. Entra y sale con una animación y se oculta solo al rato. Clic otra vez o Esc para quitarlo, también con atajos de teclado. |
@@ -117,7 +117,7 @@ La primera vez que abres OBS con el plugin, sin chats configurados, aparece el *
 2. **Docks → Multichat** para ver el chat dentro de OBS (el asistente lo abre al terminar).
 3. **Añadir fuentes a la escena** (en Configurar) pone de una vez el chat y el destacado en la escena que editas, solo los que falten. Para hacerlo a mano o para las demás fuentes: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Fecha y hora → Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha; en vertical van encima o debajo de los mensajes (*Posición en vertical*).
 4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
-5. La fecha y la hora son una opción del chat (grupo **Fecha y hora** en sus Propiedades). Las escenas que ya tenían la fuente "Multichat (fecha y hora)" la conservan tal cual; para quitarla, bórrala de la escena y activa la opción en el chat.
+5. La fecha y la hora son una opción del chat (grupo **Fecha y hora** en sus Propiedades). Si las quieres en otro lugar, separadas del chat, usa **Fuentes → + → Multichat (fecha y hora)**.
 6. Para que lea el chat en voz alta: **Herramientas → Multichat… → Voz → Leer el chat en voz alta**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
 7. Para mostrar en grande un mensaje concreto: **Fuentes → + → Multichat (destacado)**. Mira [Destacar un mensaje](#-destacar-un-mensaje).
 
@@ -147,7 +147,7 @@ Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si a�
 
 ### 🎨 Aspecto de las fuentes
 
-Las Propiedades de las fuentes (chat, destacado y espectadores; también la antigua de fecha y hora) siguen el orden de lo que más se cambia:
+Las Propiedades de las fuentes (chat, destacado, espectadores y fecha y hora) siguen el orden de lo que más se cambia:
 
 1. **Estilo**: preajuste, tamaño de letra, fuente, grosor y colores del texto y del nombre. El color del contorno y el color y desenfoque de la sombra solo aparecen si los usas.
 2. **Fondo**: en el chat, el *Estilo del fondo* (común a los dos), *Detrás de cada mensaje* (color, opacidad, redondeo y borde según el estilo, y relleno de cada mensaje) y *Detrás de todo el chat* (el fondo general, con su color, opacidad, redondeo y borde). En las demás, el fondo del recuadro con su estilo. Cada parte solo muestra sus controles con su casilla activada.
@@ -273,7 +273,7 @@ src/featured-state.*       mensaje destacado: actual, último, copia para deshac
 src/config-store.*         config.json (con "version") y guardado atómico de los JSON del plugin
 src/i18n.*                 textos traducidos (i18n::tr) de data/locale
 src/platforms-registry.hpp plataformas: id, nombre, color y orden (data/overlay/icons.js lleva una copia comprobada por las pruebas)
-src/overlay/               fuentes "Multichat", "Multichat (espectadores)", "Multichat (destacado)" y la antigua "Multichat (fecha y hora)", obsoleta pero registrada para las escenas guardadas (fuentes de navegador privadas)
+src/overlay/               fuentes "Multichat", "Multichat (espectadores)", "Multichat (destacado)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
   source.cpp               callbacks de OBS y registro de las fuentes
   properties.cpp           ventana de propiedades
   config.cpp               ajustes → configuración que recibe cada página
@@ -288,7 +288,7 @@ src/ui/                    dock (chat-dock, chat-view, dock-prefs), ventana de c
 data/icons/                íconos SVG monocromos del dock (se tiñen con el color del tema)
 src/updater.*              actualizaciones automáticas desde las Releases de GitHub: consulta, descarga y comprobación SHA-256
 src/updater/               instaladores por sistema (install-win/-mac/-linux.cpp, solo se compila el del sistema), copy-tree.cpp y el script de PowerShell (install-script-win.hpp)
-data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la antigua fuente de fecha y hora (clock.html); icons.js y overlay.js son el código compartido
+data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la fecha y hora (clock.html); icons.js y overlay.js son el código compartido
 data/locale/               textos en español e inglés (también los avisos del chat y los errores de conexión, según el idioma de OBS)
 tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts), overlay (test-overlay), medida de recuadros (test-box-measure, QtGui sin pantalla), manager (test-manager) y JS de las páginas (overlay-js.test.js, con node si está instalado)
 ```
