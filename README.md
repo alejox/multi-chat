@@ -112,6 +112,17 @@ Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 6. Para que lea el chat en voz alta: **Fuentes → + → Multichat (voz)**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
 7. Para mostrar en grande un mensaje concreto: **Fuentes → + → Multichat (destacado)**. Mira [Destacar un mensaje](#-destacar-un-mensaje).
 
+### 🧩 El dock
+
+- **Leer con calma**: si subes para leer, la lista no se mueve aunque lleguen mensajes. Aparece la píldora **↓ N nuevos**; clic en ella o **Fin** para volver al final.
+- **Clic derecho en un mensaje**: *Destacar en pantalla* / *Quitar destacado*, *Ocultar mensaje*, *Ocultar usuario*, *Copiar mensaje* y *Copiar nombre* (texto plano).
+  - *Ocultar mensaje* lo quita del dock, del chat en pantalla y del destacado, igual que un borrado de moderación, pero solo en Multichat: no toca la plataforma. Funciona también con los mensajes de prueba.
+  - *Ocultar usuario* lo añade a **Filtros → Ocultar usuarios** y quita sus mensajes de ese chat.
+- **Buscar**: **Ctrl+F** (⌘F en macOS) o el botón de la lupa. Filtra por texto, emote o nombre, sin distinguir mayúsculas ni tildes, y dice cuántos coinciden. **Esc** cierra la búsqueda.
+- **Hora**: clic derecho → *Mostrar hora* añade la hora a cada mensaje (apagado por defecto; se recuerda).
+- **Vaciar el chat**: el botón de la papelera vacía el dock, el chat en pantalla y el destacado. Durante unos segundos aparece **Chat vaciado · Deshacer**; *Deshacer* devuelve los mensajes al dock (el chat en pantalla sigue vacío y se llena con los mensajes nuevos).
+- **Tema**: los íconos y los colores se adaptan al tema de OBS, claro u oscuro.
+
 ### ⭐ Destacar un mensaje
 
 1. Añade **Fuentes → + → Multichat (destacado)** a tu escena. Mientras no hay ninguno destacado muestra un mensaje de ejemplo para colocarla (nunca al transmitir).
@@ -220,6 +231,7 @@ src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, env�
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
 src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
+data/icons/                íconos SVG monocromos del dock (se tiñen con el color del tema)
 src/updater.*              actualizaciones automáticas desde las Releases de GitHub
 data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
