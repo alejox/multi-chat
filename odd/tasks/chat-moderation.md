@@ -52,11 +52,14 @@ Hoy Twitch solo procesa `USERNOTICE`: `CLEARMSG` y `CLEARCHAT` se ignoran, así 
   - Persistencia: clave `filters` del mismo `config.json` que los chats (`ChatManager::load/save`); sin la clave se usan los valores por defecto. `ChatManager::receive` filtra antes del historial y de emitir (dock, overlay y TTS no lo ven).
   - UI: pestañas "Chats" y "Filtros" en el diálogo; listas de una entrada por línea (o separadas por comas), botón "Añadir bots conocidos", guardado 400 ms después de cada cambio y al cerrar.
   - Checks: RED observado con stubs (5 failed: `filterFold`, `filterHiddenUsers`, `filterCommands`, `filterBlockedWords`, `filterJson`); GREEN: `test-chat` 54 passed, 0 failed; `ctest` 2/2. Compilación macOS OK, 0 warnings.
-  - Commit: ver T4.
-- [ ] T4 README, compilación e instalación local en macOS. Route: delegated (writer).
+  - Commit: `fece4f9`.
+- [x] T4 README, compilación e instalación local en macOS. Route: delegated (writer).
+  - README: filas de Moderación y Filtros en Funciones, sección "Moderación y filtros" con la tabla por plataforma.
+  - Checks: `cmake --preset macos && cmake --build --preset macos` → BUILD SUCCEEDED, 0 warnings. `ctest` 2/2 (`test-chat` 54 passed). OBS no estaba abierto (`pgrep -x OBS` sin resultado): plugin instalado con `ditto` en `~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin` (locale y overlay nuevos verificados en el paquete).
+  - Commit: este mismo (`docs(moderation)`).
 
 ## Progress
 - Rama creada desde `feat/featured-messages` (6c93ea1). Bloque 1 probado por el usuario en OBS: funciona.
 
 ## Next step
-T4: README, compilación e instalación.
+Prueba manual en OBS (lista en el informe del writer). Push y PR los decide el usuario.
