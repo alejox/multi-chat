@@ -4,23 +4,43 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QSaveFile>
 
-QJsonObject ConfigStore::load() const
+QJsonObject readJsonObject(const QString &path)
 {
-	QFile file(path_);
+	QFile file(path);
 	if (!file.open(QIODevice::ReadOnly))
 		return {};
 	return QJsonDocument::fromJson(file.readAll()).object();
 }
 
+bool writeJsonObject(const QString &path, const QJsonObject &object)
+{
+	if (path.isEmpty())
+		return false;
+	QDir().mkpath(QFileInfo(path).absolutePath());
+	QSaveFile file(path);
+	if (!file.open(QIODevice::WriteOnly))
+		return false;
+	const QByteArray data = QJsonDocument(object).toJson();
+	if (file.write(data) != data.size()) {
+		file.cancelWriting();
+		return false;
+	}
+	return file.commit();
+}
+
+QJsonObject ConfigStore::load() const
+{
+	QJsonObject config = readJsonObject(path_);
+	if (!config.isEmpty() && !config.contains("version"))
+		config.insert("version", 1);
+	return config;
+}
+
 bool ConfigStore::save(const QJsonObject &config) const
 {
-	if (path_.isEmpty())
-		return false;
-	QDir().mkpath(QFileInfo(path_).absolutePath());
-	QFile file(path_);
-	if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
-		return false;
-	file.write(QJsonDocument(config).toJson());
-	return true;
+	QJsonObject versioned = config;
+	versioned.insert("version", kVersion);
+	return writeJsonObject(path_, versioned);
 }

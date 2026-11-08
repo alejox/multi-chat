@@ -48,7 +48,10 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
   - `src/chat-history.*` (historial, tope, borrados, copia para deshacer) y `src/featured-state.*` (actual, último, copia para deshacer, políticas y tiempo restante); el temporizador y las señales siguen en `ChatManager`.
   - Tope único: `chat::kHistoryLimit = 300` en `chat/message.hpp`, usado por el manager y por `ChatView`. Se eligió la constante compartida (y no que el dock pinte desde el manager) porque el dock recorta, filtra y reconstruye su propia lista; se eligió 300 (el del dock) para que lo visible no cambie. Efecto: el manager guarda 300 en vez de 200 (ver "Found bugs").
   - Checks: test-chat 71, test-tts 56, test-overlay 17, test-manager 27 (las dos pruebas de tope ahora usan `chat::kHistoryLimit`; +2 de las clases nuevas); build macOS SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T3 `version` + guardado atómico. Route: delegated (writer).
+- [x] T3 `version` + guardado atómico. Route: delegated (writer). Previo: T2 `78cc928`.
+  - `readJsonObject`/`writeJsonObject` (con `QSaveFile`) en `src/config-store.*`; `ConfigStore` escribe `"version": 1` y lee un archivo sin versión como 1. `dock.json` usa las mismas funciones y registra el fallo con `obs_log`.
+  - RED observado: `configStoreWritesTheVersion` y `configStoreReadsAMissingVersionAsOne` fallaron con el guardado anterior (28 passed, 2 failed); GREEN tras el cambio.
+  - Checks: test-chat 71, test-tts 56, test-overlay 17, test-manager 30; build macOS SUCCEEDED, 0 errores, 0 warnings.
 - [ ] T4 `i18n.hpp` y registro de plataformas únicos. Route: delegated (writer).
 - [ ] T5 `overlay.js` compartido + pruebas con node. Route: delegated (writer).
 - [ ] T6 Partir `overlay-source.cpp`. Route: delegated (writer).
