@@ -39,7 +39,12 @@ Cerrar los últimos pendientes de la revisión de arquitectura: una fuente menos
   - CMakeLists compila cada instalador solo en su sistema (bloques `OS_WINDOWS` / `OS_MACOS` / Linux existentes).
   - Movimiento sin cambios: cuerpos de `installWindows/Mac/Linux` → `installPlugin`, `pluginFolder`, `location`, `runElevated`, `bundleRoot`, `copyTree` y el script comprobados idénticos byte a byte contra HEAD con un script.
   - Pruebas: build macOS BUILD SUCCEEDED sin avisos; `install-linux.cpp` y `copy-tree.cpp` pasan `clang++ -fsyntax-only -Wall -Wextra -Werror` con el Qt de Homebrew; `install-win.cpp` no se pudo compilar aquí (sin MSVC); 6/6 suites, checksum de test-chat sin cambios.
-- [ ] T4 Compilación, pruebas, instalación y README. Route: delegated (writer).
+- [x] T4 Compilación, pruebas, instalación y README. Route: delegated (writer). Tras T3: e9e052b.
+  - Pruebas (build de pruebas limpio): test-chat 71, test-tts 56, test-overlay 20, test-box-measure 9, test-manager 30, overlay-js 6; 6/6 suites, 0 avisos.
+  - `cmake --preset macos` + `cmake --build --preset macos`: BUILD SUCCEEDED, 0 avisos (`-Werror`).
+  - Instalado en `~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin` (OBS cerrado), `codesign -v` correcto.
+  - README actualizado en cada tarea (reloj del chat, fuente obsoleta, box-measure, src/updater/).
+  - Pendiente: comprobación manual en OBS (lista en el informe) y compilación de Windows/Linux en CI.
 
 ## Next step
-Arranca cuando termine la Fase B.
+Comprobación manual en OBS y CI de Windows/Linux; push y PR los decide el usuario.
