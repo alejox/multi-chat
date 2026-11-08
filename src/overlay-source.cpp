@@ -29,6 +29,8 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -38,6 +40,9 @@ struct OverlaySource {
 	Kind kind = Kind::Chat;
 	obs_source_t *self = nullptr;
 	obs_source_t *browser = nullptr;
+	// Guarda config y sized: ov_update puede llegar desde cualquier hilo mientras el temporizador
+	// de la interfaz los lee. Nunca se mantiene durante llamadas a OBS.
+	mutable std::mutex mutex;
 	QJsonObject config;
 	// El hilo de gráficos los lee (get_width/get_height) mientras la interfaz los cambia.
 	std::atomic<uint32_t> width{500};
@@ -46,6 +51,9 @@ struct OverlaySource {
 };
 
 // OBS puede crear y destruir fuentes desde otros hilos: el acceso a la lista va con candado.
+// El candado solo cubre la lista (y lastSources): nunca se mantiene durante llamadas a OBS que
+// toman los candados de escenas o fuentes, porque OBS llama a ov_destroy con esos candados
+// tomados y se bloquearían mutuamente.
 std::mutex sourcesMutex;
 std::set<OverlaySource *> sources;
 // Con OBS transmitiendo nunca se muestran los mensajes de ejemplo.
@@ -65,14 +73,39 @@ void send(OverlaySource *s, const QJsonObject &payload)
 }
 
 // Últimos canales conocidos (live y espectadores), para las fuentes de espectadores.
+// Va con sourcesMutex.
 QJsonArray lastSources;
+
+QJsonObject configOf(const OverlaySource *s)
+{
+	std::lock_guard<std::mutex> lock(s->mutex);
+	return s->config;
+}
+
+// Recorre las fuentes sin mantener el candado: bajo el candado solo toma una referencia de cada
+// una (las que ya se están destruyendo no la dan), y la suelta después de usarla.
+template<typename Fn> void forEachSource(Fn &&fn)
+{
+	std::vector<std::pair<OverlaySource *, obs_source_t *>> refs;
+	{
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		refs.reserve(sources.size());
+		for (OverlaySource *s : sources)
+			if (obs_source_t *ref = obs_source_get_ref(s->self))
+				refs.emplace_back(s, ref);
+	}
+	for (auto &[s, ref] : refs) {
+		fn(s);
+		obs_source_release(ref);
+	}
+}
 
 void sendAll(const QJsonObject &payload)
 {
-	std::lock_guard<std::mutex> lock(sourcesMutex);
-	for (OverlaySource *s : sources)
+	forEachSource([&](OverlaySource *s) {
 		if (s->kind == Kind::Chat)
 			send(s, payload);
+	});
 }
 
 // ---- Fuente de espectadores ----
@@ -84,17 +117,17 @@ struct ViewerItem {
 
 // Canales que muestra una fuente de espectadores: los que están en vivo o, para colocarla
 // sin estar en directo, unos de ejemplo.
-QList<ViewerItem> viewerItems(const OverlaySource *s)
+QList<ViewerItem> viewerItems(const QJsonObject &config, const QJsonArray &channels)
 {
-	const QJsonArray platforms = s->config.value("platforms").toArray();
+	const QJsonArray platforms = config.value("platforms").toArray();
 	QList<ViewerItem> items;
-	for (const QJsonValue v : lastSources) {
+	for (const QJsonValue v : channels) {
 		const QJsonObject src = v.toObject();
 		const QString platform = src.value("platform").toString();
 		if (src.value("live").toInt() == 1 && platform != "demo" && platforms.contains(platform))
 			items.append({platform, src.value("channel").toString(), src.value("viewers").toInt(-1)});
 	}
-	if (items.isEmpty() && s->config.value("preview").toBool() && !streaming) {
+	if (items.isEmpty() && config.value("preview").toBool() && !streaming) {
 		const ViewerItem samples[] = {{"twitch", "micanal", 1234},
 					      {"youtube", "@micanal", 856},
 					      {"kick", "micanal", 312},
@@ -108,9 +141,9 @@ QList<ViewerItem> viewerItems(const OverlaySource *s)
 }
 
 // El total se muestra si hay más de un canal y al menos uno con espectadores conocidos.
-int viewerTotal(const OverlaySource *s, const QList<ViewerItem> &items)
+int viewerTotal(const QJsonObject &config, const QList<ViewerItem> &items)
 {
-	if (!s->config.value("total").toBool() || items.size() < 2)
+	if (!config.value("total").toBool() || items.size() < 2)
 		return -1;
 	int total = -1;
 	for (const ViewerItem &item : items)
@@ -132,18 +165,18 @@ QString formatViewers(int n)
 }
 
 // Lo que suma el borde del recuadro a cada dimensión (los estilos con borde propio usan hasta 2 px).
-double boxBorder(const OverlaySource *s)
+double boxBorder(const QJsonObject &config)
 {
-	if (!s->config.value("background").toBool())
+	if (!config.value("background").toBool())
 		return 0;
-	return 2.0 * std::max(2, s->config.value("bgBorderWidth").toInt());
+	return 2.0 * std::max(2, config.value("bgBorderWidth").toInt());
 }
 
 // Tamaño del recuadro con las medidas de viewers.html (en em = tamaño de letra). La página
 // luego escala el recuadro para que llene la fuente justo, así que basta con aproximarlo.
-QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int total)
+QSize viewerBoxSize(const QJsonObject &config, const QList<ViewerItem> &items, int total)
 {
-	const double em = std::max(1, s->config.value("size").toInt(28));
+	const double em = std::max(1, config.value("size").toInt(28));
 	QFont font;
 	font.setFamilies({"Segoe UI", ".AppleSystemUIFont", "Helvetica Neue", "Roboto"});
 	font.setPixelSize(int(em));
@@ -155,9 +188,9 @@ QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int 
 	small.setPixelSize(std::max(1, int(em * 0.6)));
 	small.setWeight(QFont::DemiBold);
 	const QFontMetricsF big(font), little(small);
-	const bool names = s->config.value("names").toBool();
-	const bool column = s->config.value("layout").toString() == "column";
-	const double padX = 2.0 * s->config.value("padX").toInt(17), padY = 2.0 * s->config.value("padY").toInt(10);
+	const bool names = config.value("names").toBool();
+	const bool column = config.value("layout").toString() == "column";
+	const double padX = 2.0 * config.value("padX").toInt(17), padY = 2.0 * config.value("padY").toInt(10);
 
 	QList<double> widths;
 	for (const ViewerItem &item : items)
@@ -182,7 +215,7 @@ QSize viewerBoxSize(const OverlaySource *s, const QList<ViewerItem> &items, int 
 			w += em * 1.8 + 2 + totalWidth;
 		h = em * 1.2 + padY;
 	}
-	const double border = boxBorder(s);
+	const double border = boxBorder(config);
 	return QSize(std::min(4096, int(std::ceil(w + border))), std::min(4096, int(std::ceil(h + border))));
 }
 
@@ -203,17 +236,32 @@ void resizeBrowser(OverlaySource *s);
 // Si no hay nada que mostrar se queda con el tamaño anterior para no saltar.
 void refreshViewers(OverlaySource *s)
 {
-	const QList<ViewerItem> items = viewerItems(s);
-	const int total = viewerTotal(s, items);
+	const QJsonObject config = configOf(s);
+	QJsonArray channels;
+	{
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		channels = lastSources;
+	}
+	const QList<ViewerItem> items = viewerItems(config, channels);
+	const int total = viewerTotal(config, items);
+	bool sized;
+	{
+		std::lock_guard<std::mutex> lock(s->mutex);
+		sized = s->sized;
+	}
 	// Sin nada que mostrar la primera vez, el tamaño de cuatro canales de ejemplo.
 	const QList<ViewerItem> measured =
-		!items.isEmpty() || s->sized ? items
-					     : QList<ViewerItem>{{"twitch", "micanal", 1234}, {"youtube", "@micanal", 856},
-								 {"kick", "micanal", 312}, {"tiktok", "@micanal", 2045},
-								 {"starvios", "micanal", 148}};
+		!items.isEmpty() || sized ? items
+					  : QList<ViewerItem>{{"twitch", "micanal", 1234}, {"youtube", "@micanal", 856},
+							      {"kick", "micanal", 312}, {"tiktok", "@micanal", 2045},
+							      {"starvios", "micanal", 148}};
 	if (!measured.isEmpty()) {
-		s->sized = true;
-		const QSize size = viewerBoxSize(s, measured, items.isEmpty() ? viewerTotal(s, measured) : total);
+		{
+			std::lock_guard<std::mutex> lock(s->mutex);
+			s->sized = true;
+		}
+		const QSize size =
+			viewerBoxSize(config, measured, items.isEmpty() ? viewerTotal(config, measured) : total);
 		if (uint32_t(size.width()) != s->width || uint32_t(size.height()) != s->height) {
 			s->width = uint32_t(size.width());
 			s->height = uint32_t(size.height());
@@ -227,9 +275,8 @@ void refreshViewers(OverlaySource *s)
 
 // Tamaño del recuadro de clock.html con un texto de ejemplo del ancho máximo (la página luego
 // escala el recuadro para llenar la fuente justo).
-QSize clockBoxSize(const OverlaySource *s)
+QSize clockBoxSize(const QJsonObject &c)
 {
-	const QJsonObject &c = s->config;
 	const double em = std::max(1, c.value("size").toInt(32));
 	QFont font;
 	font.setFamilies({"Segoe UI", ".AppleSystemUIFont", "Helvetica Neue", "Roboto"});
@@ -252,13 +299,13 @@ QSize clockBoxSize(const OverlaySource *s)
 	double w = 2.0 * c.value("padX").toInt(19) + QFontMetricsF(font).horizontalAdvance(text) + em * 0.02 * double(text.size());
 	if (c.value("bar").toBool())
 		w += em * 0.63;
-	const double border = boxBorder(s);
+	const double border = boxBorder(c);
 	return QSize(std::min(4096, int(std::ceil(w + border))), int(std::ceil(em * 1.2 + 2.0 * c.value("padY").toInt(11) + border)));
 }
 
 void refreshClock(OverlaySource *s)
 {
-	const QSize size = clockBoxSize(s);
+	const QSize size = clockBoxSize(configOf(s));
 	if (uint32_t(size.width()) != s->width || uint32_t(size.height()) != s->height) {
 		s->width = uint32_t(size.width());
 		s->height = uint32_t(size.height());
@@ -276,7 +323,7 @@ void refresh(OverlaySource *s)
 
 void sendConfig(OverlaySource *s)
 {
-	QJsonObject config = s->config;
+	QJsonObject config = configOf(s);
 	config.insert("streaming", streaming.load());
 	send(s, QJsonObject{{"type", "config"}, {"config", config}});
 }
@@ -301,15 +348,15 @@ uint32_t tickerHeight(const QJsonObject &config)
 }
 
 // Cinta horizontal con "ajustar al lienzo": su tamaño lo pone el plugin.
-bool fitsCanvas(const OverlaySource *s)
+bool fitsCanvas(Kind kind, const QJsonObject &config)
 {
-	return s->kind == Kind::Chat && s->config.value("layout").toString() == "horizontal" && s->config.value("fit").toBool();
+	return kind == Kind::Chat && config.value("layout").toString() == "horizontal" && config.value("fit").toBool();
 }
 
 // Ancho de la cinta ajustada: el elegido o, con 0, el del lienzo.
-uint32_t tickerWidth(const OverlaySource *s)
+uint32_t tickerWidth(const QJsonObject &config)
 {
-	const int width = s->config.value("tickerWidth").toInt();
+	const int width = config.value("tickerWidth").toInt();
 	return width > 0 ? uint32_t(width) : canvasWidth();
 }
 
@@ -496,18 +543,15 @@ bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings
 	return true;
 }
 
-void readSettings(OverlaySource *s, obs_data_t *settings)
+QJsonObject readConfig(Kind kind, obs_data_t *settings)
 {
-	if (s->kind == Kind::Chat) { // espectadores y reloj calculan su tamaño solos
-		s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
-		s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
-	}
+	QJsonObject config;
 	QJsonArray platforms;
 	for (const char *p : {"twitch", "youtube", "kick", "tiktok", "starvios"})
 		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
 			platforms.append(p);
-	if (s->kind == Kind::Clock) {
-		s->config = QJsonObject{
+	if (kind == Kind::Clock) {
+		config = QJsonObject{
 			{"size", (int)obs_data_get_int(settings, "font_size")},
 			{"date", obs_data_get_bool(settings, "date")},
 			{"time", obs_data_get_bool(settings, "time")},
@@ -519,11 +563,11 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 			{"background", obs_data_get_bool(settings, "background")},
 			{"style", obs_data_get_string(settings, "style")},
 		};
-		readBoxStyle(s->config, settings, "", "bg");
-		return;
+		readBoxStyle(config, settings, "", "bg");
+		return config;
 	}
-	if (s->kind == Kind::Viewers) {
-		s->config = QJsonObject{
+	if (kind == Kind::Viewers) {
+		config = QJsonObject{
 			{"size", (int)obs_data_get_int(settings, "font_size")},
 			{"layout", obs_data_get_string(settings, "layout")},
 			{"total", obs_data_get_bool(settings, "total")},
@@ -535,10 +579,10 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 			{"style", obs_data_get_string(settings, "style")},
 			{"preview", obs_data_get_bool(settings, "preview")},
 		};
-		readBoxStyle(s->config, settings, "", "bg");
-		return;
+		readBoxStyle(config, settings, "", "bg");
+		return config;
 	}
-	s->config = QJsonObject{
+	config = QJsonObject{
 		{"size", (int)obs_data_get_int(settings, "font_size")},
 		{"fade", (int)obs_data_get_int(settings, "fade")},
 		{"max", (int)obs_data_get_int(settings, "max")},
@@ -568,12 +612,24 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 		{"tickerWidth", (int)obs_data_get_int(settings, "ticker_width")},
 		{"preview", obs_data_get_bool(settings, "preview")},
 	};
-	readBoxStyle(s->config, settings, "", "bg");
-	readBoxStyle(s->config, settings, "panel_", "panel");
-	if (fitsCanvas(s)) {
-		s->width = tickerWidth(s);
-		s->height = tickerHeight(s->config);
+	readBoxStyle(config, settings, "", "bg");
+	readBoxStyle(config, settings, "panel_", "panel");
+	return config;
+}
+
+void readSettings(OverlaySource *s, obs_data_t *settings)
+{
+	const QJsonObject config = readConfig(s->kind, settings);
+	if (s->kind == Kind::Chat) { // espectadores y reloj calculan su tamaño solos
+		s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
+		s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
 	}
+	if (fitsCanvas(s->kind, config)) {
+		s->width = tickerWidth(config);
+		s->height = tickerHeight(config);
+	}
+	std::lock_guard<std::mutex> lock(s->mutex);
+	s->config = config;
 }
 
 const char *ov_get_name(void *)
@@ -597,8 +653,10 @@ void *create(obs_data_t *settings, obs_source_t *source, Kind kind)
 	obs_data_release(bs);
 	if (!s->browser)
 		obs_log(LOG_WARNING, "no se pudo crear la fuente de navegador (¿falta obs-browser?)");
-	std::lock_guard<std::mutex> lock(sourcesMutex);
-	sources.insert(s);
+	{
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		sources.insert(s);
+	}
 	sendConfig(s);
 	refresh(s);
 	return s;
@@ -633,11 +691,12 @@ void ov_destroy(void *data)
 void ov_update(void *data, obs_data_t *settings)
 {
 	auto *s = static_cast<OverlaySource *>(data);
-	std::lock_guard<std::mutex> lock(sourcesMutex);
-	const bool wasFitting = fitsCanvas(s);
+	// Sin candados: resizeBrowser y fitAllScenes toman los de la fuente de navegador y de
+	// las escenas.
+	const bool wasFitting = fitsCanvas(s->kind, configOf(s));
 	readSettings(s, settings);
 	resizeBrowser(s);
-	if (!wasFitting && fitsCanvas(s))
+	if (!wasFitting && fitsCanvas(s->kind, configOf(s)))
 		fitAllScenes(s);
 	sendConfig(s);
 	refresh(s);
@@ -946,11 +1005,10 @@ void ov_enum_sources(void *data, obs_source_enum_proc_t enum_callback, void *par
 void overlay_set_streaming(bool active)
 {
 	streaming = active;
-	std::lock_guard<std::mutex> lock(sourcesMutex);
-	for (OverlaySource *s : sources) {
+	forEachSource([](OverlaySource *s) {
 		sendConfig(s);
 		refresh(s); // al transmitir se quitan los números de ejemplo
-	}
+	});
 }
 
 void register_overlay_source()
@@ -961,11 +1019,14 @@ void register_overlay_source()
 	QObject::connect(&manager, &ChatManager::cleared, &manager, [] { sendAll(QJsonObject{{"type", "clear"}}); });
 	auto pushViewers = [] {
 		const QJsonArray list = ChatManager::instance().state().value("sources").toArray();
-		std::lock_guard<std::mutex> lock(sourcesMutex);
-		lastSources = list;
-		for (OverlaySource *s : sources)
+		{
+			std::lock_guard<std::mutex> lock(sourcesMutex);
+			lastSources = list;
+		}
+		forEachSource([](OverlaySource *s) {
 			if (s->kind == Kind::Viewers)
 				refreshViewers(s);
+		});
 	};
 	QObject::connect(&manager, &ChatManager::stateChanged, &manager, pushViewers);
 
@@ -973,20 +1034,17 @@ void register_overlay_source()
 	// le reenviamos la configuración cada pocos segundos.
 	auto *heartbeat = new QTimer(&manager);
 	heartbeat->setInterval(3000);
-	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] {
-		std::lock_guard<std::mutex> lock(sourcesMutex);
-		for (OverlaySource *s : sources)
-			sendConfig(s);
-	});
+	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] { forEachSource(sendConfig); });
 	QObject::connect(heartbeat, &QTimer::timeout, &manager, pushViewers);
 	// La cinta horizontal sigue al lienzo si cambia su resolución.
 	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] {
-		std::lock_guard<std::mutex> lock(sourcesMutex);
-		for (OverlaySource *s : sources)
-			if (fitsCanvas(s) && s->width != tickerWidth(s)) {
-				s->width = tickerWidth(s);
+		forEachSource([](OverlaySource *s) {
+			const QJsonObject config = configOf(s);
+			if (fitsCanvas(s->kind, config) && s->width != tickerWidth(config)) {
+				s->width = tickerWidth(config);
 				resizeBrowser(s);
 			}
+		});
 	});
 	heartbeat->start();
 
