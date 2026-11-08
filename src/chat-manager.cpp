@@ -71,6 +71,7 @@ void ChatManager::load()
 	config_ = cfg;
 	filters_ = chat::FilterRules::fromJson(cfg.value("filters").toObject());
 	demo_ = chat::testMessagesEnabled(cfg);
+	voice_ = tts::VoiceSettings::fromJson(cfg.value("voice").toObject());
 	configure(chat::chatEntriesFromJson(cfg), cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto);
 }
 
@@ -82,6 +83,44 @@ void ChatManager::save() const
 	cfg.insert("filters", filters_.toJson());
 	if (!env_.store.save(cfg))
 		log(true, QString("could not save %1").arg(env_.store.path()));
+}
+
+void ChatManager::setVoiceSettings(const tts::VoiceSettings &settings)
+{
+	if (settings == voice_ && config_.contains("voice"))
+		return;
+	const bool changed = settings != voice_;
+	voice_ = settings;
+	config_.insert("voice", voice_.toJson());
+	save();
+	if (changed)
+		emit voiceSettingsChanged();
+}
+
+void ChatManager::migrateLegacyVoice(const QList<tts::LegacyVoiceSource> &sources)
+{
+	if (config_.contains("voice"))
+		return;
+	const std::optional<tts::VoiceMigration> migration = tts::migrateVoiceSources(sources);
+	if (!migration)
+		return;
+	filters_.blockedWords = tts::mergeBlockedWords(filters_.blockedWords, migration->blockedWords);
+	voice_ = migration->settings;
+	config_.insert("voice", voice_.toJson());
+	save();
+	log(false, QString("voice settings taken from %1 voice source(s) saved in the scenes (voice %2)")
+			   .arg(sources.size())
+			   .arg(voice_.enabled ? "on" : "off"));
+	emit filtersChanged(QString());
+	emit voiceSettingsChanged();
+}
+
+void ChatManager::setVoiceOutputState(const QJsonObject &state)
+{
+	if (config_.value("voiceOutput").toObject() == state)
+		return;
+	config_.insert("voiceOutput", state);
+	save();
 }
 
 void ChatManager::setWizardShown()

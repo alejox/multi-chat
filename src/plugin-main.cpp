@@ -180,7 +180,11 @@ void on_frontend_event(enum obs_frontend_event event, void *)
 		ChatManager::instance().setStreaming(false);
 		overlay_set_streaming(false);
 		break;
+	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED:
+		voice_migrate_legacy_sources();
+		break;
 	case OBS_FRONTEND_EVENT_FINISHED_LOADING:
+		voice_migrate_legacy_sources();
 		if (obs_frontend_streaming_active()) {
 			ChatManager::instance().setStreaming(true, ui::streamingServiceName());
 			overlay_set_streaming(true);

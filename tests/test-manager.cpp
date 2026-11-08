@@ -463,6 +463,80 @@ private slots:
 		QVERIFY(!m.testMessages());
 	}
 
+	void voiceSettingsAreSavedAndLoaded()
+	{
+		ChatManager &m = make();
+		m.load();
+		QVERIFY(!m.voiceSettings().enabled);
+		QVERIFY(!readConfig().contains("voice"));
+		QSignalSpy spy(&m, &ChatManager::voiceSettingsChanged);
+		tts::VoiceSettings v;
+		v.enabled = true;
+		v.mode = tts::VoiceMode::Both;
+		v.mutedPlatforms = {"kick"};
+		m.setVoiceSettings(v);
+		QCOMPARE(spy.count(), 1);
+		m.setVoiceSettings(v); // unchanged: no signal, nothing to save
+		QCOMPARE(spy.count(), 1);
+		QCOMPARE(readConfig().value("voice").toObject(), v.toJson());
+
+		ChatManager &again = make();
+		again.load();
+		QCOMPARE(again.voiceSettings(), v);
+	}
+
+	// Old voice sources hand their settings over once, and their blocked words join the Filters.
+	void legacyVoiceSourcesMigrateOnce()
+	{
+		writeConfig(QJsonObject{{"filters", QJsonObject{{"blockedWords", QJsonArray{"spam"}}}}});
+		ChatManager &m = make();
+		m.load();
+		QSignalSpy voiceSpy(&m, &ChatManager::voiceSettingsChanged);
+		m.migrateLegacyVoice({});
+		QCOMPARE(voiceSpy.count(), 0);
+		QVERIFY(!readConfig().contains("voice"));
+
+		m.migrateLegacyVoice({tts::LegacyVoiceSource{2, {{"rate", 70}, {"blocked_words", "SPAM, feo"}}}});
+		QCOMPARE(voiceSpy.count(), 1);
+		QVERIFY(m.voiceSettings().enabled);
+		QCOMPARE(m.voiceSettings().ratePercent, 70);
+		QCOMPARE(m.filters().blockedWords, QStringList({"spam", "feo"}));
+		const QJsonObject saved = readConfig();
+		QVERIFY(saved.value("voice").toObject().value("enabled").toBool());
+		QCOMPARE(saved.value("filters").toObject().value("blockedWords").toArray(), QJsonArray({"spam", "feo"}));
+
+		// Already migrated: other old sources change nothing.
+		m.migrateLegacyVoice({tts::LegacyVoiceSource{0, {{"enabled", false}, {"blocked_words", "otra"}}}});
+		QCOMPARE(voiceSpy.count(), 1);
+		QVERIFY(m.voiceSettings().enabled);
+		QCOMPARE(m.filters().blockedWords, QStringList({"spam", "feo"}));
+	}
+
+	// The voice only hears the message signal: a message hidden by the Filters (here a word
+	// that came from an old voice source) is never read.
+	void messagesHiddenByFiltersNeverReachTheVoice()
+	{
+		ChatManager &m = makeConnected();
+		m.migrateLegacyVoice({tts::LegacyVoiceSource{2, {{"blocked_words", "feo"}}}});
+		QSignalSpy spy(&m, &ChatManager::message);
+		deliver("twitch:a", chatMessage("1", "ana", "qué FEO"));
+		deliver("twitch:a", chatMessage("2", "ana", "hola"));
+		QCOMPARE(spy.count(), 1);
+		QCOMPARE(spy.at(0).at(0).toJsonObject().value("id").toString(), QString("2"));
+	}
+
+	void voiceOutputStateIsKept()
+	{
+		ChatManager &m = make();
+		m.load();
+		const QJsonObject state{{"volume", 0.5}, {"muted", true}};
+		m.setVoiceOutputState(state);
+		QCOMPARE(readConfig().value("voiceOutput").toObject(), state);
+		ChatManager &again = make();
+		again.load();
+		QCOMPARE(again.voiceOutputState(), state);
+	}
+
 	void loadsAndSavesConfigKeepingUnknownKeys()
 	{
 		writeConfig(QJsonObject{{"chats", QJsonArray{"twitch:a", "kick:b"}},

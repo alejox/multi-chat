@@ -80,6 +80,8 @@ target_sources(
     src/tts/speech-text.hpp
     src/tts/voice-engine.cpp
     src/tts/voice-engine.hpp
+    src/tts/voice-settings.cpp
+    src/tts/voice-settings.hpp
     src/ui/channel-input.cpp
     src/ui/channel-input.hpp
     src/ui/chat-dock.cpp

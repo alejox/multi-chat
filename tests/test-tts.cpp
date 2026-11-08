@@ -6,6 +6,7 @@
 #include "../src/tts/pcm.hpp"
 #include "../src/tts/speech-text.hpp"
 #include "../src/tts/voice-engine.hpp"
+#include "../src/tts/voice-settings.hpp"
 #include "../src/tts/voice-source.hpp"
 
 #include <QElapsedTimer>
@@ -237,6 +238,111 @@ private slots:
 		QVERIFY(!voiceEnabledByDefault(0));
 		QVERIFY(voiceEnabledByDefault(kVoiceSourceVersion));
 		QCOMPARE(kVoiceSourceVersion, 2u);
+	}
+
+	// The global voice ("voice" in config.json) starts off until the user turns it on.
+	void voiceSettingsDefaults()
+	{
+		const VoiceSettings v;
+		QVERIFY(!v.enabled);
+		QCOMPARE(v.mode, VoiceMode::Read);
+		QCOMPARE(v.voice, QString());
+		QCOMPARE(v.ratePercent, 50);
+		QVERIFY(v.readAuthor);
+		QVERIFY(v.readsPlatform("twitch"));
+		QVERIFY(v.readsPlatform("starvios"));
+		QCOMPARE(v.maxLength, 200);
+		QCOMPARE(v.soundFile, QString());
+		QCOMPARE(v.soundCooldownMs, 1500);
+		QCOMPARE(VoiceSettings::fromJson(QJsonObject()), v);
+	}
+
+	void voiceSettingsRoundTripAndClamp()
+	{
+		VoiceSettings v;
+		v.enabled = true;
+		v.mode = VoiceMode::Both;
+		v.voice = "com.apple.voice.Monica";
+		v.ratePercent = 70;
+		v.readAuthor = false;
+		v.mutedPlatforms = {"kick"};
+		v.maxLength = 300;
+		v.soundFile = "/tmp/ding.wav";
+		v.soundCooldownMs = 0;
+		QCOMPARE(VoiceSettings::fromJson(v.toJson()), v);
+		QVERIFY(!v.readsPlatform("kick"));
+		QVERIFY(v.readsPlatform("twitch"));
+		QCOMPARE(v.toJson().value("mode").toString(), QString("both"));
+
+		const VoiceSettings odd = VoiceSettings::fromJson(
+			QJsonObject{{"mode", "shout"}, {"rate", 500}, {"maxLength", 1}, {"soundCooldown", -5}});
+		QCOMPARE(odd.mode, VoiceMode::Read);
+		QCOMPARE(odd.ratePercent, 100);
+		QCOMPARE(odd.maxLength, 20);
+		QCOMPARE(odd.soundCooldownMs, 0);
+	}
+
+	void voiceSourceVersionFromTypeId()
+	{
+		QCOMPARE(voiceSourceVersion("multichat_voice"), 0u);
+		QCOMPARE(voiceSourceVersion("multichat_voice_v2"), 2u);
+		QCOMPARE(voiceSourceVersion("multichat_voice_v3"), 3u);
+	}
+
+	// Nothing to migrate without old voice sources.
+	void migrationNeedsASource() { QVERIFY(!migrateVoiceSources({}).has_value()); }
+
+	// Untouched sources keep the default of their version: v2 read aloud, v0 did not.
+	void migrationOfUntouchedSourcesFollowsTheirVersion()
+	{
+		const auto v2 = migrateVoiceSources({LegacyVoiceSource{2, {}}});
+		QVERIFY(v2.has_value());
+		QVERIFY(v2->settings.enabled);
+		QCOMPARE(v2->settings, [] {
+			VoiceSettings d;
+			d.enabled = true;
+			return d;
+		}());
+		const auto v0 = migrateVoiceSources({LegacyVoiceSource{0, {}}});
+		QVERIFY(v0.has_value());
+		QVERIFY(!v0->settings.enabled);
+	}
+
+	// The first source the user changed wins over untouched ones before it.
+	void migrationTakesTheFirstChangedSource()
+	{
+		const QJsonObject changed{{"enabled", true},     {"mode", "sound"},     {"voice", "v1"},
+					  {"rate", 80},         {"read_author", false}, {"read_tiktok", false},
+					  {"max_length", 120},  {"sound_file", "/a.wav"}, {"sound_cooldown", 3000}};
+		const auto m = migrateVoiceSources({LegacyVoiceSource{0, {}}, LegacyVoiceSource{0, changed},
+						    LegacyVoiceSource{2, {{"rate", 10}}}});
+		QVERIFY(m.has_value());
+		const VoiceSettings &v = m->settings;
+		QVERIFY(v.enabled);
+		QCOMPARE(v.mode, VoiceMode::Sound);
+		QCOMPARE(v.voice, QString("v1"));
+		QCOMPARE(v.ratePercent, 80);
+		QVERIFY(!v.readAuthor);
+		QCOMPARE(v.mutedPlatforms, QStringList({"tiktok"}));
+		QCOMPARE(v.maxLength, 120);
+		QCOMPARE(v.soundFile, QString("/a.wav"));
+		QCOMPARE(v.soundCooldownMs, 3000);
+	}
+
+	// Every source's blocked words move to the Filters list, without repeats.
+	void migrationCollectsBlockedWordsOfEverySource()
+	{
+		const auto m = migrateVoiceSources({LegacyVoiceSource{2, {{"blocked_words", "tonto, feo\nTonto"}}},
+						    LegacyVoiceSource{0, {{"blocked_words", "malo\nFEO"}}}});
+		QVERIFY(m.has_value());
+		QCOMPARE(m->blockedWords, QStringList({"tonto", "feo", "malo"}));
+	}
+
+	void mergeBlockedWordsSkipsRepeatsIgnoringCaseAndAccents()
+	{
+		QCOMPARE(mergeBlockedWords({"Canción", "spam"}, {"cancion", "SPAM", "nuevo", "nuevo"}),
+			 QStringList({"Canción", "spam", "nuevo"}));
+		QCOMPARE(mergeBlockedWords({}, {" a ", ""}), QStringList({"a"}));
 	}
 
 	void plainTextIsSpoken() { QCOMPARE(speechTextForMessage(message("hola a todos"), baseOptions()), QString("hola a todos")); }
