@@ -1338,6 +1338,54 @@ private slots:
 		QVERIFY(!deletionMatches(QJsonObject{{"source", "kick:canal"}, {"platform", "kick"}}, m));
 	}
 
+	void localModeration()
+	{
+		// "Hide message" and "Hide user" from the dock reuse the moderation path, scoped to
+		// the message's own source.
+		QJsonObject m = makeMessage("demo", "canal", "Pepe", QJsonArray{textPart("hola")});
+		m.insert("source", "demo:canal");
+		const QJsonObject hide = hideMessage(m);
+		QVERIFY(isDeletion(hide));
+		QCOMPARE(hide["source"].toString(), QString("demo:canal"));
+		QCOMPARE(hide["id"].toString(), m["id"].toString());
+		QVERIFY(deletionMatches(hide, m));
+		QJsonObject sibling = makeMessage("demo", "canal", "Pepe", QJsonArray{textPart("otra")});
+		sibling.insert("source", "demo:canal");
+		QVERIFY(!deletionMatches(hide, sibling));
+
+		const QJsonObject user = hideAuthor(m);
+		QVERIFY(isDeletion(user));
+		QVERIFY(deletionMatches(user, sibling));
+		QJsonObject elsewhere = sibling;
+		elsewhere.insert("source", "demo:otro");
+		QVERIFY(!deletionMatches(user, elsewhere));
+
+		// Without a source or id there is nothing safe to target.
+		QJsonObject loose = m;
+		loose.remove("source");
+		QVERIFY(hideMessage(loose).isEmpty());
+		QVERIFY(hideAuthor(loose).isEmpty());
+		loose = m;
+		loose.remove("id");
+		QVERIFY(hideMessage(loose).isEmpty());
+	}
+
+	void plainTextCopy()
+	{
+		const QJsonObject m = makeMessage("twitch", "c", "Ana",
+						  QJsonArray{textPart("hola "), emotePart("https://e/1", "Kappa"),
+							     textPart(" <b>ok</b>")});
+		QCOMPARE(messageText(m), QString("hola Kappa <b>ok</b>"));
+		QCOMPARE(plainText(m), QString("Ana: hola Kappa <b>ok</b>"));
+		MessageOptions me;
+		me.action = true;
+		QCOMPARE(plainText(makeMessage("twitch", "c", "Ana", QJsonArray{textPart("baila")}, me)),
+			 QString("Ana baila"));
+		MessageOptions sub;
+		sub.system = "se suscribió";
+		QCOMPARE(plainText(makeMessage("twitch", "c", "Ana", QJsonArray{}, sub)), QString("Ana: se suscribió"));
+	}
+
 	void kickModeration()
 	{
 		QJsonObject msg = kick::toMessage(QJsonDocument::fromJson(fixture(15)).object(), "canal");

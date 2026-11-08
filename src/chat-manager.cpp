@@ -159,11 +159,62 @@ void ChatManager::refresh()
 
 void ChatManager::clear()
 {
+	clearedHistory_ = history_;
+	clearedLastFeatured_ = lastFeatured_;
 	history_ = QJsonArray();
 	emit cleared();
 	// Al limpiar el chat tampoco se puede volver a mostrar el último destacado.
 	lastFeatured_ = QJsonObject();
 	clearFeatured();
+}
+
+bool ChatManager::undoClear()
+{
+	if (clearedHistory_.isEmpty())
+		return false;
+	// Messages that arrived after clearing stay, after the restored ones.
+	QJsonArray merged = clearedHistory_;
+	for (const QJsonValue v : history_)
+		merged.append(v);
+	while (merged.size() > kHistory)
+		merged.removeFirst();
+	history_ = merged;
+	if (lastFeatured_.isEmpty())
+		lastFeatured_ = clearedLastFeatured_;
+	discardUndo();
+	emit restored();
+	return true;
+}
+
+void ChatManager::discardUndo()
+{
+	clearedHistory_ = QJsonArray();
+	clearedLastFeatured_ = QJsonObject();
+}
+
+void ChatManager::hideMessage(const QJsonObject &message)
+{
+	const QJsonObject deletion = chat::hideMessage(message);
+	if (!deletion.isEmpty())
+		applyDeletion(deletion);
+}
+
+void ChatManager::hideUser(const QJsonObject &message)
+{
+	const QString author = message.value("author").toString().trimmed();
+	if (author.isEmpty())
+		return;
+	const QString folded = chat::foldText(author);
+	const bool known = std::any_of(filters_.hiddenUsers.cbegin(), filters_.hiddenUsers.cend(),
+				       [&folded](const QString &u) { return chat::foldText(u.trimmed()) == folded; });
+	if (!known) {
+		filters_.hiddenUsers.append(author);
+		save();
+		emit filtersChanged();
+	}
+	const QJsonObject deletion = chat::hideAuthor(message);
+	if (!deletion.isEmpty())
+		applyDeletion(deletion);
 }
 
 bool ChatManager::feature(const QString &id)
@@ -232,6 +283,12 @@ void ChatManager::applyDeletion(QJsonObject deletion)
 		}
 	}
 	deletion.insert("ids", ids);
+	// What "undo clear" would bring back must not include moderated messages either.
+	for (qsizetype i = clearedHistory_.size() - 1; i >= 0; --i)
+		if (chat::deletionMatches(deletion, clearedHistory_.at(i).toObject()))
+			clearedHistory_.removeAt(i);
+	if (!clearedLastFeatured_.isEmpty() && chat::deletionMatches(deletion, clearedLastFeatured_))
+		clearedLastFeatured_ = QJsonObject();
 	// A moderated message cannot stay on screen nor come back with "show the last one again".
 	if (!lastFeatured_.isEmpty() && chat::deletionMatches(deletion, lastFeatured_))
 		lastFeatured_ = QJsonObject();

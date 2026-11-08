@@ -10,6 +10,8 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
+#include <QClipboard>
+#include <QContextMenuEvent>
 #include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
@@ -20,6 +22,8 @@
 #include <QJsonDocument>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QResizeEvent>
@@ -28,6 +32,7 @@
 #include <QTextBlockUserData>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextDocumentFragment>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -346,6 +351,32 @@ QString ChatView::messageIdAt(const QPoint &pos) const
 	return data ? data->id : QString();
 }
 
+QJsonObject ChatView::messageAt(const QPoint &pos) const
+{
+	const QString id = messageIdAt(pos);
+	if (id.isEmpty())
+		return {};
+	for (auto it = messages_.crbegin(); it != messages_.crend(); ++it)
+		if (it->value("id").toString() == id)
+			return *it;
+	return {};
+}
+
+void ChatView::contextMenuEvent(QContextMenuEvent *event)
+{
+	emit menuRequested(messageAt(viewport()->mapFrom(this, event->pos())), event->globalPos());
+	event->accept();
+}
+
+QMimeData *ChatView::createMimeDataFromSelection() const
+{
+	auto *data = new QMimeData;
+	QString text = textCursor().selection().toPlainText();
+	text.remove(QChar::ObjectReplacementCharacter); // emotes and icons
+	data->setText(text);
+	return data;
+}
+
 void ChatView::mousePressEvent(QMouseEvent *event)
 {
 	pressPos_ = event->position().toPoint();
@@ -362,14 +393,9 @@ void ChatView::mouseReleaseEvent(QMouseEvent *event)
 	if ((pos - pressPos_).manhattanLength() > QApplication::startDragDistance() || textCursor().hasSelection() ||
 	    !anchorAt(pos).isEmpty())
 		return;
-	const QString id = messageIdAt(pos);
-	if (id.isEmpty())
-		return;
-	for (auto it = messages_.crbegin(); it != messages_.crend(); ++it)
-		if (it->value("id").toString() == id) {
-			emit messageClicked(*it);
-			return;
-		}
+	const QJsonObject message = messageAt(pos);
+	if (!message.isEmpty())
+		emit messageClicked(message);
 }
 
 void ChatView::keyPressEvent(QKeyEvent *event)
@@ -552,7 +578,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	button(QStringLiteral("A−"), "Dock.Smaller", [this] { changeFont(-1); });
 	button(QStringLiteral("A+"), "Dock.Bigger", [this] { changeFont(1); });
 	button(QString::fromUtf8("⟳"), "Dock.Refresh", [] { ChatManager::instance().refresh(); });
-	button(QString::fromUtf8("🗑"), "Dock.Clear", [] { ChatManager::instance().clear(); });
+	button(QString::fromUtf8("🗑"), "Dock.Clear", [this] { clearWithUndo(); });
 	button(QString::fromUtf8("⚙"), "Dock.Settings", [this] { open_multichat_settings(this); });
 	root->addLayout(header);
 
@@ -611,6 +637,30 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	errors_->hide();
 	root->addWidget(errors_);
 
+	// "Chat cleared · Undo" for a few seconds instead of asking before clearing.
+	undoBar_ = new QWidget(this);
+	undoBar_->setObjectName("multichatUndo");
+	undoBar_->setAttribute(Qt::WA_StyledBackground);
+	undoBar_->setStyleSheet("#multichatUndo { background-color: palette(alternate-base); border-radius: 4px; }");
+	auto *undoLayout = new QHBoxLayout(undoBar_);
+	undoLayout->setContentsMargins(6, 3, 3, 3);
+	undoLayout->addWidget(new QLabel(ui::T("Dock.Cleared"), undoBar_), 1);
+	auto *undoButton = new QPushButton(ui::T("Dock.Undo"), undoBar_);
+	undoLayout->addWidget(undoButton);
+	undoBar_->hide();
+	root->addWidget(undoBar_);
+	undoTimer_.setSingleShot(true);
+	undoTimer_.setInterval(6000);
+	connect(&undoTimer_, &QTimer::timeout, this, [this] {
+		undoBar_->hide();
+		ChatManager::instance().discardUndo();
+	});
+	connect(undoButton, &QPushButton::clicked, this, [this] {
+		undoTimer_.stop();
+		undoBar_->hide();
+		ChatManager::instance().undoClear();
+	});
+
 	empty_ = new QWidget(this);
 	auto *emptyLayout = new QVBoxLayout(empty_);
 	auto *emptyText = new QLabel(ui::T("Dock.Empty"), empty_);
@@ -636,6 +686,13 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	view_->setMessages(history);
 	connect(&manager, &ChatManager::message, view_, &ChatView::addMessage);
 	connect(&manager, &ChatManager::cleared, view_, [this] { view_->setMessages({}); });
+	connect(&manager, &ChatManager::restored, view_, [this] {
+		QList<QJsonObject> restored;
+		for (const QJsonValue v : ChatManager::instance().history())
+			restored << v.toObject();
+		view_->setMessages(restored);
+	});
+	connect(view_, &ChatView::menuRequested, this, &ChatDock::showMenu);
 	connect(&manager, &ChatManager::deleted, view_, &ChatView::removeMessages);
 	connect(&manager, &ChatManager::stateChanged, this, &ChatDock::updateState);
 	updateState(manager.state());
@@ -662,6 +719,48 @@ void ChatDock::keyPressEvent(QKeyEvent *event)
 		return;
 	}
 	QWidget::keyPressEvent(event);
+}
+
+void ChatDock::clearWithUndo()
+{
+	ChatManager::instance().clear();
+	undoBar_->show();
+	undoTimer_.start();
+}
+
+void ChatDock::showMenu(const QJsonObject &message, const QPoint &globalPos)
+{
+	QMenu menu(this);
+	ChatManager &manager = ChatManager::instance();
+	if (!message.isEmpty()) {
+		const QString id = message.value("id").toString();
+		const bool featured = !id.isEmpty() && manager.featured().value("id").toString() == id;
+		menu.addAction(ui::T(featured ? "Dock.Menu.Unfeature" : "Dock.Menu.Feature"), this,
+			       [message, featured] {
+				       if (featured)
+					       ChatManager::instance().clearFeatured();
+				       else
+					       ChatManager::instance().feature(message);
+			       });
+		QAction *hide = menu.addAction(ui::T("Dock.Menu.HideMessage"), this,
+					       [message] { ChatManager::instance().hideMessage(message); });
+		hide->setEnabled(!chat::hideMessage(message).isEmpty());
+		QString author = message.value("author").toString();
+		author.replace('&', "&&"); // not a mnemonic
+		QAction *hideUser = menu.addAction(ui::T("Dock.Menu.HideUser").arg(author), this,
+						   [message] { ChatManager::instance().hideUser(message); });
+		hideUser->setEnabled(!author.isEmpty());
+		menu.addSeparator();
+		menu.addAction(ui::T("Dock.Menu.CopyMessage"), this,
+			       [message] { QGuiApplication::clipboard()->setText(chat::plainText(message)); });
+		menu.addAction(ui::T("Dock.Menu.CopyName"), this, [message] {
+			QGuiApplication::clipboard()->setText(message.value("author").toString());
+		});
+	}
+	if (view_->textCursor().hasSelection())
+		menu.addAction(ui::T("Dock.Menu.CopySelection"), view_, &ChatView::copy);
+	if (!menu.isEmpty())
+		menu.exec(globalPos);
 }
 
 void ChatDock::changeFont(int delta)

@@ -53,7 +53,16 @@ public:
 
 	void setStreaming(bool active, const QString &service = {});
 	void refresh();
+	// Empties the history; undoClear() brings it back until discardUndo() or the next clear.
 	void clear();
+	bool undoClear();
+	void discardUndo();
+
+	// Local moderation from the dock: same path as a platform deletion (dock, overlay and
+	// featured drop the message), without touching the platform.
+	void hideMessage(const QJsonObject &message);
+	// Adds the author to the hidden users filter (saved) and removes their messages from that chat.
+	void hideUser(const QJsonObject &message);
 
 	QJsonObject state() const;
 	QJsonArray history() const;
@@ -73,6 +82,10 @@ signals:
 	void message(const QJsonObject &message);
 	void stateChanged(const QJsonObject &state);
 	void cleared();
+	// undoClear() put the cleared messages back into history().
+	void restored();
+	// filters() changed outside the settings dialog (a user hidden from the dock).
+	void filtersChanged();
 	// Moderation: messages deleted by the platform (see chat::deleteMessage). `ids` lists the
 	// history messages removed; consumers holding more messages use chat::deletionMatches.
 	void deleted(const QJsonObject &deletion);
@@ -102,6 +115,8 @@ private:
 	std::vector<std::unique_ptr<Source>> sources_;
 	std::vector<std::shared_ptr<chat::Connector>> retired_;
 	QJsonArray history_;
+	QJsonArray clearedHistory_; // for undoClear()
+	QJsonObject clearedLastFeatured_;
 	chat::FilterRules filters_ = chat::FilterRules::defaults();
 	QJsonObject featured_;
 	QJsonObject lastFeatured_;

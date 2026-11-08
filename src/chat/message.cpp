@@ -88,6 +88,53 @@ bool deletionMatches(const QJsonObject &d, const QJsonObject &m)
 	return !author.isEmpty() && author.compare(m.value("author").toString(), Qt::CaseInsensitive) == 0;
 }
 
+QJsonObject hideMessage(const QJsonObject &message)
+{
+	const QString source = message.value("source").toString();
+	const QString id = message.value("id").toString();
+	if (source.isEmpty() || id.isEmpty())
+		return {};
+	QJsonObject e = deleteMessage(message.value("platform").toString(), id);
+	e.insert("source", source);
+	return e;
+}
+
+QJsonObject hideAuthor(const QJsonObject &message)
+{
+	const QString source = message.value("source").toString();
+	const QString author = message.value("author").toString();
+	const QString authorId = message.value("authorId").toString();
+	if (source.isEmpty() || (author.isEmpty() && authorId.isEmpty()))
+		return {};
+	QJsonObject e = deleteAuthor(message.value("platform").toString(), authorId, author);
+	e.insert("source", source);
+	return e;
+}
+
+QString messageText(const QJsonObject &message)
+{
+	QString text;
+	for (const QJsonValue v : message.value("parts").toArray()) {
+		const QJsonObject p = v.toObject();
+		text += p.value("type").toString() == QLatin1String("emote") ? p.value("name").toString()
+									       : p.value("text").toString();
+	}
+	return text;
+}
+
+QString plainText(const QJsonObject &message)
+{
+	QString text = messageText(message);
+	if (text.trimmed().isEmpty())
+		text = message.value("system").toString();
+	const QString author = message.value("author").toString();
+	if (author.isEmpty())
+		return text;
+	if (text.isEmpty())
+		return author;
+	return author + (message.value("action").toBool() ? QStringLiteral(" ") : QStringLiteral(": ")) + text;
+}
+
 QStringList defaultHiddenUsers()
 {
 	return {"Nightbot", "StreamElements", "Streamlabs", "Moobot", "Fossabot", "Wizebot", "Botrix"};
@@ -137,7 +184,7 @@ QString foldText(const QString &text)
 
 namespace {
 
-QString messageText(const QJsonObject &message)
+QString filterText(const QJsonObject &message)
 {
 	QString text;
 	for (const QJsonValue v : message.value("parts").toArray()) {
@@ -169,7 +216,7 @@ bool isFiltered(const QJsonObject &message, const FilterRules &rules)
 			return true;
 	}
 
-	const QString text = messageText(message);
+	const QString text = filterText(message);
 	if (rules.hideCommands && message.value("kind").toString() == QLatin1String("chat")) {
 		static const QRegularExpression command(QStringLiteral("^\\s*!\\S"));
 		if (command.match(text).hasMatch())

@@ -218,6 +218,21 @@ private:
 		connect(hiddenUsers_, &QPlainTextEdit::textChanged, this, changed);
 		connect(blockedWords_, &QPlainTextEdit::textChanged, this, changed);
 		connect(hideCommands_, &QCheckBox::toggled, this, changed);
+		// A user hidden from the dock while this is open: add it here so a later edit keeps it.
+		connect(&ChatManager::instance(), &ChatManager::filtersChanged, this, [this] {
+			const bool pending = filtersTimer_.isActive();
+			filtersTimer_.stop();
+			QStringList users = splitList(hiddenUsers_->toPlainText());
+			for (const QString &user : ChatManager::instance().filters().hiddenUsers)
+				if (!users.contains(user, Qt::CaseInsensitive))
+					users << user;
+			{
+				const QSignalBlocker block(hiddenUsers_);
+				hiddenUsers_->setPlainText(users.join('\n'));
+			}
+			if (pending)
+				applyFilters();
+		});
 		connect(restore, &QPushButton::clicked, this, [this] {
 			QStringList users = splitList(hiddenUsers_->toPlainText());
 			for (const QString &bot : chat::defaultHiddenUsers())
