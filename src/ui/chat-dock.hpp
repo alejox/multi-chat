@@ -105,6 +105,8 @@ private:
 	void setShowTimestamps(bool show);
 
 	QLabel *status_ = nullptr;
+	QLabel *statusEye_ = nullptr;     // tinted eye icon before the total viewers
+	QLabel *statusViewers_ = nullptr; // total viewers
 	QWidget *banner_ = nullptr;
 	QLabel *bannerText_ = nullptr;
 	QList<QLabel *> bannerIcons_;

@@ -33,7 +33,10 @@ LiveResult checkLive(const SourceInfo &source);
 struct Profile {
 	QString name;
 	QString avatar; // URL https de la imagen
+	bool failed = false; // the lookup failed (network, server, blocked): unknown, not missing
 };
+// True if an HTTP status (0 = no response) means the lookup failed rather than "not found".
+bool isLookupFailure(int status);
 // Consulta el perfil del canal. Bloquea (red).
 Profile fetchProfile(const SourceInfo &source);
 

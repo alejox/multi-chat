@@ -1984,6 +1984,20 @@ private slots:
 		QCOMPARE(sha256OfFile(file.fileName()), abc);
 		QVERIFY(sha256OfFile(file.fileName() + ".missing").isEmpty());
 	}
+
+	void profileLookupFailuresAreNotMissingChannels()
+	{
+		QVERIFY(isLookupFailure(0));   // DNS, timeout, no connection
+		QVERIFY(isLookupFailure(403)); // blocked (Kick behind Cloudflare)
+		QVERIFY(isLookupFailure(408));
+		QVERIFY(isLookupFailure(429));
+		QVERIFY(isLookupFailure(500));
+		QVERIFY(isLookupFailure(503));
+		QVERIFY(!isLookupFailure(200));
+		QVERIFY(!isLookupFailure(404)); // the platform says it does not exist
+		QVERIFY(!isLookupFailure(410));
+		QVERIFY(!Profile{}.failed);
+	}
 };
 
 QTEST_GUILESS_MAIN(ChatTest)

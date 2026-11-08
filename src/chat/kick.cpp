@@ -66,8 +66,12 @@ QJsonObject eventData(const QJsonObject &evt)
 }
 
 // Datos del canal (id del chatroom y si está en vivo). Kick a veces bloquea esta API.
-QJsonObject channelInfo(const QString &slug, QString &error)
+// `failed`: no answer said the channel is missing and at least one request failed.
+QJsonObject channelInfo(const QString &slug, QString &error, bool *failed = nullptr)
 {
+	bool sawFailure = false, sawMissing = false;
+	if (failed)
+		*failed = false;
 	for (const char *version : {"v2", "v1"}) {
 		net::Response res = net::get(QStringLiteral("https://kick.com/api/%1/channels/%2")
 						     .arg(QString::fromLatin1(version), slug)
@@ -79,7 +83,10 @@ QJsonObject channelInfo(const QString &slug, QString &error)
 				return doc.object();
 		}
 		error = res.status ? QStringLiteral("HTTP %1").arg(res.status) : QString::fromStdString(res.error);
+		(isLookupFailure(res.status) ? sawFailure : sawMissing) = true;
 	}
+	if (failed)
+		*failed = sawFailure && !sawMissing;
 	return {};
 }
 
@@ -174,7 +181,10 @@ Profile profileFromChannel(const QJsonObject &channel)
 Profile fetchProfile(const QString &channel)
 {
 	QString error;
-	return profileFromChannel(channelInfo(channel, error));
+	bool failed = false;
+	Profile profile = profileFromChannel(channelInfo(channel, error, &failed));
+	profile.failed = failed;
+	return profile;
 }
 
 class KickConnector : public Connector {

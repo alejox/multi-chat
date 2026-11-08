@@ -595,7 +595,17 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	header->setSpacing(2);
 	status_ = new QLabel(this);
 	status_->setTextFormat(Qt::PlainText);
-	header->addWidget(status_, 1);
+	statusEye_ = new QLabel(this);
+	statusViewers_ = new QLabel(this);
+	statusViewers_->setTextFormat(Qt::PlainText);
+	auto *statusRow = new QHBoxLayout;
+	statusRow->setSpacing(4);
+	statusRow->addWidget(status_);
+	statusRow->addSpacing(4);
+	statusRow->addWidget(statusEye_);
+	statusRow->addWidget(statusViewers_);
+	statusRow->addStretch(1);
+	header->addLayout(statusRow, 1);
 	status_->setAccessibleName(ui::T("Dock.Status"));
 	// Monochrome SVG icons tinted with the theme (applyTheme); the tooltip names the action.
 	auto button = [&](const QString &icon, const char *tip, auto slot) {
@@ -916,30 +926,85 @@ void ChatDock::changeFont(int delta)
 	savePrefs(prefs);
 }
 
+namespace {
+
+// A tinted SVG from data/icons as a pixmap; null if the file is missing.
+QPixmap tintedPixmap(const QString &name, const QColor &color, int size, qreal dpr)
+{
+	return ui::themedIcon(name, color, size, dpr).pixmap(QSize(size, size), dpr);
+}
+
+// Shows `pixmap`, or `fallback` as text when the icon could not be loaded.
+void setIconLabel(QLabel *label, const QPixmap &pixmap, const QString &fallback)
+{
+	if (pixmap.isNull())
+		label->setText(fallback);
+	else
+		label->setPixmap(pixmap);
+}
+
+// A chat chip is a checkable QToolButton whose contents (status icon, channel, live dot, eye and
+// viewers) are labels in its own layout, so the dot and the eye are tinted icons, not emoji.
+QLabel *chipPart(QToolButton *chip, const char *name)
+{
+	return chip->findChild<QLabel *>(QLatin1String(name), Qt::FindDirectChildrenOnly);
+}
+
+void buildChip(QToolButton *chip)
+{
+	auto *row = new QHBoxLayout(chip);
+	row->setContentsMargins(6, 3, 6, 3);
+	row->setSpacing(4);
+	for (const char *name : {"icon", "name", "live", "eye", "viewers"}) {
+		auto *label = new QLabel(chip);
+		label->setObjectName(QLatin1String(name));
+		label->setAttribute(Qt::WA_TransparentForMouseEvents);
+		label->setForegroundRole(QPalette::ButtonText);
+		row->addWidget(label);
+	}
+	chipPart(chip, "name")->setTextFormat(Qt::PlainText);
+	chipPart(chip, "viewers")->setTextFormat(Qt::PlainText);
+}
+
+} // namespace
+
 void ChatDock::updateState(const QJsonObject &state)
 {
 	const QJsonArray sources = state.value("sources").toArray();
 	const QJsonArray live = state.value("livePlatforms").toArray();
 	const qreal dpr = devicePixelRatioF();
 
+	const QColor textColor = palette().color(QPalette::ButtonText);
+	const QColor alert = ui::alertColor(palette().color(QPalette::Window));
+	const QPixmap eye = tintedPixmap(QStringLiteral("eye"), textColor, 14, dpr);
+	const QPixmap liveDot = tintedPixmap(QStringLiteral("live"), alert, 10, dpr);
+
 	// Estado general, con el total de espectadores de todas las plataformas.
 	const int viewers = state.value("viewers").toInt(-1);
-	const QString viewersText =
-		viewers >= 0 ? QString::fromUtf8("  ·  👁 ") + ui::formatCount(viewers) : QString();
-	if (state.value("streaming").toBool()) {
+	const bool streaming = state.value("streaming").toBool();
+	bool showViewers = viewers >= 0;
+	if (streaming) {
 		const QString service = state.value("service").toString();
 		status_->setText(QString::fromUtf8("● ") + ui::T("Dock.OnAir") +
-				 (service.isEmpty() ? QString() : QStringLiteral(" · ") + service) + viewersText);
-		status_->setStyleSheet(
-			QStringLiteral("color: %1; font-weight: bold;").arg(ui::alertColor(palette().color(QPalette::Window)).name()));
+				 (service.isEmpty() ? QString() : QStringLiteral(" · ") + service));
+		const QString style = QStringLiteral("color: %1; font-weight: bold;").arg(alert.name());
+		status_->setStyleSheet(style);
+		statusViewers_->setStyleSheet(style);
+		setIconLabel(statusEye_, tintedPixmap(QStringLiteral("eye"), alert, 14, dpr), QString::fromUtf8("👁"));
 	} else {
 		QStringList names;
 		for (const QJsonValue p : live)
 			names << chat::platformName(p.toString());
-		status_->setText(names.isEmpty() ? ui::T("Dock.OffAir")
-						 : ui::T("Dock.LiveOn").arg(names.join(", ")) + viewersText);
+		status_->setText(names.isEmpty() ? ui::T("Dock.OffAir") : ui::T("Dock.LiveOn").arg(names.join(", ")));
 		status_->setStyleSheet(QString());
+		statusViewers_->setStyleSheet(QString());
+		setIconLabel(statusEye_, eye, QString::fromUtf8("👁"));
+		showViewers = showViewers && !names.isEmpty();
 	}
+	statusViewers_->setText(showViewers ? ui::formatCount(viewers) : QString());
+	statusEye_->setVisible(showViewers);
+	statusViewers_->setVisible(showViewers);
+	statusEye_->setToolTip(showViewers ? ui::T("Dock.Viewers").arg(ui::formatCount(viewers)) : QString());
 
 	// Aviso de multistream con los logos de las plataformas en vivo.
 	const bool multi = state.value("multistream").toBool();
@@ -963,9 +1028,8 @@ void ChatDock::updateState(const QJsonObject &state)
 		QToolButton *chip = chipByKey_.value(key);
 		if (!chip) {
 			chip = new QToolButton(chips_);
-			chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-			chip->setIconSize(QSize(16, 16));
 			chip->setCheckable(true);
+			buildChip(chip);
 			connect(chip, &QToolButton::toggled, this, [this, key](bool shown) {
 				if (shown)
 					hidden_.remove(key);
@@ -981,11 +1045,21 @@ void ChatDock::updateState(const QJsonObject &state)
 			});
 			chipByKey_.insert(key, chip);
 		}
-		chip->setIcon(ui::statusIcon(platform, status, 16, dpr));
 		const int chipViewers = s.value("viewers").toInt(-1);
-		chip->setText(s.value("channel").toString() +
-			      (s.value("live").toInt() == 1 ? QString::fromUtf8("  🔴") : QString()) +
-			      (chipViewers >= 0 ? QString::fromUtf8(" 👁 ") + ui::formatCount(chipViewers) : QString()));
+		const bool chipLive = s.value("live").toInt() == 1;
+		chipPart(chip, "icon")->setPixmap(ui::statusIcon(platform, status, 16, dpr).pixmap(QSize(16, 16), dpr));
+		chipPart(chip, "name")->setText(s.value("channel").toString());
+		QLabel *liveLabel = chipPart(chip, "live");
+		setIconLabel(liveLabel, liveDot, QString::fromUtf8("●"));
+		liveLabel->setVisible(chipLive);
+		QLabel *eyeLabel = chipPart(chip, "eye");
+		setIconLabel(eyeLabel, eye, QString::fromUtf8("👁"));
+		eyeLabel->setVisible(chipViewers >= 0);
+		QLabel *viewersLabel = chipPart(chip, "viewers");
+		viewersLabel->setText(chipViewers >= 0 ? ui::formatCount(chipViewers) : QString());
+		viewersLabel->setVisible(chipViewers >= 0);
+		chip->layout()->invalidate();
+		chip->setMinimumSize(chip->layout()->sizeHint());
 		{
 			const QSignalBlocker block(chip);
 			chip->setChecked(!hidden_.contains(key));

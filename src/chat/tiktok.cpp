@@ -296,6 +296,8 @@ LiveResult fetchRoom(const QString &channel, QString &roomId, Text &error, Profi
 	if (!res.ok()) {
 		error = Text{"Error.Query", {QStringLiteral("TikTok"), res.status ? QStringLiteral("HTTP %1").arg(res.status)
 										 : QString::fromStdString(res.error)}};
+		if (profile)
+			profile->failed = isLookupFailure(res.status);
 		return {};
 	}
 	const QJsonObject json = QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object();
@@ -306,6 +308,8 @@ LiveResult fetchRoom(const QString &channel, QString &roomId, Text &error, Profi
 	if (!json.value("data").isObject()) {
 		// TikTok responde con una página HTML cuando bloquea o limita las consultas.
 		error = Text{"Error.Unexpected", {QStringLiteral("TikTok")}};
+		if (profile)
+			profile->failed = true;
 		return {};
 	}
 	if (profile)

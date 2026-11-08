@@ -44,7 +44,10 @@ Cerrar los pendientes de calidad de la auditoría y de los bloques 1–5 para qu
 - [x] T3 Overlay (esquema de imágenes, dedupe acotado) y voz (cancelar borrados). Route: delegated (writer).
   - Overlay: `safeUrl()` (solo http/https, igual que featured.html) para los emotes; si no, se muestra el nombre. Dedupe con `Set` + cola FIFO de 2000 ids que olvida los más viejos. Voz: `BoundedQueue::removeIf`, `VoiceEngine::enqueue(text, id)` y `cancel(ids)` (quita los de la cola y corta el actual); `voice-source` escucha `ChatManager::deleted` (borrados de plataforma y ocultar desde el dock).
   - T2 en 761a870. RED observado: test-tts no compilaba (`removeIf` no existe; `enqueue` con 2 argumentos). GREEN: test-tts 50 (8 repeticiones de las pruebas nuevas sin fallos), test-chat 66, test-overlay 17; build macOS BUILD SUCCEEDED sin errores ni warnings. Lógica JS comprobada con node (2500 ids → 2000, se olvidan los más viejos; `javascript:`/`file:`/`data:` rechazados).
-- [ ] T4 Chips con SVG y `ProfileCache` con error de red. Route: delegated (writer).
+- [x] T4 Chips con SVG y `ProfileCache` con error de red. Route: delegated (writer).
+  - Dock: `data/icons/live.svg` y `eye.svg` teñidos con `ui::themedIcon` (punto en vivo con el color de alerta, ojo con el color del texto). Los chips son `QToolButton` con etiquetas en su propio layout; la línea de estado tiene el ojo y el total en etiquetas aparte. Emoji solo como reserva si falta el SVG.
+  - Perfiles: `Profile::failed` + `chat::isLookupFailure(status)` (0, 403, 408, 429, 5xx = fallo; 404/410 = no existe). `ProfileCache` no guarda los fallos: los devuelve 15 s y vuelve a preguntar. El diálogo muestra `Settings.Validate.Unknown` ("No se pudo comprobar…") y el botón sigue siendo "Añadir", sin el aviso de "Añadir igualmente".
+  - T3 en 9a0c115. RED observado: test-chat no compilaba (`isLookupFailure` sin declarar). GREEN: test-chat 67, test-tts 50, test-overlay 17; build macOS BUILD SUCCEEDED sin errores ni warnings. UI: pendiente de prueba manual (lista en T5).
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
 
 ## Progress

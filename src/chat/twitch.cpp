@@ -244,8 +244,11 @@ Profile fetchProfile(const QString &channel)
 	net::Response res = net::postJson("https://gql.twitch.tv/gql",
 					  QJsonDocument(query).toJson(QJsonDocument::Compact).toStdString(),
 					  {{"Client-Id", kGqlClientId}});
-	if (!res.ok())
-		return {};
+	if (!res.ok()) {
+		Profile failed;
+		failed.failed = isLookupFailure(res.status);
+		return failed;
+	}
 	return profileFromGql(QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object());
 }
 
