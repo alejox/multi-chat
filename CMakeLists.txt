@@ -56,6 +56,7 @@ target_sources(
     src/platforms-registry.hpp
     src/updater.cpp
     src/updater.hpp
+    src/updater/install.hpp
     src/chat/connector.cpp
     src/chat/connector.hpp
     src/chat/message.cpp
@@ -109,6 +110,7 @@ if(OS_WINDOWS)
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE src/net/net-win.cpp src/tts/speech-backend-win.cpp src/tts/voice-source.cpp src/tts/voice-source.hpp
+            src/updater/install-win.cpp src/updater/install-script-win.hpp
   )
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE winhttp shell32 sapi ole32)
   target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE /utf-8)
@@ -129,6 +131,7 @@ elseif(OS_MACOS)
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE src/net/net-mac.mm src/tts/speech-backend-mac.mm src/tts/voice-source.cpp src/tts/voice-source.hpp
+            src/updater/install-mac.cpp src/updater/copy-tree.cpp
   )
   target_link_libraries(
     ${CMAKE_PROJECT_NAME}
@@ -142,6 +145,7 @@ else()
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE src/net/net-linux.cpp src/tts/speech-backend-linux.cpp src/tts/voice-source.cpp src/tts/voice-source.hpp
+            src/updater/install-linux.cpp src/updater/copy-tree.cpp
   )
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl PkgConfig::ESPEAK_NG)
 endif()
