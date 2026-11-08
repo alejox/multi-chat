@@ -187,7 +187,7 @@ void voice_deactivate(void *data)
 
 void voice_defaults(obs_data_t *settings)
 {
-	obs_data_set_default_bool(settings, "enabled", false);
+	obs_data_set_default_bool(settings, "enabled", true); // new sources read aloud; saved ones keep their value
 	obs_data_set_default_string(settings, "voice", "");
 	obs_data_set_default_int(settings, "rate", kDefaultRatePercent);
 	obs_data_set_default_bool(settings, "read_author", true);

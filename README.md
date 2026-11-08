@@ -189,7 +189,7 @@ Los filtros se guardan al momento y se aplican a los mensajes que llegan a parti
 Funciona en Windows, macOS y Linux con las voces del sistema, sin servicios externos. En Linux usa **espeak-ng**: la voz es más robótica que las de Windows y macOS.
 
 1. Añade **Fuentes → + → Multichat (voz)** a tu escena.
-2. En sus **Propiedades**, activa *Leer el chat en voz alta*: viene desactivada. Ahí eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen, el máximo de caracteres por mensaje y las palabras bloqueadas.
+2. Empieza a leer en cuanto la añades (para silenciarla sin quitarla, baja su volumen en el mezclador). En sus **Propiedades** eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen, el máximo de caracteres por mensaje y las palabras bloqueadas.
 3. El volumen se controla en el **mezclador de audio**, como cualquier otra fuente. Es audio de OBS: llega a la emisión y a la grabación. Para oírlo tú, activa la monitorización en *Propiedades avanzadas de audio*.
 
 Qué se lee y qué no:
