@@ -165,10 +165,11 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "fit_canvas"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "ticker_width"), horizontal && !manualSize);
 	obs_property_set_visible(obs_properties_get(props, "scroll"), horizontal);
-	obs_property_set_visible(obs_properties_get(props, "group_clock"), horizontal);
-	const bool clockOn = horizontal && obs_data_get_bool(settings, "clock");
+	// The clock works in both layouts: at the end of the ticker, or above or below the list.
+	const bool clockOn = obs_data_get_bool(settings, "clock");
 	for (const char *key : {"clock_date", "clock_time", "clock_seconds", "clock_hour24", "clock_bar"})
 		obs_property_set_visible(obs_properties_get(props, key), clockOn);
+	obs_property_set_visible(obs_properties_get(props, "clock_position"), clockOn && !horizontal);
 	obs_property_set_visible(obs_properties_get(props, "speed"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "hspacing"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "spacing"), !horizontal);
@@ -348,9 +349,13 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
 
-	obs_properties_t *clock = addGroup(props, "group_clock", "Group.TickerClock");
+	obs_properties_t *clock = addGroup(props, "group_clock", "Group.Clock");
 	obs_property_t *clockOn = obs_properties_add_bool(clock, "clock", obs_module_text("Source.Clock"));
 	obs_property_set_long_description(clockOn, obs_module_text("Source.Clock.Help"));
+	obs_property_t *clockPosition = obs_properties_add_list(clock, "clock_position", obs_module_text("Clock.Position"),
+								OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(clockPosition, obs_module_text("Clock.Position.Top"), "top");
+	obs_property_list_add_string(clockPosition, obs_module_text("Clock.Position.Bottom"), "bottom");
 	obs_properties_add_bool(clock, "clock_date", obs_module_text("Clock.Date"));
 	obs_properties_add_bool(clock, "clock_time", obs_module_text("Clock.Time"));
 	obs_properties_add_bool(clock, "clock_seconds", obs_module_text("Clock.Seconds"));
