@@ -1,4 +1,5 @@
 #include "chat-dock.hpp"
+#include "first-run-wizard.hpp"
 #include "flow-layout.hpp"
 #include "image-cache.hpp"
 #include "ui-common.hpp"
@@ -622,19 +623,14 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	button("search", "Dock.Search", [this] { openSearch(); });
 	button("text-smaller", "Dock.Smaller", [this] { changeFont(-1); });
 	button("text-bigger", "Dock.Bigger", [this] { changeFont(1); });
-	button("refresh", "Dock.Refresh", [] { ChatManager::instance().refresh(); });
 	button("clear", "Dock.Clear", [this] { clearWithUndo(); });
-	// The gear opens a menu: settings and the switches that do not deserve a button.
+	// The gear opens a menu (rebuilt every time, so the ticks are current): settings and the
+	// actions that do not deserve a button of their own.
 	QToolButton *gear = button("settings", "Dock.Settings", [] {});
 	auto *gearMenu = new QMenu(gear);
-	gearMenu->addAction(ui::T("Dock.Menu.Configure"), this, [this] { open_multichat_settings(this); });
-	QAction *testMessages = gearMenu->addAction(ui::T("Dock.Menu.TestMessages"));
-	testMessages->setCheckable(true);
-	testMessages->setChecked(ChatManager::instance().testMessages());
-	connect(testMessages, &QAction::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
-	connect(&ChatManager::instance(), &ChatManager::testMessagesChanged, testMessages, [testMessages](bool on) {
-		if (testMessages->isChecked() != on)
-			testMessages->setChecked(on);
+	connect(gearMenu, &QMenu::aboutToShow, this, [this, gearMenu] {
+		gearMenu->clear();
+		fillGearMenu(gearMenu);
 	});
 	gear->setMenu(gearMenu);
 	gear->setPopupMode(QToolButton::InstantPopup);
@@ -845,6 +841,27 @@ void ChatDock::applyTheme()
 				       .arg(tint(QColor(62, 207, 110), 0.25f)));
 	errors_->setStyleSheet(QStringLiteral("color: %1;").arg(ui::alertColor(window).name()));
 	updateState(ChatManager::instance().state());
+}
+
+void ChatDock::fillGearMenu(QMenu *menu)
+{
+	menu->addAction(ui::T("Dock.Menu.Configure"), this, [this] { open_multichat_settings(this); });
+	menu->addSeparator();
+	QAction *testMessages = menu->addAction(ui::T("Dock.Menu.TestMessages"));
+	testMessages->setCheckable(true);
+	testMessages->setChecked(ChatManager::instance().testMessages());
+	connect(testMessages, &QAction::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
+	QAction *time = menu->addAction(ui::T("Dock.Menu.ShowTime"));
+	time->setCheckable(true);
+	time->setChecked(timestamps_);
+	connect(time, &QAction::toggled, this, [this](bool on) { setShowTimestamps(on); });
+	QMenu *size = menu->addMenu(ui::T("Dock.Menu.TextSize"));
+	size->addAction(ui::T("Dock.Bigger"), this, [this] { changeFont(1); });
+	size->addAction(ui::T("Dock.Smaller"), this, [this] { changeFont(-1); });
+	menu->addAction(ui::T("Dock.Refresh"), this, [] { ChatManager::instance().refresh(); });
+	menu->addSeparator();
+	menu->addAction(ui::T("Dock.Menu.Wizard"), this, [this] { open_first_run_wizard(this); });
+	menu->addAction(ui::T("Dock.Menu.CheckUpdates"), this, [] { Updater::instance().check(true); });
 }
 
 void ChatDock::clearWithUndo()

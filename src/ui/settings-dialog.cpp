@@ -2,11 +2,13 @@
 
 #include "settings-dialog.hpp"
 #include "chat-dock.hpp"
+#include "first-run-wizard.hpp"
 #include "image-cache.hpp"
 #include "profile-cache.hpp"
 #include "ui-common.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
+#include "../updater.hpp"
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -380,9 +382,30 @@ public:
 		chatsPageLayout->addWidget(modeBox);
 		chatsPageLayout->addStretch(1);
 
-		auto *overlayHelp = new QLabel(ui::T("Settings.OverlayHelp"), this);
-		overlayHelp->setWordWrap(true);
-		root->addWidget(overlayHelp);
+		// Shortcuts that used to be Tools menu entries or a text telling where to click.
+		auto *actions = new QHBoxLayout();
+		auto *addSources = new QPushButton(ui::T("Settings.AddSources"), this);
+		addSources->setToolTip(ui::T("Settings.AddSources.Help"));
+		auto *wizard = new QPushButton(ui::T("Settings.Wizard"), this);
+		auto *updates = new QPushButton(ui::T("Settings.CheckUpdates"), this);
+		for (QPushButton *b : {addSources, wizard, updates})
+			b->setAutoDefault(false);
+		actions->addWidget(addSources);
+		actions->addWidget(wizard);
+		actions->addWidget(updates);
+		actions->addStretch(1);
+		root->addLayout(actions);
+		auto *addResult = new QLabel(this);
+		addResult->setWordWrap(true);
+		addResult->setTextFormat(Qt::PlainText);
+		addResult->hide();
+		root->addWidget(addResult);
+		connect(addSources, &QPushButton::clicked, this, [addResult] {
+			addResult->setText(ui::addMultichatSources(true, true, true).join('\n'));
+			addResult->show();
+		});
+		connect(wizard, &QPushButton::clicked, this, [this] { open_first_run_wizard(this); });
+		connect(updates, &QPushButton::clicked, this, [] { Updater::instance().check(true); });
 
 		auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
 		connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::close);

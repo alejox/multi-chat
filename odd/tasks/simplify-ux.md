@@ -74,7 +74,15 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - Checks: RED observado en `legacyKeysKeepTheirDefaults` (`chat: advanced` ausente tras añadir la clave al mapa de legado), GREEN tras el default; `test-overlay` 17, `test-chat` 70; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
   - Manual pendiente: abrir Propiedades de las 4 fuentes, ver solo lo esencial, activar la casilla y ver el resto; en horizontal `fade`/`max` ocultos dentro de Avanzado.
   - Commit anterior (T4): 51f22b3.
-- [ ] T6 Un menú, botones en Configurar, rueda del dock. Route: delegated (writer).
+- [x] T6 Un menú, botones en Configurar, rueda del dock. Route: delegated (writer).
+  - Herramientas: una sola entrada `Menu.Settings` = "Multichat…" (abre Configurar); fuera `Menu.Wizard` y `Update.MenuItem`.
+  - Configurar: en lugar del texto `Settings.OverlayHelp`, botones "Añadir fuentes a la escena" (chat + destacado + voz, solo los que falten, con el resultado debajo), "Asistente de inicio" y "Buscar actualizaciones".
+  - `addToCurrentScene` y compañía pasan del asistente a `ui-common` (`ui::editedSceneName`, `ui::addToCurrentScene`, `ui::addMultichatSources(chat, featured, voice)`); el asistente los reutiliza.
+  - Rueda del dock: menú reconstruido al abrirse (`fillGearMenu`): Configurar…, Mensajes de prueba ✓, Mostrar hora ✓, Tamaño del texto ▸ (más grande / más pequeño), Volver a detectar…, Asistente de inicio, Buscar actualizaciones. El botón "Volver a detectar" sale de la cabecera (`data/icons/refresh.svg` queda sin uso en código; se deja por si vuelve).
+  - Locales: nuevas `Dock.Menu.TextSize/Wizard/CheckUpdates`, `Settings.AddSources(.Help)/Wizard/CheckUpdates`; textos del asistente y README apuntan a "Herramientas → Multichat…" y a la rueda.
+  - Checks: sin lógica pura nueva (excepción RED/GREEN: solo UI/menús); `localeFilesHaveTheSameKeysAndNoOrphans` PASS tras quitar las 3 claves; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
+  - Manual pendiente: Herramientas muestra solo "Multichat…"; los tres botones de Configurar funcionan; la rueda muestra las 7 entradas con las marcas correctas.
+  - Commit anterior (T5): 2e8734c.
 - [ ] T7 Asistente: plataforma detectada, un botón, muestra el dock. Route: delegated (writer).
 - [ ] T7b Voz: modo de aviso sonoro (`read` | `sound` | `both`), WAV propio y antiinundación. Route: delegated (writer).
 - [ ] T8 README, compilación e instalación local. Route: delegated (writer).

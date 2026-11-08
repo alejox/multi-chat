@@ -212,13 +212,9 @@ bool obs_module_load(void)
 
 	auto *main_window = static_cast<QMainWindow *>(obs_frontend_get_main_window());
 	obs_frontend_add_dock_by_id("multichat_dock", obs_module_text("Dock.Title"), new ChatDock(main_window));
+	// One entry: the settings window holds the assistant, the update check and "add sources".
 	obs_frontend_add_tools_menu_item(
 		obs_module_text("Menu.Settings"), [](void *) { open_multichat_settings_from_source(); }, nullptr);
-	obs_frontend_add_tools_menu_item(
-		obs_module_text("Menu.Wizard"),
-		[](void *) { open_first_run_wizard(static_cast<QWidget *>(obs_frontend_get_main_window())); }, nullptr);
-	obs_frontend_add_tools_menu_item(
-		obs_module_text("Update.MenuItem"), [](void *) { Updater::instance().check(true); }, nullptr);
 	obs_frontend_add_event_callback(on_frontend_event, nullptr);
 	obs_frontend_add_save_callback(on_frontend_save, nullptr);
 	registerHotkeys();
