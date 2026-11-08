@@ -44,8 +44,13 @@ target_sources(
     src/i18n.hpp
     src/overlay-presets.cpp
     src/overlay-presets.hpp
-    src/overlay-source.cpp
-    src/overlay-source.hpp
+    src/overlay/config.cpp
+    src/overlay/overlay-source.hpp
+    src/overlay/properties.cpp
+    src/overlay/source-internal.hpp
+    src/overlay/source.cpp
+    src/overlay/viewers-layout.cpp
+    src/overlay/wiring.cpp
     src/platforms-registry.hpp
     src/updater.cpp
     src/updater.hpp

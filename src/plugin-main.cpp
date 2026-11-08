@@ -27,7 +27,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include "chat-manager.hpp"
 #include "i18n.hpp"
-#include "overlay-source.hpp"
+#include "overlay/overlay-source.hpp"
 #include "ui/chat-dock.hpp"
 #include "ui/first-run-wizard.hpp"
 #include "ui/image-cache.hpp"
