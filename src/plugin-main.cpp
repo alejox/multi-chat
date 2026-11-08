@@ -45,13 +45,30 @@ namespace {
 obs_hotkey_id clearFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
 obs_hotkey_id reshowFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
 
-// Las teclas elegidas se guardan junto a la configuración del plugin, no en la colección de escenas.
-QString hotkeysPath()
+QString configPath(const char *file)
 {
-	char *path = obs_module_config_path("hotkeys.json");
+	char *path = obs_module_config_path(file);
 	QString out = QString::fromUtf8(path);
 	bfree(path);
 	return out;
+}
+
+// The chat manager talks to OBS only through these: config.json, the locale and the log.
+ChatManager::Environment managerEnvironment()
+{
+	ChatManager::Environment env;
+	env.store = ConfigStore(configPath("config.json"));
+	env.translate = [](const QString &key) { return QString::fromUtf8(obs_module_text(key.toUtf8().constData())); };
+	env.log = [](bool warning, const QString &line) {
+		obs_log(warning ? LOG_WARNING : LOG_INFO, "%s", line.toUtf8().constData());
+	};
+	return env;
+}
+
+// Las teclas elegidas se guardan junto a la configuración del plugin, no en la colección de escenas.
+QString hotkeysPath()
+{
+	return configPath("hotkeys.json");
 }
 
 // OBS llama a los atajos desde su hilo de atajos: el destacado vive en el hilo de la interfaz.
@@ -193,6 +210,7 @@ void open_multichat_settings_from_source()
 
 bool obs_module_load(void)
 {
+	ChatManager::install(managerEnvironment());
 	ChatManager::instance().load();
 	register_overlay_source();
 	register_voice_source();

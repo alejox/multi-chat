@@ -6,6 +6,7 @@
 
 #include "chat/message.hpp"
 #include "chat/platforms.hpp"
+#include "config-store.hpp"
 
 #include <QHash>
 #include <QJsonArray>
@@ -15,6 +16,7 @@
 #include <QThreadPool>
 #include <QTimer>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -36,6 +38,28 @@ public:
 		bool checking = false;
 	};
 
+	// Everything the manager needs from outside: OBS in the plugin (see plugin-main.cpp), fakes in
+	// tests. Empty hooks fall back to the defaults noted on each one.
+	struct Environment {
+		ConfigStore store;          // config.json; an empty path loads nothing and cannot save
+		chat::Translator translate; // locale lookup (returns the key when missing); empty = English
+		// One log line; warning = true for problems. Empty = no logging.
+		std::function<void(bool warning, const QString &line)> log;
+		// Empty = chat::createConnector.
+		std::function<std::shared_ptr<chat::Connector>(const chat::SourceInfo &, chat::Connector::PostFn,
+								 chat::Connector::ReportFn)>
+			createConnector;
+		// Runs on a worker thread. Empty = chat::checkLive.
+		std::function<chat::LiveResult(const chat::SourceInfo &)> checkLive;
+		// Milliseconds since the epoch. Empty = the system clock.
+		std::function<qint64()> clock;
+	};
+
+	explicit ChatManager(Environment environment);
+
+	// The plugin's manager. install() builds it with the given environment the first time; instance()
+	// builds it with an empty one if nothing was installed yet.
+	static void install(Environment environment);
 	static ChatManager &instance();
 
 	void load();
@@ -112,7 +136,9 @@ signals:
 	void featuredChanged(const QJsonObject &message);
 
 private:
-	ChatManager();
+	qint64 now() const;
+	QString text(const QString &key) const;
+	void log(bool warning, const QString &line) const;
 	void tick();
 	bool wants(const Source &s) const;
 	void connectSource(Source &s);
@@ -124,6 +150,7 @@ private:
 	void armFeaturedTimer();
 	Source *find(const QString &key, quint64 generation);
 
+	Environment env_;
 	QList<chat::ChatEntry> chats_;
 	QJsonObject config_; // as loaded: keys this version does not know are written back untouched
 	QStringList errors_;

@@ -1,13 +1,6 @@
 #include "chat-manager.hpp"
 
-#include <obs-module.h>
-#include <plugin-support.h>
-
 #include <QDateTime>
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QJsonDocument>
 #include <QPointer>
 
 #include <algorithm>
@@ -19,42 +12,40 @@ constexpr int kHistory = 200;
 // Servicios de OBS que ya indican multistream (transmiten a varias plataformas a la vez).
 const char *const kMultiServices[] = {"restream", "castr", "streamyard", "multistream", "prism"};
 
-// Locale lookup for chat::translate(): obs_module_text returns the key when it is missing, and
-// translate() then falls back to English.
-QString moduleText(const QString &key)
-{
-	return QString::fromUtf8(obs_module_text(key.toUtf8().constData()));
-}
-
-qint64 nowMs()
-{
-	return QDateTime::currentMSecsSinceEpoch();
-}
-
-QString configPath()
-{
-	char *path = obs_module_config_path("config.json");
-	QString out = QString::fromUtf8(path);
-	bfree(path);
-	return out;
-}
-
 int platformOrder(const QString &p)
 {
 	static const QStringList order = {"twitch", "youtube", "kick", "tiktok", "starvios", "demo"};
 	return int(order.indexOf(p));
 }
 
+ChatManager *gInstance = nullptr; // vive hasta que OBS cierra
+
 } // namespace
+
+void ChatManager::install(Environment environment)
+{
+	if (!gInstance)
+		gInstance = new ChatManager(std::move(environment));
+}
 
 ChatManager &ChatManager::instance()
 {
-	static ChatManager *manager = new ChatManager(); // vive hasta que OBS cierra
-	return *manager;
+	if (!gInstance)
+		gInstance = new ChatManager(Environment{});
+	return *gInstance;
 }
 
-ChatManager::ChatManager()
+ChatManager::ChatManager(Environment environment) : env_(std::move(environment))
 {
+	if (!env_.createConnector)
+		env_.createConnector = [](const chat::SourceInfo &source, chat::Connector::PostFn post,
+					  chat::Connector::ReportFn report) {
+			return chat::createConnector(source, std::move(post), std::move(report));
+		};
+	if (!env_.checkLive)
+		env_.checkLive = [](const chat::SourceInfo &source) { return chat::checkLive(source); };
+	if (!env_.clock)
+		env_.clock = [] { return QDateTime::currentMSecsSinceEpoch(); };
 	pool_.setMaxThreadCount(4);
 	timer_.setInterval(2000);
 	connect(&timer_, &QTimer::timeout, this, &ChatManager::tick);
@@ -63,12 +54,26 @@ ChatManager::ChatManager()
 	connect(&featuredTimer_, &QTimer::timeout, this, &ChatManager::clearFeatured);
 }
 
+qint64 ChatManager::now() const
+{
+	return env_.clock();
+}
+
+// Locale lookup: the translator returns the key when it is missing (as obs_module_text does).
+QString ChatManager::text(const QString &key) const
+{
+	return env_.translate ? env_.translate(key) : key;
+}
+
+void ChatManager::log(bool warning, const QString &line) const
+{
+	if (env_.log)
+		env_.log(warning, line);
+}
+
 void ChatManager::load()
 {
-	QFile file(configPath());
-	QJsonObject cfg;
-	if (file.open(QIODevice::ReadOnly))
-		cfg = QJsonDocument::fromJson(file.readAll()).object();
+	const QJsonObject cfg = env_.store.load();
 	config_ = cfg;
 	filters_ = chat::FilterRules::fromJson(cfg.value("filters").toObject());
 	demo_ = chat::testMessagesEnabled(cfg);
@@ -77,17 +82,12 @@ void ChatManager::load()
 
 void ChatManager::save() const
 {
-	const QString path = configPath();
-	QDir().mkpath(QFileInfo(path).absolutePath());
 	QJsonObject cfg = config_;
 	chat::chatEntriesToJson(chats_, cfg);
 	cfg.insert("mode", mode_ == Mode::Always ? "always" : "auto");
 	cfg.insert("filters", filters_.toJson());
-	QFile file(path);
-	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
-		file.write(QJsonDocument(cfg).toJson());
-	else
-		obs_log(LOG_WARNING, "could not save %s", path.toUtf8().constData());
+	if (!env_.store.save(cfg))
+		log(true, QString("could not save %1").arg(env_.store.path()));
 }
 
 void ChatManager::setWizardShown()
@@ -115,7 +115,7 @@ void ChatManager::adoptLegacyPreview(bool legacyPreview)
 		this,
 		[this, legacyPreview] {
 			if (chat::adoptLegacyPreview(config_, legacyPreview)) {
-				obs_log(LOG_INFO, "test messages turned on: a source had its sample messages enabled");
+				log(false, "test messages turned on: a source had its sample messages enabled");
 				demo_ = true;
 				configure(chats_, mode_);
 				save();
@@ -138,7 +138,7 @@ QStringList ChatManager::configure(const QList<chat::ChatEntry> &chats, Mode mod
 	const std::vector<chat::SourceInfo> &wanted = plan.sources;
 	QStringList errors;
 	for (const chat::EntryProblem &p : plan.errors)
-		errors << QString::fromUtf8(obs_module_text(chat::entryErrorKey(p.code))).arg(p.arg);
+		errors << text(QString::fromUtf8(chat::entryErrorKey(p.code))).arg(p.arg);
 
 	// Quita los que ya no están y añade los nuevos; los que siguen no se tocan.
 	for (auto it = sources_.begin(); it != sources_.end();) {
@@ -181,7 +181,7 @@ void ChatManager::setStreaming(bool active, const QString &service)
 	if (active) {
 		// Las plataformas tardan en marcar el canal como en vivo: durante 3 minutos
 		// lo comprobamos cada 15 s en lugar de cada minuto.
-		boostUntil_ = nowMs() + 180000;
+		boostUntil_ = now() + 180000;
 		for (auto &s : sources_)
 			s->nextCheck = 0;
 	}
@@ -277,7 +277,7 @@ void ChatManager::feature(const QJsonObject &message)
 	}
 	featured_ = message;
 	lastFeatured_ = message;
-	featuredAt_ = nowMs();
+	featuredAt_ = now();
 	armFeaturedTimer();
 	emit featuredChanged(featured_);
 }
@@ -288,7 +288,7 @@ void ChatManager::clearFeatured()
 	if (featured_.isEmpty())
 		return;
 	featured_ = QJsonObject();
-	featuredAt_ = nowMs();
+	featuredAt_ = now();
 	emit featuredChanged(featured_);
 }
 
@@ -302,7 +302,7 @@ void ChatManager::armFeaturedTimer()
 	const int duration = chat::featuredDurationMs(chat::featuredTextLength(featured_), featuredPolicies_.values());
 	if (duration < 0)
 		return;
-	const qint64 remaining = featuredAt_ + duration - nowMs();
+	const qint64 remaining = featuredAt_ + duration - now();
 	if (remaining <= 0)
 		clearFeatured();
 	else
@@ -343,7 +343,7 @@ void ChatManager::receive(QJsonObject object)
 		applyDeletion(object);
 		return;
 	}
-	chat::localizeMessage(object, moduleText);
+	chat::localizeMessage(object, env_.translate);
 	if (chat::isFiltered(object, filters_))
 		return;
 	history_.append(object);
@@ -416,10 +416,9 @@ void ChatManager::connectSource(Source &s)
 					return;
 				if (Source *src = self->find(key, gen)) {
 					src->status = status;
-					src->detail = chat::translate(detail, moduleText).left(200);
+					src->detail = chat::translate(detail, self->env_.translate).left(200);
 					if (status == "error")
-						obs_log(LOG_INFO, "[%s] %s", key.toUtf8().constData(),
-							chat::translate(detail).toUtf8().constData());
+						self->log(false, QString("[%1] %2").arg(key, chat::translate(detail)));
 					self->publishState();
 				}
 			},
@@ -428,7 +427,7 @@ void ChatManager::connectSource(Source &s)
 
 	s.status = "connecting";
 	s.detail.clear();
-	s.connector = chat::createConnector(s.info, post, report);
+	s.connector = env_.createConnector(s.info, post, report);
 	s.connector->start();
 }
 
@@ -460,18 +459,19 @@ void ChatManager::tick()
 {
 	if (shutdown_)
 		return;
-	const qint64 now = nowMs();
+	const qint64 t = now();
 	QPointer<ChatManager> self(this);
 
 	for (auto &sp : sources_) {
 		Source &s = *sp;
-		if (!s.checking && now >= s.nextCheck) {
+		if (!s.checking && t >= s.nextCheck) {
 			// En vivo se consulta cada 30 s para tener los espectadores al día.
 			s.checking = true;
-			s.nextCheck = now + (now < boostUntil_ ? 15000 : s.live == 1 ? 30000 : 60000);
+			s.nextCheck = t + (t < boostUntil_ ? 15000 : s.live == 1 ? 30000 : 60000);
 			const chat::SourceInfo info = s.info;
-			pool_.start([self, info] {
-				chat::LiveResult r = chat::checkLive(info);
+			const auto checkLive = env_.checkLive;
+			pool_.start([self, info, checkLive] {
+				chat::LiveResult r = checkLive(info);
 				QMetaObject::invokeMethod(
 					self,
 					[self, info, r] {
