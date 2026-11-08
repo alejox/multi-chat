@@ -41,7 +41,9 @@ Voice becomes a plugin setting, not a source the user manages: a "Voice" tab in 
 - [x] T3 Voice tab, wizard, Add sources, locales, README. Route: delegated (writer). Commit 2a6653b.
   - `SettingsDialog::buildVoice`: checkbox (applies at once), mode, sound file + Browse, cooldown, voice, rate slider, max chars, read author, per-platform toggles (FlowLayout), Skip (`voice_skip_current`), help pointing to Filters and the OBS mixer; other changes saved after 400 ms (flushed on close); reloads when the setting changes elsewhere. Wizard: voice source checkbox replaced by "Read chat aloud" (sets the global setting); `ui::addMultichatSources(chat, featured)` no longer adds voice. Locales en-US/es-ES (new: Settings.Tab.Voice, Voice.Note, Voice.Browse, Voice.SoundFile.Placeholder, Voice.OutputNote, Voice.LegacyNote, Voice.OpenSettings; reworded wizard/add-sources texts). README voice section rewritten.
   - No automated UI test (Qt widgets + OBS); locale coverage test (test-chat) passes; macOS build 0 warnings.
-- [ ] T4 Tests, build, install. Route: delegated (writer) + parent spot check.
+- [x] T4 Tests, build, install. Route: delegated (writer) + parent spot check.
+  - Parent spot check: `ctest` 100% of 6; 0 AI attribution in bafcfa3..HEAD; installed RelWithDebInfo build (2026-11-08 10:53) with `ditto`, `codesign -v` OK, OBS closed.
+  - Pending (manual): OBS checklist (migration, mixer strip with Monitor and Output, persistence across restart, untick, scene-collection switch, Filters words not read, wizard sync). Windows/Linux not compiled.
   - Writer: tests 6/6 suites (test-chat 71, test-tts 67, test-overlay 20, test-box-measure 9, test-manager 35, overlay-js 6); `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings (-Werror); README checked. Pending: install (parent, OBS closed), manual OBS check, Windows/Linux compile (CI).
 
 ## Next step
