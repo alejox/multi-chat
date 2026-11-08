@@ -1,6 +1,7 @@
 #include "first-run-wizard.hpp"
 #include "chat-dock.hpp"
 #include "settings-dialog.hpp"
+#include "channel-input.hpp"
 #include "ui-common.hpp"
 #include "../i18n.hpp"
 #include "../chat-manager.hpp"

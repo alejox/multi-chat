@@ -77,8 +77,16 @@ target_sources(
     src/tts/speech-text.hpp
     src/tts/voice-engine.cpp
     src/tts/voice-engine.hpp
+    src/ui/channel-input.cpp
+    src/ui/channel-input.hpp
     src/ui/chat-dock.cpp
     src/ui/chat-dock.hpp
+    src/ui/chat-list.cpp
+    src/ui/chat-list.hpp
+    src/ui/chat-view.cpp
+    src/ui/chat-view.hpp
+    src/ui/dock-prefs.cpp
+    src/ui/dock-prefs.hpp
     src/ui/first-run-wizard.cpp
     src/ui/first-run-wizard.hpp
     src/ui/flow-layout.cpp

@@ -68,7 +68,11 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
   - Movimiento puro comprobado línea a línea (multiconjunto de líneas: solo cambian includes, namespaces, declaraciones y comentarios de cabecera).
   - `hexColor` se queda: no es idéntica a `overlay::cssColor` (da `#rrggbb` y `cssColor` da `rgba(r, g, b, a)`, y las páginas lo pasan por `rgbTriplet`, que espera hexadecimal).
   - Checks: ctest 5/5 (sin cambios de expectativas); `cmake --preset macos` + build SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T7 Partir `chat-dock.cpp` y `settings-dialog.cpp`. Route: delegated (writer).
+- [x] T7 Partir `chat-dock.cpp` y `settings-dialog.cpp`. Route: delegated (writer). Previo: T6 `2b58d27`.
+  - `chat-dock.cpp` 1163 → `chat-view.{hpp,cpp}` 75+555, `chat-dock.cpp` 629, `dock-prefs.{hpp,cpp}` 14+33 (`ui::loadDockPrefs`/`ui::saveDockPrefs`, antes `loadPrefs`/`savePrefs` anónimas).
+  - `settings-dialog.cpp` 850 → `channel-input.{hpp,cpp}` 73+297 (con `ui::entryErrorText` y `ui::chatAvatar`), `chat-list.{hpp,cpp}` 15+10, `settings-dialog.cpp` 580; `settings-dialog.hpp` queda solo con `open_multichat_settings`. `first-run-wizard.cpp` incluye `channel-input.hpp`.
+  - Movimiento puro comprobado línea a línea (solo cambian includes, cabeceras, los nombres de las preferencias del dock y `ChatList::dropEvent` fuera de la clase).
+  - Checks: ctest 5/5; `cmake --preset macos` + build SUCCEEDED, 0 errores, 0 warnings.
 - [ ] T8 Compilación, pruebas, instalación y README. Route: delegated (writer).
 
 ## Progress
