@@ -15,6 +15,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <vector>
+
 namespace chat {
 
 // Estado en vivo: 1 en vivo, 0 offline, -1 no se sabe.
@@ -38,9 +40,51 @@ Profile fetchProfile(const SourceInfo &source);
 std::shared_ptr<Connector> createConnector(const SourceInfo &source, Connector::PostFn post,
 					   Connector::ReportFn report);
 
+// Why an entry is not valid. The UI translates it with entryErrorKey(); `arg` in parseEntry is the
+// offending text (the whole entry, the platform word or the user name).
+enum class EntryError { None, Empty, Format, Platform, TikTokUser, StarviosUser, YouTubeUrl, StarviosUrl };
+// "Entry.Error.<Name>" in data/locale; nullptr for None. The text has a %1 for `arg`.
+const char *entryErrorKey(EntryError error);
+
 // Interpreta "twitch:canal", "youtube:@canal", "kick:canal", "tiktok:@usuario", "starvios:usuario", "demo:demo" o una URL.
 // Devuelve false y rellena `error` si no es válida.
+bool parseEntry(const QString &entry, SourceInfo &out, EntryError &error, QString &arg);
+// Same, with an untranslated English explanation (logs and tests).
 bool parseEntry(const QString &entry, SourceInfo &out, QString &error);
+
+// Text typed in the settings dialog as an entry: kept as is when it is a URL or starts with a
+// platform word and ":", otherwise prefixed with `platform`. Empty for blank text.
+QString entryFromInput(const QString &text, const QString &platform);
+// The test chat ("demo:demo", added by the "test messages" option).
+inline bool isDemo(const SourceInfo &source)
+{
+	return source.platform == QLatin1String("demo");
+}
+
+// A configured chat. Paused chats (enabled = false) stay in the list but are not connected.
+struct ChatEntry {
+	QString entry;
+	bool enabled = true;
+	bool operator==(const ChatEntry &other) const { return entry == other.entry && enabled == other.enabled; }
+	bool operator!=(const ChatEntry &other) const { return !(*this == other); }
+};
+// config.json: "chats" holds the entries in the user's order (strings, as earlier versions wrote
+// them; objects {"entry", "enabled"} are also read) and "disabled" the paused ones. Missing
+// "enabled" means enabled. Writing only touches those two keys, and drops "disabled" when empty.
+QList<ChatEntry> chatEntriesFromJson(const QJsonObject &config);
+void chatEntriesToJson(const QList<ChatEntry> &entries, QJsonObject &config);
+
+struct EntryProblem {
+	EntryError code = EntryError::None;
+	QString arg;
+};
+// The chats to connect: enabled, valid, without repeats, in the user's order, with the test chat
+// last when `demo`. `errors` lists the invalid entries (paused ones included).
+struct SourcePlan {
+	std::vector<SourceInfo> sources;
+	QList<EntryProblem> errors;
+};
+SourcePlan planSources(const QList<ChatEntry> &entries, bool demo);
 
 namespace twitch {
 struct IrcMessage {

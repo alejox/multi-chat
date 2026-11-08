@@ -1233,6 +1233,127 @@ private slots:
 			QVERIFY2(!parseEntry(bad, s, error), bad);
 	}
 
+	// Validation reports a code (translated by the UI) plus the offending text.
+	void entryErrorCodes()
+	{
+		auto code = [](const QString &text, QString *arg = nullptr) {
+			SourceInfo s;
+			EntryError error = EntryError::None;
+			QString detail;
+			parseEntry(text, s, error, detail);
+			if (arg)
+				*arg = detail;
+			return error;
+		};
+		QCOMPARE(code("twitch:ok"), EntryError::None);
+		QCOMPARE(code("   "), EntryError::Empty);
+		QString arg;
+		QCOMPARE(code("canal", &arg), EntryError::Format);
+		QCOMPARE(arg, QString("canal"));
+		QCOMPARE(code("twitch:"), EntryError::Format);
+		QCOMPARE(code("facebook:x", &arg), EntryError::Platform);
+		QCOMPARE(arg, QString("facebook"));
+		QCOMPARE(code("tiktok:mal nombre", &arg), EntryError::TikTokUser);
+		QCOMPARE(arg, QString("mal nombre"));
+		QCOMPARE(code("starvios:ab"), EntryError::StarviosUser);
+		QCOMPARE(code("https://www.youtube.com/feed"), EntryError::YouTubeUrl);
+		QCOMPARE(code("https://starvios.com/clip/abc"), EntryError::StarviosUrl);
+		// Every error has its own translation key.
+		QSet<QString> keys;
+		for (EntryError e : {EntryError::Empty, EntryError::Format, EntryError::Platform, EntryError::TikTokUser,
+				     EntryError::StarviosUser, EntryError::YouTubeUrl, EntryError::StarviosUrl}) {
+			const QString key = QString::fromLatin1(entryErrorKey(e));
+			QVERIFY(key.startsWith("Entry.Error."));
+			keys.insert(key);
+		}
+		QCOMPARE(keys.size(), 7);
+		QVERIFY(entryErrorKey(EntryError::None) == nullptr);
+		// The text overload still explains the problem (logs, tests).
+		SourceInfo s;
+		QString text;
+		QVERIFY(!parseEntry("facebook:x", s, text));
+		QVERIFY(text.contains("facebook"));
+	}
+
+	// What the user typed in the settings dialog: a platform prefix or URL is kept, anything else
+	// belongs to the platform picked in the list. Only known platform names count as a prefix.
+	void entryFromInputText()
+	{
+		QCOMPARE(entryFromInput("micanal", "twitch"), QString("twitch:micanal"));
+		QCOMPARE(entryFromInput("  @canal ", "youtube"), QString("youtube:@canal"));
+		QCOMPARE(entryFromInput("kick:otro", "twitch"), QString("kick:otro"));
+		QCOMPARE(entryFromInput("YT:@canal", "twitch"), QString("YT:@canal"));
+		QCOMPARE(entryFromInput("demo:demo", "twitch"), QString("demo:demo"));
+		QCOMPARE(entryFromInput("https://kick.com/canal", "twitch"), QString("https://kick.com/canal"));
+		QCOMPARE(entryFromInput("twitch.tv/canal", "kick"), QString("twitch.tv/canal"));
+		QCOMPARE(entryFromInput("youtu.be/dQw4w9WgXcQ", "kick"), QString("youtu.be/dQw4w9WgXcQ"));
+		QCOMPARE(entryFromInput("www.starvios.com/ana_test", "kick"), QString("www.starvios.com/ana_test"));
+		// Kick's manual chat id is not a prefix.
+		QCOMPARE(entryFromInput("canal#123", "kick"), QString("kick:canal#123"));
+		// An unknown word before ":" is still an explicit platform, so the user hears it is unsupported.
+		QCOMPARE(entryFromInput("facebook:x", "twitch"), QString("facebook:x"));
+		QCOMPARE(entryFromInput("", "twitch"), QString());
+		QVERIFY(isDemo(entry("demo:demo")));
+		QVERIFY(!isDemo(entry("twitch:demo")));
+	}
+
+	// config.json: "chats" keeps the user's order; paused chats are listed in "disabled".
+	void chatConfigCompat()
+	{
+		// A config written by earlier versions loads as before: every chat enabled, same order.
+		const QJsonObject old = QJsonDocument::fromJson(
+			"{\"chats\":[\"twitch:uno\",\"https://kick.com/dos\",\"youtube:@tres\"],\"mode\":\"always\","
+			"\"filters\":{\"hiddenUsers\":[\"Nightbot\"]}}").object();
+		const QList<ChatEntry> loaded = chatEntriesFromJson(old);
+		QCOMPARE(loaded.size(), 3);
+		QCOMPARE(loaded[0].entry, QString("twitch:uno"));
+		QCOMPARE(loaded[1].entry, QString("https://kick.com/dos"));
+		QCOMPARE(loaded[2].entry, QString("youtube:@tres"));
+		for (const ChatEntry &e : loaded)
+			QVERIFY(e.enabled);
+		// Writing it back without changes produces the same keys: no "disabled" list appears.
+		QJsonObject same = old;
+		chatEntriesToJson(loaded, same);
+		QCOMPARE(same, old);
+
+		// Objects without "enabled" count as enabled; blanks are dropped.
+		const QJsonObject objects = QJsonDocument::fromJson(
+			"{\"chats\":[{\"entry\":\"twitch:a\"},{\"entry\":\"kick:b\",\"enabled\":false},\"  \",\"\"]}")
+						    .object();
+		const QList<ChatEntry> fromObjects = chatEntriesFromJson(objects);
+		QCOMPARE(fromObjects.size(), 2);
+		QVERIFY(fromObjects[0].enabled);
+		QVERIFY(!fromObjects[1].enabled);
+
+		// Round trip keeps order and the paused ones, and other keys stay untouched.
+		const QList<ChatEntry> list{{"kick:b", true}, {"twitch:a", false}, {"youtube:@c", true}};
+		QJsonObject cfg{{"mode", "auto"}, {"wizardShown", true}};
+		chatEntriesToJson(list, cfg);
+		QCOMPARE(cfg.value("chats").toArray(), (QJsonArray{"kick:b", "twitch:a", "youtube:@c"}));
+		QCOMPARE(cfg.value("disabled").toArray(), (QJsonArray{"twitch:a"}));
+		QCOMPARE(cfg.value("wizardShown").toBool(), true);
+		QCOMPARE(chatEntriesFromJson(cfg), list);
+		// Enabling it again removes the list.
+		chatEntriesToJson({{"kick:b", true}}, cfg);
+		QVERIFY(!cfg.contains("disabled"));
+	}
+
+	// Which sources ChatManager connects, in the order the user chose; demo goes last.
+	void sourcePlan()
+	{
+		const QList<ChatEntry> list{{"youtube:@c", true}, {"twitch:a", true}, {"kick:b", false},
+					    {"twitch:A", true}, {"facebook:x", true}};
+		const SourcePlan plan = planSources(list, true);
+		QStringList keys;
+		for (const SourceInfo &s : plan.sources)
+			keys << s.key;
+		QCOMPARE(keys, (QStringList{"youtube:@c", "twitch:a", "demo:demo"}));
+		QCOMPARE(plan.errors.size(), 1);
+		QCOMPARE(plan.errors[0].code, EntryError::Platform);
+		QCOMPARE(plan.errors[0].arg, QString("facebook"));
+		QCOMPARE(planSources({}, false).sources.size(), size_t(0));
+	}
+
 	void twitchMessage()
 	{
 		const QString line = "@badge-info=subscriber/8;badges=broadcaster/1,subscriber/6;color=#0D4200;"

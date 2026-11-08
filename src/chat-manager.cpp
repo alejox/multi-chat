@@ -59,20 +59,20 @@ void ChatManager::load()
 	QJsonObject cfg;
 	if (file.open(QIODevice::ReadOnly))
 		cfg = QJsonDocument::fromJson(file.readAll()).object();
-	QStringList list;
-	for (const QJsonValue v : cfg.value("chats").toArray())
-		list << v.toString();
+	config_ = cfg;
 	filters_ = chat::FilterRules::fromJson(cfg.value("filters").toObject());
-	configure(list, cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto, false);
+	configure(chat::chatEntriesFromJson(cfg), cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto,
+		  false);
 }
 
 void ChatManager::save() const
 {
 	const QString path = configPath();
 	QDir().mkpath(QFileInfo(path).absolutePath());
-	QJsonObject cfg{{"chats", QJsonArray::fromStringList(entries_)},
-			{"mode", mode_ == Mode::Always ? "always" : "auto"},
-			{"filters", filters_.toJson()}};
+	QJsonObject cfg = config_;
+	chat::chatEntriesToJson(chats_, cfg);
+	cfg.insert("mode", mode_ == Mode::Always ? "always" : "auto");
+	cfg.insert("filters", filters_.toJson());
 	QFile file(path);
 	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
 		file.write(QJsonDocument(cfg).toJson());
@@ -80,30 +80,19 @@ void ChatManager::save() const
 		obs_log(LOG_WARNING, "no se pudo guardar %s", path.toUtf8().constData());
 }
 
-QStringList ChatManager::configure(const QStringList &entries, Mode mode, bool demo)
+QStringList ChatManager::configure(const QList<chat::ChatEntry> &chats, Mode mode, bool demo)
 {
-	std::vector<chat::SourceInfo> wanted;
-	QStringList cleanEntries, errors;
-	auto add = [&](const QString &entry) {
-		chat::SourceInfo info;
-		QString error;
-		if (!chat::parseEntry(entry, info, error)) {
-			errors << error;
-			return;
-		}
-		for (const auto &w : wanted)
-			if (w.key == info.key)
-				return;
-		wanted.push_back(info);
-	};
-	for (const QString &e : entries) {
-		if (e.trimmed().isEmpty())
-			continue;
-		cleanEntries << e.trimmed();
-		add(e);
+	QList<chat::ChatEntry> clean;
+	for (chat::ChatEntry e : chats) {
+		e.entry = e.entry.trimmed();
+		if (!e.entry.isEmpty())
+			clean << e;
 	}
-	if (demo)
-		add("demo:demo");
+	const chat::SourcePlan plan = chat::planSources(clean, demo);
+	const std::vector<chat::SourceInfo> &wanted = plan.sources;
+	QStringList errors;
+	for (const chat::EntryProblem &p : plan.errors)
+		errors << QString::fromUtf8(obs_module_text(chat::entryErrorKey(p.code))).arg(p.arg);
 
 	// Quita los que ya no están y añade los nuevos; los que siguen no se tocan.
 	for (auto it = sources_.begin(); it != sources_.end();) {
@@ -117,18 +106,22 @@ QStringList ChatManager::configure(const QStringList &entries, Mode mode, bool d
 			it = sources_.erase(it);
 		}
 	}
+	// Same order as the list (the dock shows its chips in this order).
+	std::vector<std::unique_ptr<Source>> ordered;
 	for (const auto &w : wanted) {
-		bool exists = false;
-		for (const auto &s : sources_)
-			exists = exists || s->info.key == w.key;
-		if (!exists) {
+		auto it = std::find_if(sources_.begin(), sources_.end(),
+				       [&w](const std::unique_ptr<Source> &s) { return s && s->info.key == w.key; });
+		if (it != sources_.end()) {
+			ordered.push_back(std::move(*it));
+		} else {
 			auto s = std::make_unique<Source>();
 			s->info = w;
-			sources_.push_back(std::move(s));
+			ordered.push_back(std::move(s));
 		}
 	}
+	sources_ = std::move(ordered);
 
-	entries_ = cleanEntries;
+	chats_ = clean;
 	errors_ = errors;
 	mode_ = mode;
 	demo_ = demo;
