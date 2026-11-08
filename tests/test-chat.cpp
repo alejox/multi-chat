@@ -1940,6 +1940,50 @@ private slots:
 			QVERIFY2(!es.value(it.key()).isEmpty(), qPrintable("es-ES.ini lacks: " + it.key()));
 		}
 	}
+
+	void releaseChecksums()
+	{
+		const QString macHash = "9a53e71b9c2e8624b2227f078982001a0fc1f2b06cffeb094720b82774380ebb";
+		const QJsonObject json = QJsonDocument::fromJson(
+			"{\"tag_name\":\"v2.0.2\",\"html_url\":\"https://github.com/r/releases/tag/v2.0.2\",\"assets\":["
+			"{\"name\":\"obs-multichat-2.0.2-macos.zip\",\"browser_download_url\":\"https://d/mac.zip\","
+			"\"digest\":\"SHA256:9A53E71B9C2E8624B2227F078982001A0FC1F2B06CFFEB094720B82774380EBB\"},"
+			"{\"name\":\"obs-multichat-2.0.2-windows-x64.zip\",\"browser_download_url\":\"https://d/win.zip\","
+			"\"digest\":\"sha1:abc\"},"
+			"{\"name\":\"SHA256SUMS\",\"browser_download_url\":\"https://d/sums\"}]}").object();
+		const Release mac = parseLatestRelease(json, "-macos.zip");
+		QCOMPARE(mac.sha256, macHash);
+		QCOMPARE(mac.assetName, QString("obs-multichat-2.0.2-macos.zip"));
+		QCOMPARE(mac.sumsUrl, QString("https://d/sums"));
+		QVERIFY(parseLatestRelease(json, "-windows-x64.zip").sha256.isEmpty()); // not a SHA-256 digest
+
+		QCOMPARE(sha256FromDigest("sha256:" + macHash), macHash);
+		QVERIFY(sha256FromDigest("sha256:" + macHash.left(63)).isEmpty());
+		QVERIFY(sha256FromDigest("sha256:" + macHash.left(63) + "g").isEmpty());
+		QVERIFY(sha256FromDigest(macHash).isEmpty());
+
+		const QByteArray sums = "# comment\r\n"
+					"0000000000000000000000000000000000000000000000000000000000000000  other.zip\r\n"
+					"9A53E71B9C2E8624B2227F078982001A0FC1F2B06CFFEB094720B82774380EBB *obs-multichat-2.0.2-macos.zip\r\n"
+					"bad line obs-multichat-2.0.2-linux-x86_64.tar.gz\n";
+		QCOMPARE(sha256FromSums(sums, "obs-multichat-2.0.2-macos.zip"), macHash);
+		QVERIFY(sha256FromSums(sums, "obs-multichat-2.0.2-linux-x86_64.tar.gz").isEmpty());
+		QVERIFY(sha256FromSums(sums, "macos.zip").isEmpty()); // whole names only
+		QVERIFY(sha256FromSums("", "x").isEmpty());
+
+		const QString abc = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+		QVERIFY(verifySha256(QByteArray("abc"), abc));
+		QVERIFY(verifySha256(QByteArray("abc"), abc.toUpper()));
+		QVERIFY(!verifySha256(QByteArray("abd"), abc));
+		QVERIFY(!verifySha256(QByteArray("abc"), QString()));
+
+		QTemporaryFile file;
+		QVERIFY(file.open());
+		file.write("abc");
+		file.flush();
+		QCOMPARE(sha256OfFile(file.fileName()), abc);
+		QVERIFY(sha256OfFile(file.fileName() + ".missing").isEmpty());
+	}
 };
 
 QTEST_GUILESS_MAIN(ChatTest)

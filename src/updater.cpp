@@ -178,7 +178,7 @@ int runElevated(const QString &program, const QString &params, QString *problem)
 	if (!ShellExecuteExW(&info) || !info.hProcess) {
 		const DWORD error = GetLastError();
 		*problem = error == ERROR_CANCELLED ? text("Update.Cancelled")
-						    : QString("No se pudo pedir permiso de administrador (error %1).").arg(error);
+						    : text("Update.Problem.Elevate").arg(QString::number(error));
 		return -1;
 	}
 	WaitForSingleObject(info.hProcess, 180000);
@@ -229,24 +229,23 @@ bool installWindows(const QString &extracted, QString *problem)
 	const QString dll = QDir(extracted).filePath("obs-multichat/obs-multichat.dll");
 	const QString data = QDir(extracted).filePath("obs-multichat/data");
 	if (target.isEmpty()) {
-		*problem = "No se encontró la carpeta ProgramData.";
+		*problem = text("Update.Problem.ProgramData");
 		return false;
 	}
 	if (!QFileInfo::exists(dll) || !QFileInfo(data).isDir()) {
-		*problem = "El zip no trae la carpeta obs-multichat.";
+		*problem = text("Update.Problem.ZipNoFolder");
 		return false;
 	}
 	const Location from = location();
 	if (from == Location::Other) {
-		*problem = QString("El plugin no está en una carpeta de plugins de OBS: %1")
-				   .arg(QDir::toNativeSeparators(moduleBinary()));
+		*problem = text("Update.Problem.NotInPlugins").arg(QDir::toNativeSeparators(moduleBinary()));
 		return false;
 	}
 
 	const QString script = QDir(workDir()).filePath("instalar.ps1");
 	QFile scriptFile(script);
 	if (!scriptFile.open(QIODevice::WriteOnly) || scriptFile.write(kInstallScript) < 0) {
-		*problem = QString("No se pudo escribir %1").arg(QDir::toNativeSeparators(script));
+		*problem = text("Update.Problem.Write").arg(QDir::toNativeSeparators(script));
 		return false;
 	}
 	scriptFile.close();
@@ -270,9 +269,7 @@ bool installWindows(const QString &extracted, QString *problem)
 
 	const int code = runElevated("powershell.exe", params, problem);
 	if (code > 0)
-		*problem = QString("No se pudo copiar el plugin a %1 (código %2).")
-				   .arg(QDir::toNativeSeparators(target))
-				   .arg(code);
+		*problem = text("Update.Problem.CopyTo").arg(QDir::toNativeSeparators(target), QString::number(code));
 	return code == 0;
 }
 #endif
@@ -289,12 +286,12 @@ bool copyTree(const QString &from, const QString &to, QString *problem)
 		QDir().mkpath(QFileInfo(target).absolutePath());
 		QFile existing(target);
 		if (existing.exists() && !existing.remove()) {
-			*problem = QString("No se pudo reemplazar %1: %2").arg(target, existing.errorString());
+			*problem = text("Update.Problem.Replace").arg(target, existing.errorString());
 			return false;
 		}
 		QFile copy(file);
 		if (!copy.copy(target)) {
-			*problem = QString("No se pudo copiar %1: %2").arg(target, copy.errorString());
+			*problem = text("Update.Problem.Copy").arg(target, copy.errorString());
 			return false;
 		}
 	}
@@ -318,17 +315,17 @@ bool installMac(const QString &extracted, QString *problem)
 	const QString root = bundleRoot();
 	const QString fresh = QDir(extracted).filePath("obs-multichat.plugin");
 	if (QFileInfo(root).fileName() != "obs-multichat.plugin") {
-		*problem = QString("El plugin no está en su propia carpeta: %1").arg(root);
+		*problem = text("Update.Problem.OwnFolder").arg(root);
 		return false;
 	}
 	if (!QFileInfo(fresh).isDir()) {
-		*problem = "El zip no trae obs-multichat.plugin.";
+		*problem = text("Update.Problem.ZipNoBundle");
 		return false;
 	}
 	const QString backup = root + ".old";
 	QDir(backup).removeRecursively();
 	if (!QDir().rename(root, backup)) {
-		*problem = QString("No se pudo mover %1").arg(root);
+		*problem = text("Update.Problem.Move").arg(root);
 		return false;
 	}
 	if (!QDir().rename(fresh, root) && !copyTree(fresh, root, problem)) {
@@ -354,25 +351,25 @@ bool installLinux(const QString &extracted, QString *problem)
 	const bool userFolder = root.dirName() == "64bit" && root.cdUp() && root.dirName() == "bin" && root.cdUp() &&
 				root.dirName() == "obs-multichat";
 	if (!userFolder || !QFileInfo(root.absolutePath()).isWritable()) {
-		*problem = QString("El plugin no está en ~/.config/obs-studio/plugins/obs-multichat: %1").arg(binary);
+		*problem = text("Update.Problem.NotInLinux").arg(binary);
 		return false;
 	}
 	const QString fresh = QDir(extracted).filePath("obs-multichat");
 	const QString freshSo = fresh + "/bin/64bit/obs-multichat.so";
 	if (!QFileInfo::exists(freshSo) || !QFileInfo(fresh + "/data").isDir()) {
-		*problem = "El archivo no trae la carpeta obs-multichat.";
+		*problem = text("Update.Problem.ArchiveNoFolder");
 		return false;
 	}
 	// rename() cambia el archivo de una vez: el .so cargado sigue en memoria hasta reiniciar OBS.
 	const QString temp = binary + ".new";
 	QFile::remove(temp);
 	if (!QFile::copy(freshSo, temp)) {
-		*problem = QString("No se pudo copiar %1").arg(temp);
+		*problem = text("Update.Problem.CopyFile").arg(temp);
 		return false;
 	}
 	if (std::rename(QFile::encodeName(temp).constData(), QFile::encodeName(binary).constData()) != 0) {
 		QFile::remove(temp);
-		*problem = QString("No se pudo reemplazar %1").arg(binary);
+		*problem = text("Update.Problem.ReplaceFile").arg(binary);
 		return false;
 	}
 	return copyTree(fresh + "/data", root.filePath("data"), problem);
@@ -419,7 +416,7 @@ void Updater::check(bool manual)
 		curl->deleteLater();
 		busy_ = false;
 		if (code != 0) {
-			obs_log(LOG_INFO, "no se pudo revisar si hay actualizaciones (curl %d)", code);
+			obs_log(LOG_INFO, "could not check for updates (curl %d)", code);
 			if (manual)
 				fail(text("Update.CheckFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
 			return;
@@ -447,7 +444,7 @@ void Updater::handleRelease(const QByteArray &json, bool manual)
 	const QString current = QString::fromLatin1(PLUGIN_VERSION);
 	if (release.version.isEmpty() || !release.url.endsWith(QLatin1String(kAssetSuffix))) {
 		if (manual)
-			fail(text("Update.CheckFailed"), QString("La Release no trae obs-multichat-…%1").arg(kAssetSuffix));
+			fail(text("Update.CheckFailed"), text("Update.Problem.NoAsset").arg(QString::fromLatin1(kAssetSuffix)));
 		return;
 	}
 	if (!chat::isNewerVersion(release.version, current)) {
@@ -455,7 +452,7 @@ void Updater::handleRelease(const QByteArray &json, bool manual)
 			QMessageBox::information(mainWindow(), text("Update.Title"), text("Update.UpToDate").arg(current));
 		return;
 	}
-	obs_log(LOG_INFO, "hay una versión nueva: %s", release.version.toUtf8().constData());
+	obs_log(LOG_INFO, "a new version is available: %s", release.version.toUtf8().constData());
 	available_ = release;
 	emit updateAvailable(release);
 	// Se pregunta una vez por sesión de OBS (el aviso del dock queda), salvo que se omitiera.
@@ -507,8 +504,7 @@ void Updater::download(const chat::Release &release)
 	progress_->show();
 
 	auto *curl = new QProcess(this);
-	const QString version = release.version;
-	connect(curl, &QProcess::finished, this, [this, curl, version, zip](int code, QProcess::ExitStatus) {
+	connect(curl, &QProcess::finished, this, [this, curl, release, zip](int code, QProcess::ExitStatus) {
 		const QString error = QString::fromUtf8(curl->readAllStandardError()).trimmed();
 		curl->deleteLater();
 		if (code != 0 || QFileInfo(zip).size() == 0) {
@@ -516,7 +512,7 @@ void Updater::download(const chat::Release &release)
 			fail(text("Update.DownloadFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
 			return;
 		}
-		install(version, zip);
+		verify(release, zip);
 	});
 	connect(curl, &QProcess::errorOccurred, this, [this, curl](QProcess::ProcessError error) {
 		if (error != QProcess::FailedToStart)
@@ -529,6 +525,64 @@ void Updater::download(const chat::Release &release)
 	QStringList args;
 	downloadCommand(release.url, zip, 300, false, &program, &args);
 	curl->start(program, args);
+}
+
+// The expected hash comes from the asset's "digest" in the GitHub API; releases without it fall
+// back to the SHA256SUMS file that release.yml publishes. Without either, nothing is installed.
+void Updater::verify(const chat::Release &release, const QString &zipPath)
+{
+	if (!release.sha256.isEmpty()) {
+		installIfMatches(release.version, zipPath, release.sha256);
+		return;
+	}
+	if (release.sumsUrl.isEmpty() || release.assetName.isEmpty()) {
+		busy_ = false;
+		fail(text("Update.NoChecksum"), text("Update.Problem.NoSums"));
+		return;
+	}
+	const QString sums = QDir(workDir()).filePath("SHA256SUMS");
+	auto *curl = new QProcess(this);
+	connect(curl, &QProcess::finished, this, [this, curl, release, zipPath, sums](int code, QProcess::ExitStatus) {
+		const QString error = QString::fromUtf8(curl->readAllStandardError()).trimmed();
+		curl->deleteLater();
+		QFile file(sums);
+		if (code != 0 || !file.open(QIODevice::ReadOnly)) {
+			busy_ = false;
+			fail(text("Update.NoChecksum"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
+			return;
+		}
+		installIfMatches(release.version, zipPath, chat::sha256FromSums(file.readAll(), release.assetName));
+	});
+	connect(curl, &QProcess::errorOccurred, this, [this, curl](QProcess::ProcessError error) {
+		if (error != QProcess::FailedToStart)
+			return;
+		curl->deleteLater();
+		busy_ = false;
+		fail(text("Update.NoChecksum"), curl->errorString());
+	});
+	QString program;
+	QStringList args;
+	downloadCommand(release.sumsUrl, sums, 30, false, &program, &args);
+	curl->start(program, args);
+}
+
+void Updater::installIfMatches(const QString &version, const QString &zipPath, const QString &expected)
+{
+	if (expected.isEmpty()) {
+		busy_ = false;
+		fail(text("Update.NoChecksum"), text("Update.Problem.NotListed"));
+		return;
+	}
+	const QString actual = chat::sha256OfFile(zipPath);
+	if (actual != expected) {
+		busy_ = false;
+		obs_log(LOG_WARNING, "update %s: SHA-256 mismatch (expected %s, got %s)", version.toUtf8().constData(),
+			expected.toUtf8().constData(), actual.toUtf8().constData());
+		fail(text("Update.VerifyFailed"), text("Update.Problem.Hash").arg(expected, actual));
+		return;
+	}
+	obs_log(LOG_INFO, "update %s: SHA-256 verified", version.toUtf8().constData());
+	install(version, zipPath);
 }
 
 void Updater::install(const QString &version, const QString &zipPath)
@@ -545,7 +599,7 @@ void Updater::install(const QString &version, const QString &zipPath)
 	QString problem;
 	bool ok = false;
 	if (unzip != 0) {
-		problem = QString("No se pudo descomprimir %1 (código %2)").arg(QDir::toNativeSeparators(zipPath)).arg(unzip);
+		problem = text("Update.Problem.Unzip").arg(QDir::toNativeSeparators(zipPath), QString::number(unzip));
 	} else {
 #if defined(_WIN32)
 		ok = installWindows(extracted, &problem);
@@ -562,11 +616,11 @@ void Updater::install(const QString &version, const QString &zipPath)
 		progress_ = nullptr;
 	}
 	if (!ok) {
-		obs_log(LOG_WARNING, "no se pudo instalar la versión %s", version.toUtf8().constData());
+		obs_log(LOG_WARNING, "could not install version %s", version.toUtf8().constData());
 		fail(text("Update.InstallFailed"), problem);
 		return;
 	}
-	obs_log(LOG_INFO, "versión %s instalada; se usa al reiniciar OBS", version.toUtf8().constData());
+	obs_log(LOG_INFO, "version %s installed; it is used after restarting OBS", version.toUtf8().constData());
 	QMessageBox::information(mainWindow(), text("Update.Title"), text("Update.Done").arg(version));
 }
 
@@ -574,7 +628,7 @@ void Updater::fail(const QString &message, const QString &detail)
 {
 	// El motivo va en el aviso y en el registro de OBS: sin él no se sabe qué falló.
 	if (!detail.isEmpty())
-		obs_log(LOG_WARNING, "actualización: %s", detail.toUtf8().constData());
+		obs_log(LOG_WARNING, "update: %s", detail.toUtf8().constData());
 	if (progress_) {
 		progress_->close();
 		progress_->deleteLater();
