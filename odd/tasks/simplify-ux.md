@@ -58,7 +58,15 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - Prueba nueva `localeFilesHaveTheSameKeysAndNoOrphans` (test-chat): mismo conjunto de claves en los dos .ini, ninguna vacía y cada clave usada en `src/` (literal completo, prefijo dinámico `"Status."` o raíz numérica `"Overlay.Sample"`); `tests/CMakeLists.txt` define `MULTICHAT_SRC_DIR`. RED observado: `locale key is not used by the plugin: Source.Opacity`; GREEN tras quitar las huérfanas.
   - Checks: `ctest` 3/3 (test-chat 69, test-tts 50, test-overlay 17).
   - Commit anterior (T2): 62f4eaf.
-- [ ] T4 Mensajes de prueba globales con migración. Route: delegated (writer).
+- [x] T4 Mensajes de prueba globales con migración. Route: delegated (writer).
+  - `ChatManager`: `testMessages()` / `setTestMessages(on)` (persistido como `testMessages` en config.json, señal `testMessagesChanged`), `configure(chats, mode)` ya no recibe `demo`; `adoptLegacyPreview(bool)` (encolado) aplica la migración. Lógica pura en `platforms.{hpp,cpp}`: `testMessagesEnabled(config)` (ausente = apagado) y `adoptLegacyPreview(config, legacyPreview)`.
+  - Fuentes: `overlay-source.cpp` manda `sample` en la config de cada página (atómico alimentado por la señal) y las de espectadores lo leen directo; `preview` desaparece de `readConfig` y de las Propiedades (chat, espectadores, destacado); `index.html` y `featured.html` leen `config.sample`.
+  - UI: rueda del dock → menú (Configurar…, Mensajes de prueba ✓); Configurar y el asistente usan el mismo interruptor y se sincronizan por la señal.
+  - Migración (decisión): el default de `preview` era `true`, así que "cualquier fuente con preview=true" sería todo el mundo y encendería el chat de prueba del dock (y la voz) a todos al actualizar. Se migra solo si alguna fuente tiene `preview` **guardado por el usuario** (`obs_data_has_user_value`) en `true` y nadie decidió aún (`testMessages` ausente). El valor por defecto `preview=true` sigue en la tabla (`overlay-presets.cpp`, comentado como legado) para no tocar `legacyKeysKeepTheirDefaults`.
+  - Locales: fuera `Source.Preview`, `Viewers.Preview`, `Featured.Preview`; nuevas `Dock.Menu.Configure`, `Dock.Menu.TestMessages`.
+  - Checks: RED observado (`use of undeclared identifier 'testMessagesEnabled'`), GREEN `testMessagesSwitchAndLegacyPreview` PASS; `test-chat` 70, `test-tts` 50, `test-overlay` 17; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
+  - Manual pendiente: activar desde la rueda y ver que Configurar y las fuentes siguen; abrir una escena vieja con `preview` activado a mano y comprobar que el interruptor queda encendido una sola vez.
+  - Commit anterior (T3): 740eb13.
 - [ ] T5 Propiedades con "Mostrar opciones avanzadas". Route: delegated (writer).
 - [ ] T6 Un menú, botones en Configurar, rueda del dock. Route: delegated (writer).
 - [ ] T7 Asistente: plataforma detectada, un botón, muestra el dock. Route: delegated (writer).

@@ -71,8 +71,8 @@ void ChatManager::load()
 		cfg = QJsonDocument::fromJson(file.readAll()).object();
 	config_ = cfg;
 	filters_ = chat::FilterRules::fromJson(cfg.value("filters").toObject());
-	configure(chat::chatEntriesFromJson(cfg), cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto,
-		  false);
+	demo_ = chat::testMessagesEnabled(cfg);
+	configure(chat::chatEntriesFromJson(cfg), cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto);
 }
 
 void ChatManager::save() const
@@ -98,8 +98,36 @@ void ChatManager::setWizardShown()
 	save();
 }
 
-QStringList ChatManager::configure(const QList<chat::ChatEntry> &chats, Mode mode, bool demo)
+void ChatManager::setTestMessages(bool on)
 {
+	if (on == demo_ && config_.contains("testMessages"))
+		return;
+	demo_ = on;
+	config_.insert("testMessages", on);
+	configure(chats_, mode_);
+	save();
+	emit testMessagesChanged(on);
+}
+
+void ChatManager::adoptLegacyPreview(bool legacyPreview)
+{
+	QMetaObject::invokeMethod(
+		this,
+		[this, legacyPreview] {
+			if (chat::adoptLegacyPreview(config_, legacyPreview)) {
+				obs_log(LOG_INFO, "test messages turned on: a source had its sample messages enabled");
+				demo_ = true;
+				configure(chats_, mode_);
+				save();
+				emit testMessagesChanged(true);
+			}
+		},
+		Qt::QueuedConnection);
+}
+
+QStringList ChatManager::configure(const QList<chat::ChatEntry> &chats, Mode mode)
+{
+	const bool demo = demo_;
 	QList<chat::ChatEntry> clean;
 	for (chat::ChatEntry e : chats) {
 		e.entry = e.entry.trimmed();
@@ -142,7 +170,6 @@ QStringList ChatManager::configure(const QList<chat::ChatEntry> &chats, Mode mod
 	chats_ = clean;
 	errors_ = errors;
 	mode_ = mode;
-	demo_ = demo;
 	tick();
 	return errors;
 }

@@ -115,7 +115,7 @@ const DURATION = 300; // ms de la animación de entrada y salida
 
 let config = { size: 34, animation: 'slide', valign: 'bottom', halign: 'center', icons: true, badges: true, padY: 16, padX: 22, background: true,
   style: 'solid', bgColor: '#000000', bgOpacity: 75, bgRadius: 16, bgBorderWidth: 0, bgBorderColor: '#ffffff',
-  preview: true, streaming: false };
+  sample: false, streaming: false };
 // Lo último que mandó el plugin.
 let state = { message: null, at: 0 };
 let shownKey = null;
@@ -238,7 +238,7 @@ function update() {
     m = null;
   } else if (m) {
     key = (m.id || '') + '@' + state.at;
-  } else if (config.preview && !config.streaming) {
+  } else if (config.sample && !config.streaming) {
     m = typeof config.sampleText === 'string' && config.sampleText
       ? { ...SAMPLE, parts: [{ type: 'text', text: config.sampleText }] } : SAMPLE;
     key = 'sample';

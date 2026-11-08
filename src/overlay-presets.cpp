@@ -328,7 +328,7 @@ std::vector<Setting> defaultSettings(SourceKind kind)
 			B("clock_hour24", true), B("clock_bar", true),       B("fit_canvas", true),
 			I("ticker_width", 0),    I("spacing", 5),            I("hspacing", 48),
 			I("pad_y", 6),           I("pad_x", 10),             I("msg_pad_y", 5),
-			I("msg_pad_x", 11),      B("preview", true)};
+			I("msg_pad_x", 11),      B("preview", true)}; // preview: legacy, see adoptLegacyPreview
 		addPlatforms(list);
 		addBox(list, "", 60, 9);
 		addBox(list, "panel_", 50, 0);

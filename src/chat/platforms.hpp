@@ -100,6 +100,13 @@ struct SourcePlan {
 };
 SourcePlan planSources(const QList<ChatEntry> &entries, bool demo);
 
+// The global "test messages" switch ("testMessages" in config.json): the test chat in the dock
+// and the sample messages of every on-screen source. Missing = never decided = off.
+bool testMessagesEnabled(const QJsonObject &config);
+// Migration from the per-source "preview" of older scenes: a source whose preview was turned on
+// by hand turns the switch on, but only while nobody decided yet. Returns true when it changed.
+bool adoptLegacyPreview(QJsonObject &config, bool legacyPreview);
+
 namespace twitch {
 struct IrcMessage {
 	QHash<QString, QString> tags;

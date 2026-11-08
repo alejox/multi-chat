@@ -48,10 +48,16 @@ public:
 	// The first-run assistant was shown (or skipped); saved in config.json as "wizardShown".
 	bool wizardShown() const { return config_.value("wizardShown").toBool(); }
 	void setWizardShown();
-	bool demo() const { return demo_; }
+	// Test messages: the test chat in the dock and the sample messages of the on-screen sources.
+	// One switch for everything, saved in config.json as "testMessages".
+	bool testMessages() const { return demo_; }
+	void setTestMessages(bool on);
+	// Scenes from older versions had a per-source "preview": the first one turned on by hand
+	// turns the switch on, once (see chat::adoptLegacyPreview). Callable from any thread.
+	void adoptLegacyPreview(bool legacyPreview);
 	// Changes the chat list: paused chats are disconnected but kept, and sources follow the list's
 	// order. Returns the (translated) errors of the invalid entries.
-	QStringList configure(const QList<chat::ChatEntry> &chats, Mode mode, bool demo);
+	QStringList configure(const QList<chat::ChatEntry> &chats, Mode mode);
 
 	// Hidden users, commands and blocked words. They apply to messages that arrive from now on.
 	chat::FilterRules filters() const { return filters_; }
@@ -97,6 +103,8 @@ signals:
 	void restored();
 	// filters() changed outside the settings dialog (a user hidden from the dock).
 	void filtersChanged();
+	// testMessages() changed (from the dock, the settings or the assistant).
+	void testMessagesChanged(bool on);
 	// Moderation: messages deleted by the platform (see chat::deleteMessage). `ids` lists the
 	// history messages removed; consumers holding more messages use chat::deletionMatches.
 	void deleted(const QJsonObject &deletion);
@@ -120,7 +128,7 @@ private:
 	QJsonObject config_; // as loaded: keys this version does not know are written back untouched
 	QStringList errors_;
 	Mode mode_ = Mode::Auto;
-	bool demo_ = false;
+	bool demo_ = false; // testMessages(): the "demo:demo" chat is connected
 	bool streaming_ = false;
 	QString service_;
 	qint64 boostUntil_ = 0;

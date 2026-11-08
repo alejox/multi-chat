@@ -64,6 +64,8 @@ std::mutex sourcesMutex;
 std::set<OverlaySource *> sources;
 // Con OBS transmitiendo nunca se muestran los mensajes de ejemplo.
 std::atomic<bool> streaming{false};
+// ChatManager::testMessages(): the pages show sample messages while there is no chat.
+std::atomic<bool> sampleMessages{false};
 
 void send(OverlaySource *s, const QJsonObject &payload)
 {
@@ -152,7 +154,7 @@ QList<ViewerItem> viewerItems(const QJsonObject &config, const QJsonArray &chann
 		if (src.value("live").toInt() == 1 && platform != "demo" && platforms.contains(platform))
 			items.append({platform, src.value("channel").toString(), src.value("viewers").toInt(-1)});
 	}
-	if (items.isEmpty() && config.value("preview").toBool() && !streaming) {
+	if (items.isEmpty() && sampleMessages && !streaming) {
 		const ViewerItem samples[] = {{"twitch", "micanal", 1234},
 					      {"youtube", "@micanal", 856},
 					      {"kick", "micanal", 312},
@@ -356,6 +358,7 @@ void sendConfig(OverlaySource *s)
 {
 	QJsonObject config = configOf(s);
 	config.insert("streaming", streaming.load());
+	config.insert("sample", sampleMessages.load());
 	send(s, QJsonObject{{"type", "config"}, {"config", config}});
 }
 
@@ -736,7 +739,6 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 			{"padX", (int)obs_data_get_int(settings, "pad_x")},
 			{"background", obs_data_get_bool(settings, "background")},
 			{"style", obs_data_get_string(settings, "style")},
-			{"preview", obs_data_get_bool(settings, "preview")},
 		};
 		readBoxStyle(config, settings, "", "bg");
 		readTextStyle(config, settings, kind);
@@ -775,7 +777,6 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 			{"platforms", platforms},
 			{"background", obs_data_get_bool(settings, "background")},
 			{"style", obs_data_get_string(settings, "style")},
-			{"preview", obs_data_get_bool(settings, "preview")},
 		};
 		readBoxStyle(config, settings, "", "bg");
 		readTextStyle(config, settings, kind);
@@ -809,7 +810,6 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 		{"clockBar", obs_data_get_bool(settings, "clock_bar")},
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
 		{"tickerWidth", (int)obs_data_get_int(settings, "ticker_width")},
-		{"preview", obs_data_get_bool(settings, "preview")},
 	};
 	readBoxStyle(config, settings, "", "bg");
 	readBoxStyle(config, settings, "panel_", "panel");
@@ -840,6 +840,9 @@ void readSettings(OverlaySource *s, obs_data_t *settings)
 {
 	if (s->kind == Kind::Featured)
 		reportFeaturedPolicy(s, settings);
+	// Older scenes: a per-source "preview" set by hand turns the global test messages on, once.
+	if (obs_data_has_user_value(settings, "preview"))
+		ChatManager::instance().adoptLegacyPreview(obs_data_get_bool(settings, "preview"));
 	QJsonObject config = readConfig(s->kind, settings);
 	config.insert("customCss",
 		      QString::fromStdString(overlay::sanitizeCustomCss(obs_data_get_string(settings, "custom_css"))));
@@ -1172,9 +1175,7 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(clock, "clock_hour24", obs_module_text("Clock.Hour24"));
 	obs_properties_add_bool(clock, "clock_bar", obs_module_text("Clock.Bar"));
 
-	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
-	obs_properties_add_bool(advanced, "preview", obs_module_text("Source.Preview"));
-	addCustomCss(advanced);
+	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
 	hookAll(props, Kind::Chat);
 	return props;
 }
@@ -1207,9 +1208,7 @@ obs_properties_t *vw_properties(void *)
 	addStyleList(background);
 	addBoxStyle(background, "");
 
-	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
-	obs_properties_add_bool(advanced, "preview", obs_module_text("Viewers.Preview"));
-	addCustomCss(advanced);
+	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
 	hookAll(props, Kind::Viewers);
 	return props;
 }
@@ -1322,9 +1321,7 @@ obs_properties_t *fe_properties(void *)
 	obs_property_t *max = obs_properties_add_int(animation, "hide_max", obs_module_text("Featured.HideMax"), 1, 600, 1);
 	obs_property_int_set_suffix(max, " s");
 
-	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
-	obs_properties_add_bool(advanced, "preview", obs_module_text("Featured.Preview"));
-	addCustomCss(advanced);
+	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
 	hookAll(props, Kind::Featured);
 	return props;
 }
@@ -1396,6 +1393,14 @@ void overlay_set_streaming(bool active)
 void register_overlay_source()
 {
 	ChatManager &manager = ChatManager::instance();
+	sampleMessages = manager.testMessages();
+	QObject::connect(&manager, &ChatManager::testMessagesChanged, &manager, [](bool on) {
+		sampleMessages = on;
+		forEachSource([](OverlaySource *s) {
+			sendConfig(s);
+			refresh(s); // the viewers box shows or drops its sample numbers
+		});
+	});
 	QObject::connect(&manager, &ChatManager::message, &manager,
 			 [](const QJsonObject &m) { sendAll(QJsonObject{{"type", "message"}, {"message", m}}); });
 	QObject::connect(&manager, &ChatManager::cleared, &manager, [] { sendAll(QJsonObject{{"type", "clear"}}); });

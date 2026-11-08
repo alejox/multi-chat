@@ -391,7 +391,7 @@ public:
 		ChatManager &m = ChatManager::instance();
 		entries_ = m.chats();
 		(m.mode() == ChatManager::Mode::Always ? always_ : auto_)->setChecked(true);
-		demo_->setChecked(m.demo());
+		demo_->setChecked(m.testMessages());
 
 		auto *removeKey = new QShortcut(QKeySequence::Delete, list_, nullptr, nullptr, Qt::WidgetWithChildrenShortcut);
 		connect(removeKey, &QShortcut::activated, this, [this] {
@@ -405,7 +405,11 @@ public:
 					      Qt::WidgetWithChildrenShortcut);
 		connect(downKey, &QShortcut::activated, this, [this] { moveCurrent(1); });
 		connect(auto_, &QRadioButton::toggled, this, [this] { apply(); });
-		connect(demo_, &QCheckBox::toggled, this, [this] { apply(); });
+		connect(demo_, &QCheckBox::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
+		connect(&m, &ChatManager::testMessagesChanged, this, [this](bool on) {
+			if (demo_->isChecked() != on)
+				demo_->setChecked(on);
+		});
 		connect(&m, &ChatManager::stateChanged, this, [this] { refreshList(); });
 
 		refreshList();
@@ -534,9 +538,8 @@ private:
 	void apply()
 	{
 		ChatManager &m = ChatManager::instance();
-		const QStringList errors = m.configure(
-			entries_, always_->isChecked() ? ChatManager::Mode::Always : ChatManager::Mode::Auto,
-			demo_->isChecked());
+		const QStringList errors =
+			m.configure(entries_, always_->isChecked() ? ChatManager::Mode::Always : ChatManager::Mode::Auto);
 		m.save();
 		entries_ = m.chats();
 		refreshList();
