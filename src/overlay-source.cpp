@@ -27,17 +27,20 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <atomic>
 #include <mutex>
 #include <set>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
 
-enum class Kind { Chat, Viewers, Clock, Featured };
+// Chat, Viewers, Clock or Featured (the same enum the pure preset tables use).
+using Kind = overlay::SourceKind;
 
 struct OverlaySource {
 	Kind kind = Kind::Chat;
@@ -498,16 +501,6 @@ void readBoxStyle(QJsonObject &config, obs_data_t *settings, const std::string &
 	config.insert(js + "BorderColor", hexColor(settings, (prefix + "border_color").c_str()));
 }
 
-void boxStyleDefaults(obs_data_t *settings, const std::string &prefix, int opacity, int radius)
-{
-	const std::string color = prefix.empty() ? "bg_color" : prefix + "color";
-	obs_data_set_default_int(settings, color.c_str(), 0xFF000000);
-	obs_data_set_default_int(settings, (prefix + "opacity").c_str(), opacity);
-	obs_data_set_default_int(settings, (prefix + "radius").c_str(), radius);
-	obs_data_set_default_int(settings, (prefix + "border_width").c_str(), 0);
-	obs_data_set_default_int(settings, (prefix + "border_color").c_str(), 0xFFFFFFFF);
-}
-
 void addBoxStyle(obs_properties_t *props, const std::string &prefix)
 {
 	// Textos "Style.*" para el fondo de los mensajes o del recuadro, "Panel.*" para el general.
@@ -565,30 +558,48 @@ void showBoxStyle(obs_properties_t *props, obs_data_t *settings, const std::stri
 	show(prefix + "border_color", style == "solid");
 }
 
+// ---- Settings table (defaults and presets live in overlay-presets.cpp) ----
+
+void applyDefaults(obs_data_t *settings, Kind kind)
+{
+	for (const overlay::Setting &setting : overlay::defaultSettings(kind)) {
+		const char *key = setting.key.c_str();
+		if (const bool *b = std::get_if<bool>(&setting.value))
+			obs_data_set_default_bool(settings, key, *b);
+		else if (const long long *i = std::get_if<long long>(&setting.value))
+			obs_data_set_default_int(settings, key, *i);
+		else
+			obs_data_set_default_string(settings, key, std::get<std::string>(setting.value).c_str());
+	}
+}
+
+void applySetting(obs_data_t *settings, const overlay::Setting &setting)
+{
+	const char *key = setting.key.c_str();
+	if (const bool *b = std::get_if<bool>(&setting.value))
+		obs_data_set_bool(settings, key, *b);
+	else if (const long long *i = std::get_if<long long>(&setting.value))
+		obs_data_set_int(settings, key, *i);
+	else
+		obs_data_set_string(settings, key, std::get<std::string>(setting.value).c_str());
+}
+
+bool hasSetting(obs_data_t *settings, const overlay::Setting &setting)
+{
+	const char *key = setting.key.c_str();
+	if (const bool *b = std::get_if<bool>(&setting.value))
+		return obs_data_get_bool(settings, key) == *b;
+	if (const long long *i = std::get_if<long long>(&setting.value))
+		return obs_data_get_int(settings, key) == *i;
+	return std::get<std::string>(setting.value) == obs_data_get_string(settings, key);
+}
+
 // ---- Typography (text group of every source) ----
 
 // Chat and featured show names and wrap lines; viewers and clock are a single line of numbers.
 bool hasNamesAndLines(Kind kind)
 {
 	return kind == Kind::Chat || kind == Kind::Featured;
-}
-
-// The defaults reproduce the previous look: system font, white text and the usual shadow.
-void textDefaults(obs_data_t *settings, Kind kind, int weight, int lineHeight)
-{
-	obs_data_set_default_string(settings, "font_family", "");
-	obs_data_set_default_int(settings, "font_weight", weight);
-	obs_data_set_default_int(settings, "text_color", 0xFFFFFFFF);
-	obs_data_set_default_int(settings, "outline_width", 0);
-	obs_data_set_default_int(settings, "outline_color", 0xFF000000);
-	obs_data_set_default_string(settings, "text_shadow", "auto");
-	obs_data_set_default_int(settings, "shadow_color", 0xFF000000);
-	obs_data_set_default_int(settings, "shadow_blur", 6);
-	if (hasNamesAndLines(kind)) {
-		obs_data_set_default_string(settings, "name_mode", "user");
-		obs_data_set_default_int(settings, "name_color", 0xFFFFFFFF);
-		obs_data_set_default_int(settings, "line_height", lineHeight);
-	}
 }
 
 QString cssColorOf(obs_data_t *settings, const char *key, bool withAlpha)
@@ -615,7 +626,7 @@ void readTextStyle(QJsonObject &config, obs_data_t *settings, Kind kind)
 	}
 }
 
-void addTextStyle(obs_properties_t *props, Kind kind, obs_property_modified_t changed)
+void addTextStyle(obs_properties_t *props, Kind kind)
 {
 	obs_property_t *family = obs_properties_add_list(props, "font_family", obs_module_text("Text.Font"),
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -641,14 +652,12 @@ void addTextStyle(obs_properties_t *props, Kind kind, obs_property_modified_t ch
 							       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 		for (const char *id : {"user", "platform", "fixed"})
 			obs_property_list_add_string(mode, obs_module_text(("Text.NameMode." + std::string(id)).c_str()), id);
-		obs_property_set_modified_callback(mode, changed);
 		obs_properties_add_color(props, "name_color", obs_module_text("Text.NameColor"));
 	}
 
 	obs_property_t *outline =
 		obs_properties_add_int_slider(props, "outline_width", obs_module_text("Text.Outline"), 0, 10, 1);
 	obs_property_int_set_suffix(outline, " px");
-	obs_property_set_modified_callback(outline, changed);
 	obs_properties_add_color(props, "outline_color", obs_module_text("Text.OutlineColor"));
 
 	obs_property_t *shadow = obs_properties_add_list(props, "text_shadow", obs_module_text("Text.Shadow"),
@@ -656,7 +665,6 @@ void addTextStyle(obs_properties_t *props, Kind kind, obs_property_modified_t ch
 	for (const char *id : {"auto", "on", "off"})
 		obs_property_list_add_string(shadow, obs_module_text(("Text.Shadow." + std::string(id)).c_str()), id);
 	obs_property_set_long_description(shadow, obs_module_text("Text.Shadow.Help"));
-	obs_property_set_modified_callback(shadow, changed);
 	obs_properties_add_color_alpha(props, "shadow_color", obs_module_text("Text.ShadowColor"));
 	obs_property_t *blur =
 		obs_properties_add_int_slider(props, "shadow_blur", obs_module_text("Text.ShadowBlur"), 0, 30, 1);
@@ -792,7 +800,9 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 
 void readSettings(OverlaySource *s, obs_data_t *settings)
 {
-	const QJsonObject config = readConfig(s->kind, settings);
+	QJsonObject config = readConfig(s->kind, settings);
+	config.insert("customCss",
+		      QString::fromStdString(overlay::sanitizeCustomCss(obs_data_get_string(settings, "custom_css"))));
 	if (s->kind == Kind::Chat || s->kind == Kind::Featured) { // espectadores y reloj calculan su tamaño solos
 		s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
 		s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
@@ -884,58 +894,12 @@ void ov_update(void *data, obs_data_t *settings)
 
 void ov_defaults(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, "width", 500);
-	obs_data_set_default_int(settings, "height", 600);
-	obs_data_set_default_int(settings, "font_size", 22);
-	obs_data_set_default_int(settings, "fade", 0);
-	obs_data_set_default_int(settings, "max", 15);
-	obs_data_set_default_bool(settings, "show_twitch", true);
-	obs_data_set_default_bool(settings, "show_youtube", true);
-	obs_data_set_default_bool(settings, "show_kick", true);
-	obs_data_set_default_bool(settings, "show_tiktok", true);
-	obs_data_set_default_bool(settings, "show_starvios", true);
-	obs_data_set_default_bool(settings, "icons", true);
-	obs_data_set_default_bool(settings, "badges", true);
-	obs_data_set_default_bool(settings, "background", false);
-	obs_data_set_default_string(settings, "style", "solid");
-	boxStyleDefaults(settings, "", 60, 9);
-	obs_data_set_default_bool(settings, "panel", false);
-	boxStyleDefaults(settings, "panel_", 50, 0);
-	obs_data_set_default_string(settings, "align", "bottom");
-	obs_data_set_default_string(settings, "layout", "vertical");
-	obs_data_set_default_int(settings, "speed", 120);
-	obs_data_set_default_string(settings, "scroll", "continuous");
-	obs_data_set_default_bool(settings, "clock_date", true);
-	obs_data_set_default_bool(settings, "clock_time", true);
-	obs_data_set_default_bool(settings, "clock_seconds", false);
-	obs_data_set_default_bool(settings, "clock_hour24", true);
-	obs_data_set_default_bool(settings, "clock_bar", true);
-	obs_data_set_default_bool(settings, "fit_canvas", true);
-	obs_data_set_default_int(settings, "spacing", 5);
-	obs_data_set_default_int(settings, "hspacing", 48);
-	obs_data_set_default_int(settings, "pad_y", 6);
-	obs_data_set_default_int(settings, "pad_x", 10);
-	obs_data_set_default_int(settings, "msg_pad_y", 5);
-	obs_data_set_default_int(settings, "msg_pad_x", 11);
-	obs_data_set_default_bool(settings, "preview", true);
-	textDefaults(settings, Kind::Chat, 500, 135);
+	applyDefaults(settings, Kind::Chat);
 }
 
 void vw_defaults(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, "font_size", 28);
-	obs_data_set_default_string(settings, "layout", "row");
-	obs_data_set_default_bool(settings, "total", true);
-	obs_data_set_default_bool(settings, "names", false);
-	obs_data_set_default_int(settings, "pad_y", 10);
-	obs_data_set_default_int(settings, "pad_x", 17);
-	for (const char *p : {"show_twitch", "show_youtube", "show_kick", "show_tiktok", "show_starvios"})
-		obs_data_set_default_bool(settings, p, true);
-	obs_data_set_default_bool(settings, "background", true);
-	obs_data_set_default_string(settings, "style", "solid");
-	boxStyleDefaults(settings, "", 60, 12);
-	obs_data_set_default_bool(settings, "preview", true);
-	textDefaults(settings, Kind::Viewers, 700, 120);
+	applyDefaults(settings, Kind::Viewers);
 }
 
 // En horizontal no se usan "apilar", "ocultar después de", el máximo ni el tamaño (es automático);
@@ -976,6 +940,99 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	return true;
 }
 
+bool fe_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings);
+
+// ---- Presets, custom CSS and the shared modified callback ----
+
+void *kindParam(Kind kind)
+{
+	return reinterpret_cast<void *>(static_cast<intptr_t>(kind));
+}
+
+void addPreset(obs_properties_t *props)
+{
+	obs_property_t *preset = obs_properties_add_list(props, "preset", obs_module_text("Preset"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(preset, obs_module_text("Preset.custom"), overlay::kCustomPreset);
+	for (const std::string &id : overlay::presetIds())
+		obs_property_list_add_string(preset, obs_module_text(("Preset." + id).c_str()), id.c_str());
+	obs_property_set_long_description(preset, obs_module_text("Preset.Help"));
+}
+
+void addCustomCss(obs_properties_t *props)
+{
+	obs_property_t *css =
+		obs_properties_add_text(props, "custom_css", obs_module_text("Advanced.CustomCss"), OBS_TEXT_MULTILINE);
+	obs_property_set_long_description(css, obs_module_text("Advanced.CustomCss.Help"));
+}
+
+// Properties whose value shows or hides others: changing them refreshes the window. Any other
+// change only refreshes when it takes the source off its preset, so typing in a text box or
+// dragging a slider is not interrupted.
+bool changesVisibility(const char *name)
+{
+	for (const char *key : {"layout", "fit_canvas", "clock", "style", "background", "panel", "auto_hide",
+				"name_mode", "outline_width", "text_shadow"})
+		if (strcmp(name, key) == 0)
+			return true;
+	return false;
+}
+
+bool on_modified(void *param, obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+	const auto kind = static_cast<Kind>(reinterpret_cast<intptr_t>(param));
+	auto updateVisibility = [&] {
+		if (kind == Kind::Chat)
+			ov_layout_changed(props, property, settings);
+		else if (kind == Kind::Featured)
+			fe_changed(props, property, settings);
+		else
+			box_changed(props, property, settings);
+	};
+	const char *name = obs_property_name(property);
+	const std::string preset = obs_data_get_string(settings, "preset");
+	if (strcmp(name, "preset") == 0) {
+		// OBS calls this again every time the window opens or refreshes: the preset is written
+		// only when a different one is chosen, so it never undoes later changes.
+		if (preset == obs_data_get_string(settings, "preset_applied"))
+			return false;
+		for (const overlay::Setting &setting : overlay::presetSettings(kind, preset))
+			applySetting(settings, setting);
+		obs_data_set_string(settings, "preset_applied", preset.c_str());
+		updateVisibility();
+		return true;
+	}
+	updateVisibility();
+	bool refresh = changesVisibility(name);
+	// Back to "Custom" as soon as a value the preset wrote is changed.
+	if (preset != overlay::kCustomPreset) {
+		for (const overlay::Setting &setting : overlay::presetSettings(kind, preset)) {
+			if (hasSetting(settings, setting))
+				continue;
+			obs_data_set_string(settings, "preset", overlay::kCustomPreset);
+			obs_data_set_string(settings, "preset_applied", overlay::kCustomPreset);
+			refresh = true;
+			break;
+		}
+	}
+	return refresh;
+}
+
+// Every property goes through on_modified (visibility and the preset).
+void hookAll(obs_properties_t *props, Kind kind)
+{
+	for (obs_property_t *p = obs_properties_first(props); p; obs_property_next(&p)) {
+		const obs_property_type type = obs_property_get_type(p);
+		if (type == OBS_PROPERTY_GROUP) {
+			hookAll(obs_property_group_content(p), kind);
+			continue;
+		}
+		if (type == OBS_PROPERTY_BUTTON)
+			continue;
+		obs_property_set_modified_callback2(p, on_modified, kindParam(kind));
+	}
+}
+
 bool ov_open_settings(obs_properties_t *, obs_property_t *, void *)
 {
 	open_multichat_settings_from_source();
@@ -1004,6 +1061,7 @@ obs_properties_t *ov_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
+	addPreset(props);
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	obs_property_t *layout = obs_properties_add_list(design, "layout", obs_module_text("Source.Layout"),
@@ -1011,10 +1069,8 @@ obs_properties_t *ov_properties(void *)
 	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Vertical"), "vertical");
 	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Horizontal"), "horizontal");
 	obs_property_set_long_description(layout, obs_module_text("Source.Layout.Help"));
-	obs_property_set_modified_callback(layout, ov_layout_changed);
 	obs_property_t *fit = obs_properties_add_bool(design, "fit_canvas", obs_module_text("Source.FitCanvas"));
 	obs_property_set_long_description(fit, obs_module_text("Source.FitCanvas.Help"));
-	obs_property_set_modified_callback(fit, ov_layout_changed);
 	obs_property_t *tickerWidthProp =
 		obs_properties_add_int(design, "ticker_width", obs_module_text("Source.TickerWidth"), 0, 8192, 1);
 	obs_property_int_set_suffix(tickerWidthProp, " px");
@@ -1044,7 +1100,7 @@ obs_properties_t *ov_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
 	obs_property_int_set_suffix(size, " px");
-	addTextStyle(text, Kind::Chat, ov_layout_changed);
+	addTextStyle(text, Kind::Chat);
 
 	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
 	addPlatforms(platforms);
@@ -1052,15 +1108,11 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
 
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	obs_property_set_modified_callback(
-		obs_properties_add_bool(background, "background", obs_module_text("Source.Background")),
-		ov_layout_changed);
+	obs_properties_add_bool(background, "background", obs_module_text("Source.Background"));
 	addStyleList(background);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), ov_layout_changed);
 	addBoxStyle(background, "");
 	addPadding(background, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
-	obs_property_set_modified_callback(
-		obs_properties_add_bool(background, "panel", obs_module_text("Source.Panel")), ov_layout_changed);
+	obs_properties_add_bool(background, "panel", obs_module_text("Source.Panel"));
 	addBoxStyle(background, "panel_");
 
 	obs_properties_t *animation = addGroup(props, "group_animation", "Group.Animation");
@@ -1072,7 +1124,6 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_t *clock = addGroup(props, "group_clock", "Group.TickerClock");
 	obs_property_t *clockOn = obs_properties_add_bool(clock, "clock", obs_module_text("Source.Clock"));
 	obs_property_set_long_description(clockOn, obs_module_text("Source.Clock.Help"));
-	obs_property_set_modified_callback(clockOn, ov_layout_changed);
 	obs_properties_add_bool(clock, "clock_date", obs_module_text("Clock.Date"));
 	obs_properties_add_bool(clock, "clock_time", obs_module_text("Clock.Time"));
 	obs_properties_add_bool(clock, "clock_seconds", obs_module_text("Clock.Seconds"));
@@ -1081,6 +1132,8 @@ obs_properties_t *ov_properties(void *)
 
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	obs_properties_add_bool(advanced, "preview", obs_module_text("Source.Preview"));
+	addCustomCss(advanced);
+	hookAll(props, Kind::Chat);
 	return props;
 }
 
@@ -1088,6 +1141,7 @@ obs_properties_t *vw_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
+	addPreset(props);
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	obs_property_t *layout = obs_properties_add_list(design, "layout", obs_module_text("Viewers.Layout"),
@@ -1102,19 +1156,19 @@ obs_properties_t *vw_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 120, 1);
 	obs_property_int_set_suffix(size, " px");
-	addTextStyle(text, Kind::Viewers, box_changed);
+	addTextStyle(text, Kind::Viewers);
 
 	addPlatforms(addGroup(props, "group_platforms", "Group.PlatformsOnly"));
 
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	obs_property_set_modified_callback(
-		obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background")), box_changed);
+	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
 	addStyleList(background);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
 	addBoxStyle(background, "");
 
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	obs_properties_add_bool(advanced, "preview", obs_module_text("Viewers.Preview"));
+	addCustomCss(advanced);
+	hookAll(props, Kind::Viewers);
 	return props;
 }
 
@@ -1125,23 +1179,13 @@ const char *ck_get_name(void *)
 
 void ck_defaults(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, "font_size", 32);
-	obs_data_set_default_bool(settings, "date", true);
-	obs_data_set_default_bool(settings, "time", true);
-	obs_data_set_default_bool(settings, "seconds", false);
-	obs_data_set_default_bool(settings, "hour24", true);
-	obs_data_set_default_bool(settings, "bar", true);
-	obs_data_set_default_int(settings, "pad_y", 11);
-	obs_data_set_default_int(settings, "pad_x", 19);
-	obs_data_set_default_bool(settings, "background", true);
-	obs_data_set_default_string(settings, "style", "solid");
-	boxStyleDefaults(settings, "", 60, 12);
-	textDefaults(settings, Kind::Clock, 800, 120);
+	applyDefaults(settings, Kind::Clock);
 }
 
 obs_properties_t *ck_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
+	addPreset(props);
 	obs_properties_t *clock = addGroup(props, "group_clock", "Group.Clock");
 	obs_properties_add_bool(clock, "date", obs_module_text("Clock.Date"));
 	obs_properties_add_bool(clock, "time", obs_module_text("Clock.Time"));
@@ -1153,17 +1197,18 @@ obs_properties_t *ck_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 160, 1);
 	obs_property_int_set_suffix(size, " px");
-	addTextStyle(text, Kind::Clock, box_changed);
+	addTextStyle(text, Kind::Clock);
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	obs_property_set_modified_callback(
-		obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background")), box_changed);
+	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
 	addStyleList(background);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
 	addBoxStyle(background, "");
+
+	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
+	hookAll(props, Kind::Clock);
 	return props;
 }
 
@@ -1174,25 +1219,7 @@ const char *fe_get_name(void *)
 
 void fe_defaults(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, "width", 900);
-	obs_data_set_default_int(settings, "height", 320);
-	obs_data_set_default_int(settings, "font_size", 34);
-	obs_data_set_default_string(settings, "animation", "slide");
-	obs_data_set_default_bool(settings, "auto_hide", true);
-	obs_data_set_default_int(settings, "hide_base", 8);
-	obs_data_set_default_int(settings, "hide_per_char", 60);
-	obs_data_set_default_int(settings, "hide_max", 30);
-	obs_data_set_default_string(settings, "valign", "bottom");
-	obs_data_set_default_string(settings, "halign", "center");
-	obs_data_set_default_bool(settings, "icons", true);
-	obs_data_set_default_bool(settings, "badges", true);
-	obs_data_set_default_int(settings, "pad_y", 16);
-	obs_data_set_default_int(settings, "pad_x", 22);
-	obs_data_set_default_bool(settings, "background", true);
-	obs_data_set_default_string(settings, "style", "solid");
-	boxStyleDefaults(settings, "", 75, 16);
-	obs_data_set_default_bool(settings, "preview", true);
-	textDefaults(settings, Kind::Featured, 500, 130);
+	applyDefaults(settings, Kind::Featured);
 }
 
 // Los tiempos de "ocultar solo" se ven con la casilla activada; el fondo, con la suya.
@@ -1207,6 +1234,7 @@ bool fe_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *s
 obs_properties_t *fe_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
+	addPreset(props);
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	obs_property_t *valign = obs_properties_add_list(design, "valign", obs_module_text("Featured.VAlign"),
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
@@ -1224,17 +1252,15 @@ obs_properties_t *fe_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 12, 120, 1);
 	obs_property_int_set_suffix(size, " px");
-	addTextStyle(text, Kind::Featured, fe_changed);
+	addTextStyle(text, Kind::Featured);
 
 	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
 	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
 
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	obs_property_set_modified_callback(
-		obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background")), fe_changed);
+	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
 	addStyleList(background);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), fe_changed);
 	addBoxStyle(background, "");
 
 	obs_properties_t *animation = addGroup(props, "group_animation", "Group.Animation");
@@ -1245,7 +1271,6 @@ obs_properties_t *fe_properties(void *)
 	obs_property_t *autoHide =
 		obs_properties_add_bool(animation, "auto_hide", obs_module_text("Featured.AutoHide"));
 	obs_property_set_long_description(autoHide, obs_module_text("Featured.AutoHide.Help"));
-	obs_property_set_modified_callback(autoHide, fe_changed);
 	obs_property_t *base =
 		obs_properties_add_int(animation, "hide_base", obs_module_text("Featured.HideBase"), 1, 300, 1);
 	obs_property_int_set_suffix(base, " s");
@@ -1257,6 +1282,8 @@ obs_properties_t *fe_properties(void *)
 
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	obs_properties_add_bool(advanced, "preview", obs_module_text("Featured.Preview"));
+	addCustomCss(advanced);
+	hookAll(props, Kind::Featured);
 	return props;
 }
 

@@ -61,6 +61,19 @@
 <div id="box"></div>
 <script src="icons.js"></script>
 <script>
+// Custom CSS from the source properties, in its own <style> after every other style. Only
+// textContent: it is CSS text, never HTML or script.
+function applyCustomCss(css) {
+  let style = document.getElementById('user-css');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'user-css';
+    document.head.appendChild(style);
+  }
+  const text = typeof css === 'string' ? css.slice(0, 20480) : '';
+  if (style.textContent !== text) style.textContent = text;
+}
+
 // Typography from the plugin (font, weight, colors, outline, shadow, line height). The values
 // are CSS strings built by the plugin; setProperty ignores anything that is not valid CSS.
 // defaultWeight: the text weight of the page when the plugin sends none.
@@ -265,6 +278,7 @@ function applyConfig(c) {
   root.dataset.style = config.style || 'solid';
   applyBoxStyle(config, 'bg');
   applyTextStyle(config, 500);
+  applyCustomCss(config.customCss);
   const body = document.body;
   for (const v of ['top', 'center', 'bottom']) body.classList.toggle('v-' + v, config.valign === v);
   for (const h of ['left', 'center', 'right']) body.classList.toggle('h-' + h, config.halign === h);

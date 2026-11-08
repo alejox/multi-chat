@@ -44,7 +44,16 @@ Auditoría: `src/overlay-source.cpp` registra unas 71 llamadas `obs_properties_a
   - Colores OBS `0xAABBGGRR` → `overlay::cssColor` → `rgba(...)` (alfa con enteros, sin depender del separador decimal del locale). El peso aplica al texto del mensaje (los nombres siguen en 800); en espectadores/reloj, a todo. El tamaño medido en C++ usa la fuente y el peso elegidos; el alto de la cinta usa el interlineado.
   - Pruebas nuevas `tests/test-overlay.cpp` (target `test-overlay`, sin libobs; el CI ejecuta `ctest` genérico, así que corre). RED observado: 6 fallos de 8 con stubs vacíos; GREEN: 8/8.
   - Checks: `node --check` de los scripts de las 4 páginas OK; build macOS `BUILD SUCCEEDED`, 0 errores, 0 warnings; ctest 3/3 (test-chat 57, test-tts OK, test-overlay 8).
-- [ ] T3 Presets con pruebas del mapeo + CSS personalizado. Route: delegated (writer).
+  - Nota: las funciones JS de tipografía van dentro de cada página (no en `icons.js`, que quedó fuera de la superficie autorizada).
+  - Commit: `8b8ad60`.
+- [x] T3 Presets con pruebas del mapeo + CSS personalizado. Route: delegated (writer).
+  - Los valores por defecto de las cuatro fuentes pasan a una tabla pura (`overlay::defaultSettings`, `src/overlay-presets.cpp`); OBS los registra con `applyDefaults`. `Kind` es ahora `overlay::SourceKind`. Se añadieron como explícitos `clock=false` y `ticker_width=0` (antes implícitos, mismo valor).
+  - Compatibilidad: la prueba `legacyKeysKeepTheirDefaults` fija las claves y valores por defecto de antes del bloque 4 para cada tipo (chat 46, espectadores 19, reloj 15, destacado 22) y pasa; diff de claves de propiedades contra el inicio: ninguna quitada.
+  - Preajustes (`preset`, arriba en las cuatro fuentes): Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste, Vertical 1080×1920. Cada valor lleva los tipos de fuente a los que aplica. Un callback común (`on_modified`, `obs_property_set_modified_callback2` en todas las propiedades) aplica el preajuste solo si cambia respecto a `preset_applied` (OBS vuelve a llamar los callbacks al abrir/refrescar) y vuelve a «Personalizado» cuando cambia un valor que el preajuste escribió. Solo refresca la ventana si cambia la visibilidad o el preajuste, para no cortar la escritura en el CSS. Decisión: «tocar algo» = cambiar un valor que el preajuste fijó (las claves que no fija, como `max` en la mayoría, no lo sacan del preajuste).
+  - CSS personalizado (`custom_css`, multilínea, grupo Avanzado en las cuatro): `overlay::sanitizeCustomCss` (máx. 20 KB sin cortar UTF-8, sin NUL, quita `</style` en cualquier caso en una pasada que también atrapa las uniones) → `customCss` → `<style id="user-css">` con `textContent`, al final del `<head>`.
+  - Pruebas (RED → GREEN): con stubs, `legacyKeysKeepTheirDefaults` falló y `newTextDefaultsKeepThePreviousLook` lanzó excepción y cortó la ejecución (7 pasadas, 2 fallos); con la implementación 17/17. Cubre: claves y tipos de los preajustes ⊂ valores por defecto de cada tipo, 6 preajustes distintos, sin claves duplicadas, CSS (se conserva, no cierra el `<style>`, tope).
+  - Tamaño: ~820 líneas, sobre todo tablas de valores y pruebas; no se partió para no separar la tabla de sus pruebas.
+  - Checks: build macOS `BUILD SUCCEEDED`, 0 errores, 0 warnings; ctest 3/3 (test-chat 57, test-tts OK, test-overlay 17); `node --check` de las 4 páginas OK.
 - [ ] T4 Deshacer al vaciar también en el overlay, sin voz. Route: delegated (writer).
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
 
