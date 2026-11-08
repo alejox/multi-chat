@@ -1386,6 +1386,24 @@ private slots:
 		QCOMPARE(plainText(makeMessage("twitch", "c", "Ana", QJsonArray{}, sub)), QString("Ana: se suscribió"));
 	}
 
+	void searchMatching()
+	{
+		MessageOptions o;
+		o.system = "Se suscribió";
+		const QJsonObject m = makeMessage("youtube", "c", "José Pérez",
+						  QJsonArray{textPart("¡Qué GRAN canción! "), emotePart("https://e/1", "PogChamp")},
+						  o);
+		QVERIFY(matchesSearch(m, ""));
+		QVERIFY(matchesSearch(m, "   "));
+		QVERIFY(matchesSearch(m, "jose"));          // author, without accents
+		QVERIFY(matchesSearch(m, "CANCION"));       // text, case and accents folded
+		QVERIFY(matchesSearch(m, "pogchamp"));      // emote name
+		QVERIFY(matchesSearch(m, "suscribio"));     // system line
+		QVERIFY(matchesSearch(m, "perez gran"));    // every word, anywhere
+		QVERIFY(!matchesSearch(m, "perez adios"));
+		QVERIFY(!matchesSearch(m, "maria"));
+	}
+
 	void kickModeration()
 	{
 		QJsonObject msg = kick::toMessage(QJsonDocument::fromJson(fixture(15)).object(), "canal");

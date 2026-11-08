@@ -21,13 +21,17 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QKeyEvent>
+#include <QDateTime>
 #include <QLabel>
+#include <QLineEdit>
+#include <QLocale>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QTextBlock>
 #include <QTextBlockUserData>
 #include <QTextCursor>
@@ -231,6 +235,14 @@ QString ChatView::html(const QJsonObject &m) const
 		out += QStringLiteral("<span style=\"color:%1; font-style:italic;\">%2</span><br>")
 			       .arg(muted.name(), system.toHtmlEscaped());
 
+	if (timestamps_) {
+		const double ts = m.value("ts").toDouble();
+		if (ts > 0) {
+			const QTime time = QDateTime::fromMSecsSinceEpoch(qint64(ts * 1000)).time();
+			out += QStringLiteral("<span style=\"color:%1; font-size:small;\">%2</span>&nbsp;")
+				       .arg(muted.name(), QLocale().toString(time, QLocale::ShortFormat).toHtmlEscaped());
+		}
+	}
 	out += QStringLiteral("<img src=\"mc-icon:%1\" width=\"%2\" height=\"%2\">&nbsp;").arg(platform).arg(icon);
 
 	for (const QJsonValue b : m.value("badges").toArray()) {
@@ -278,7 +290,7 @@ void ChatView::addMessage(const QJsonObject &m)
 	messages_.append(m);
 	while (messages_.size() > kMaxMessages)
 		messages_.removeFirst();
-	if (hidden_.contains(m.value("source").toString()))
+	if (hidden_.contains(m.value("source").toString()) || !chat::matchesSearch(m, search_))
 		return;
 
 	QScrollBar *bar = verticalScrollBar();
@@ -312,6 +324,8 @@ void ChatView::addMessage(const QJsonObject &m)
 		++unread_;
 		updatePill();
 	}
+	if (!rebuilding_)
+		emit contentChanged();
 }
 
 QColor ChatView::featuredColor() const
@@ -490,12 +504,35 @@ void ChatView::removeMessages(const QJsonObject &deletion)
 	}
 	cursor.endEditBlock();
 	bar->setValue(atBottom ? bar->maximum() : std::max(0, keep));
+	emit contentChanged();
 }
 
 void ChatView::setHiddenSources(const QSet<QString> &hidden)
 {
 	hidden_ = hidden;
 	rebuild();
+}
+
+void ChatView::setSearch(const QString &query)
+{
+	if (query == search_)
+		return;
+	search_ = query;
+	rebuild();
+	scrollToBottom(); // the newest matches first
+}
+
+void ChatView::setShowTimestamps(bool show)
+{
+	if (show == timestamps_)
+		return;
+	timestamps_ = show;
+	rebuild();
+}
+
+int ChatView::shownCount() const
+{
+	return document()->isEmpty() ? 0 : document()->blockCount();
 }
 
 void ChatView::setFontSize(int pointSize)
@@ -530,6 +567,7 @@ void ChatView::rebuild()
 	for (const QJsonObject &m : all)
 		addMessage(m);
 	rebuilding_ = false;
+	emit contentChanged();
 
 	if (atBottom) {
 		scrollToBottom();
@@ -554,6 +592,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 {
 	const QJsonObject prefs = loadPrefs();
 	fontSize_ = prefs.value("fontSize").toInt(11);
+	timestamps_ = prefs.value("timestamps").toBool(false);
 	for (const QJsonValue v : prefs.value("hidden").toArray())
 		hidden_.insert(v.toString());
 
@@ -661,6 +700,32 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 		ChatManager::instance().undoClear();
 	});
 
+	// Ctrl+F: filter by text or name; Esc closes it.
+	searchBar_ = new QWidget(this);
+	auto *searchLayout = new QHBoxLayout(searchBar_);
+	searchLayout->setContentsMargins(0, 0, 0, 0);
+	searchLayout->setSpacing(4);
+	searchEdit_ = new QLineEdit(searchBar_);
+	searchEdit_->setPlaceholderText(ui::T("Dock.Search.Placeholder"));
+	searchEdit_->setAccessibleName(ui::T("Dock.Search"));
+	searchEdit_->setClearButtonEnabled(true);
+	searchCount_ = new QLabel(searchBar_);
+	auto *searchClose = new QToolButton(searchBar_);
+	searchClose->setText(QString::fromUtf8("✕"));
+	searchClose->setAutoRaise(true);
+	searchClose->setToolTip(ui::T("Dock.Search.Close"));
+	searchClose->setAccessibleName(ui::T("Dock.Search.Close"));
+	searchLayout->addWidget(searchEdit_, 1);
+	searchLayout->addWidget(searchCount_);
+	searchLayout->addWidget(searchClose);
+	searchBar_->hide();
+	root->addWidget(searchBar_);
+	connect(searchClose, &QToolButton::clicked, this, &ChatDock::closeSearch);
+	auto *searchEsc = new QShortcut(QKeySequence(Qt::Key_Escape), searchEdit_, nullptr, nullptr, Qt::WidgetShortcut);
+	connect(searchEsc, &QShortcut::activated, this, &ChatDock::closeSearch);
+	auto *find = new QShortcut(QKeySequence::Find, this, nullptr, nullptr, Qt::WidgetWithChildrenShortcut);
+	connect(find, &QShortcut::activated, this, &ChatDock::openSearch);
+
 	empty_ = new QWidget(this);
 	auto *emptyLayout = new QVBoxLayout(empty_);
 	auto *emptyText = new QLabel(ui::T("Dock.Empty"), empty_);
@@ -678,6 +743,9 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	root->addWidget(view_, 1);
 	view_->setFontSize(fontSize_);
 	view_->setHiddenSources(hidden_);
+	view_->setShowTimestamps(timestamps_);
+	connect(searchEdit_, &QLineEdit::textChanged, view_, &ChatView::setSearch);
+	connect(view_, &ChatView::contentChanged, this, &ChatDock::updateSearchCount);
 
 	ChatManager &manager = ChatManager::instance();
 	QList<QJsonObject> history;
@@ -713,6 +781,11 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 
 void ChatDock::keyPressEvent(QKeyEvent *event)
 {
+	if (event->key() == Qt::Key_Escape && searchBar_->isVisible()) {
+		closeSearch();
+		event->accept();
+		return;
+	}
 	if (event->key() == Qt::Key_Escape && !ChatManager::instance().featured().isEmpty()) {
 		ChatManager::instance().clearFeatured();
 		event->accept();
@@ -760,7 +833,48 @@ void ChatDock::showMenu(const QJsonObject &message, const QPoint &globalPos)
 	if (view_->textCursor().hasSelection())
 		menu.addAction(ui::T("Dock.Menu.CopySelection"), view_, &ChatView::copy);
 	if (!menu.isEmpty())
-		menu.exec(globalPos);
+		menu.addSeparator();
+	QAction *search = menu.addAction(ui::T("Dock.Search"), this, &ChatDock::openSearch);
+	search->setShortcut(QKeySequence::Find);
+	QAction *time = menu.addAction(ui::T("Dock.Menu.ShowTime"));
+	time->setCheckable(true);
+	time->setChecked(timestamps_);
+	connect(time, &QAction::toggled, this, [this](bool on) { setShowTimestamps(on); });
+	menu.exec(globalPos);
+}
+
+void ChatDock::setShowTimestamps(bool show)
+{
+	timestamps_ = show;
+	view_->setShowTimestamps(show);
+	QJsonObject prefs = loadPrefs();
+	prefs.insert("timestamps", show);
+	savePrefs(prefs);
+}
+
+void ChatDock::openSearch()
+{
+	searchBar_->show();
+	searchEdit_->setFocus(Qt::ShortcutFocusReason);
+	searchEdit_->selectAll();
+	updateSearchCount();
+}
+
+void ChatDock::closeSearch()
+{
+	searchEdit_->clear(); // shows every message again
+	searchBar_->hide();
+	view_->setFocus(Qt::OtherFocusReason);
+}
+
+void ChatDock::updateSearchCount()
+{
+	if (!searchBar_->isVisible() || searchEdit_->text().trimmed().isEmpty()) {
+		searchCount_->clear();
+		return;
+	}
+	const int n = view_->shownCount();
+	searchCount_->setText(n == 0 ? ui::T("Dock.Search.None") : ui::T("Dock.Search.Count").arg(n));
 }
 
 void ChatDock::changeFont(int delta)
