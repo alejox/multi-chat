@@ -49,6 +49,9 @@ QJsonObject hideAuthor(const QJsonObject &message);
 QString messageText(const QJsonObject &message);
 // "Author: text" (or "Author text" for /me), for the clipboard.
 QString plainText(const QJsonObject &message);
+// Dock search: every word of the query appears in the author, the text (emote names included)
+// or the system line, ignoring case and accents. An empty query matches everything.
+bool matchesSearch(const QJsonObject &message, const QString &query);
 
 // Streamer-side filters, applied by ChatManager before a message is stored or shown.
 struct FilterRules {

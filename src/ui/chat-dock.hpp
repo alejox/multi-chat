@@ -12,6 +12,7 @@
 
 class FlowLayout;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 class QToolButton;
 
@@ -32,12 +33,19 @@ public:
 	void setFeatured(const QString &id);
 	// Jumps to the newest message and hides the "new messages" pill.
 	void scrollToBottom();
+	// Shows only the messages matching the query (chat::matchesSearch); empty shows all.
+	void setSearch(const QString &query);
+	void setShowTimestamps(bool show);
+	// Messages currently on screen (after hidden chats and the search).
+	int shownCount() const;
 
 signals:
 	// Clic en un mensaje (no en un enlace ni al seleccionar texto).
 	void messageClicked(const QJsonObject &message);
 	// Right click; `message` is empty when not on a message.
 	void menuRequested(const QJsonObject &message, const QPoint &globalPos);
+	// Messages were added, removed or rebuilt.
+	void contentChanged();
 
 protected:
 	QVariant loadResource(int type, const QUrl &name) override;
@@ -64,6 +72,8 @@ private:
 	QString featuredId_;
 	QPoint pressPos_;
 	QSet<QString> hidden_;
+	QString search_;
+	bool timestamps_ = false;
 	int emoteSize_ = 22;
 	QToolButton *pill_ = nullptr; // "↓ N new" while scrolled up
 	int unread_ = 0;
@@ -84,6 +94,10 @@ private:
 	void changeFont(int delta);
 	void showMenu(const QJsonObject &message, const QPoint &globalPos);
 	void clearWithUndo();
+	void openSearch();
+	void closeSearch();
+	void updateSearchCount();
+	void setShowTimestamps(bool show);
 
 	QLabel *status_ = nullptr;
 	QWidget *banner_ = nullptr;
@@ -95,6 +109,10 @@ private:
 	QWidget *empty_ = nullptr;
 	ChatView *view_ = nullptr;
 	QWidget *undoBar_ = nullptr;
+	QWidget *searchBar_ = nullptr;
+	QLineEdit *searchEdit_ = nullptr;
+	QLabel *searchCount_ = nullptr;
+	bool timestamps_ = false;
 	QTimer undoTimer_;
 	QSet<QString> hidden_;
 	int fontSize_ = 11;

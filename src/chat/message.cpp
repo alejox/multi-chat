@@ -5,6 +5,8 @@
 #include <QUrl>
 #include <QUuid>
 
+#include <algorithm>
+
 namespace chat {
 
 QJsonObject textPart(const QString &text)
@@ -133,6 +135,16 @@ QString plainText(const QJsonObject &message)
 	if (text.isEmpty())
 		return author;
 	return author + (message.value("action").toBool() ? QStringLiteral(" ") : QStringLiteral(": ")) + text;
+}
+
+bool matchesSearch(const QJsonObject &message, const QString &query)
+{
+	const QStringList words = foldText(query).simplified().split(QChar(' '), Qt::SkipEmptyParts);
+	if (words.isEmpty())
+		return true;
+	const QString haystack = foldText(message.value("author").toString() + QChar('\n') + messageText(message) +
+					  QChar('\n') + message.value("system").toString());
+	return std::all_of(words.cbegin(), words.cend(), [&haystack](const QString &w) { return haystack.contains(w); });
 }
 
 QStringList defaultHiddenUsers()
