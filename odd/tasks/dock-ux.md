@@ -39,8 +39,8 @@ Auditoría (snapshot de `main`):
 - Native review: RDD apagado globalmente.
 
 ## Tasks
-- [x] T1 Scroll: píldora de nuevos, `rebuild()` sin saltos, invalidación por bloque. Route: delegated (writer). Commit: ver `git log` (feat(dock): píldora de mensajes nuevos…). Checks: build macOS OK sin warnings; pruebas 54/54 + tts OK. Sin RED/GREEN: comportamiento de UI sin prueba ejecutable (QTextBrowser), se verifica a mano. Además compensa el desplazamiento cuando se descarta el mensaje más viejo (límite de 300) estando arriba.
-- [ ] T2 Menú contextual (Destacar, Ocultar mensaje, Ocultar usuario, Copiar) y deshacer al vaciar. Route: delegated (writer).
+- [x] T1 Scroll: píldora de nuevos, `rebuild()` sin saltos, invalidación por bloque. Route: delegated (writer). Commit: f5e013e. Checks: build macOS OK sin warnings; pruebas 54/54 + tts OK. Sin RED/GREEN: comportamiento de UI sin prueba ejecutable (QTextBrowser), se verifica a mano. Además compensa el desplazamiento cuando se descarta el mensaje más viejo (límite de 300) estando arriba.
+- [x] T2 Menú contextual (Destacar, Ocultar mensaje, Ocultar usuario, Copiar) y deshacer al vaciar. Route: delegated (writer). Checks: RED observado (`localModeration`, `plainTextCopy` fallaron con stubs), GREEN 56/56 + tts OK; build macOS sin warnings. Ocultar mensaje/usuario usan `chat::hideMessage`/`hideAuthor` → `applyDeletion` (dock, overlay y destacado). Ocultar usuario guarda el filtro y avisa al diálogo de configuración abierto (`filtersChanged`) para no perderlo. Deshacer restaura historial y dock; el overlay no se restaura (overlay-source fuera del alcance de este bloque; reenviar `message` dispararía TTS). Copiar selección da solo texto plano.
 - [ ] T3 Búsqueda Ctrl+F y hora opcional, con pruebas de la lógica de búsqueda. Route: delegated (writer).
 - [ ] T4 Íconos SVG, colores del tema, chips incrementales, accesibilidad y atajos. Route: delegated (writer).
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).

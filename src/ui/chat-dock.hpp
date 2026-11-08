@@ -7,6 +7,7 @@
 #include <QList>
 #include <QSet>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QWidget>
 
 class FlowLayout;
@@ -35,6 +36,8 @@ public:
 signals:
 	// Clic en un mensaje (no en un enlace ni al seleccionar texto).
 	void messageClicked(const QJsonObject &message);
+	// Right click; `message` is empty when not on a message.
+	void menuRequested(const QJsonObject &message, const QPoint &globalPos);
 
 protected:
 	QVariant loadResource(int type, const QUrl &name) override;
@@ -43,6 +46,9 @@ protected:
 	void mouseReleaseEvent(QMouseEvent *event) override;
 	void keyPressEvent(QKeyEvent *event) override;
 	void resizeEvent(QResizeEvent *event) override;
+	void contextMenuEvent(QContextMenuEvent *event) override;
+	// Copying a selection gives plain text only.
+	QMimeData *createMimeDataFromSelection() const override;
 
 private:
 	QString html(const QJsonObject &message) const;
@@ -52,6 +58,7 @@ private:
 	void updatePill();
 	QColor featuredColor() const;
 	QString messageIdAt(const QPoint &pos) const;
+	QJsonObject messageAt(const QPoint &pos) const;
 
 	QList<QJsonObject> messages_;
 	QString featuredId_;
@@ -75,6 +82,8 @@ protected:
 private:
 	void updateState(const QJsonObject &state);
 	void changeFont(int delta);
+	void showMenu(const QJsonObject &message, const QPoint &globalPos);
+	void clearWithUndo();
 
 	QLabel *status_ = nullptr;
 	QWidget *banner_ = nullptr;
@@ -85,6 +94,8 @@ private:
 	QLabel *errors_ = nullptr;
 	QWidget *empty_ = nullptr;
 	ChatView *view_ = nullptr;
+	QWidget *undoBar_ = nullptr;
+	QTimer undoTimer_;
 	QSet<QString> hidden_;
 	int fontSize_ = 11;
 };

@@ -40,6 +40,15 @@ QJsonObject clearChannel(const QString &platform);
 bool isDeletion(const QJsonObject &object);
 // True if the deletion event affects the message. Never matches across sources (channels).
 bool deletionMatches(const QJsonObject &deletion, const QJsonObject &message);
+// Local moderation from the dock ("Hide message", "Hide user"): deletion events built from a
+// stored message, scoped to its source. Empty if the message lacks the needed fields.
+QJsonObject hideMessage(const QJsonObject &message);
+QJsonObject hideAuthor(const QJsonObject &message);
+
+// The message text as plain text: text parts as they are, emotes by their name.
+QString messageText(const QJsonObject &message);
+// "Author: text" (or "Author text" for /me), for the clipboard.
+QString plainText(const QJsonObject &message);
 
 // Streamer-side filters, applied by ChatManager before a message is stored or shown.
 struct FilterRules {
