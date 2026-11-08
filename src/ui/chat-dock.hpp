@@ -29,6 +29,8 @@ public:
 	void removeMessages(const QJsonObject &deletion);
 	// Resalta el mensaje destacado (id vacío: ninguno).
 	void setFeatured(const QString &id);
+	// Jumps to the newest message and hides the "new messages" pill.
+	void scrollToBottom();
 
 signals:
 	// Clic en un mensaje (no en un enlace ni al seleccionar texto).
@@ -40,10 +42,14 @@ protected:
 	void mousePressEvent(QMouseEvent *event) override;
 	void mouseReleaseEvent(QMouseEvent *event) override;
 	void keyPressEvent(QKeyEvent *event) override;
+	void resizeEvent(QResizeEvent *event) override;
 
 private:
 	QString html(const QJsonObject &message) const;
 	void rebuild();
+	bool isAtBottom() const;
+	void imageReady(const QString &url);
+	void updatePill();
 	QColor featuredColor() const;
 	QString messageIdAt(const QPoint &pos) const;
 
@@ -52,6 +58,9 @@ private:
 	QPoint pressPos_;
 	QSet<QString> hidden_;
 	int emoteSize_ = 22;
+	QToolButton *pill_ = nullptr; // "↓ N new" while scrolled up
+	int unread_ = 0;
+	bool rebuilding_ = false;
 };
 
 class ChatDock : public QWidget {

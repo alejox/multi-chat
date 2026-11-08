@@ -22,6 +22,7 @@
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollBar>
 #include <QTextBlock>
 #include <QTextBlockUserData>
@@ -108,14 +109,83 @@ ChatView::ChatView(QWidget *parent) : QTextBrowser(parent)
 	document()->setDocumentMargin(4);
 	viewport()->setToolTip(ui::T("Dock.FeatureHint"));
 
-	connect(&ImageCache::instance(), &ImageCache::ready, this, [this](const QString &url) {
-		QScrollBar *bar = verticalScrollBar();
-		const bool atBottom = bar->value() >= bar->maximum() - 4;
-		document()->addResource(QTextDocument::ImageResource, QUrl(url), ImageCache::instance().get(url));
-		document()->markContentsDirty(0, document()->characterCount());
-		if (atBottom)
-			bar->setValue(bar->maximum());
+	connect(&ImageCache::instance(), &ImageCache::ready, this, &ChatView::imageReady);
+
+	// Scrolled up while messages keep arriving: a pill counts them and jumps back down.
+	pill_ = new QToolButton(this);
+	pill_->setCursor(Qt::PointingHandCursor);
+	pill_->setStyleSheet("QToolButton { background-color: palette(highlight); color: palette(highlighted-text); "
+			     "border: none; border-radius: 10px; padding: 2px 10px; font-weight: bold; }");
+	pill_->hide();
+	connect(pill_, &QToolButton::clicked, this, &ChatView::scrollToBottom);
+	connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] {
+		if (unread_ > 0 && isAtBottom()) {
+			unread_ = 0;
+			updatePill();
+		}
 	});
+}
+
+bool ChatView::isAtBottom() const
+{
+	const QScrollBar *bar = verticalScrollBar();
+	return bar->value() >= bar->maximum() - 4;
+}
+
+void ChatView::scrollToBottom()
+{
+	verticalScrollBar()->setValue(verticalScrollBar()->maximum());
+	unread_ = 0;
+	updatePill();
+}
+
+void ChatView::updatePill()
+{
+	if (unread_ <= 0) {
+		pill_->hide();
+		return;
+	}
+	const QString text = ui::T("Dock.NewMessages").arg(unread_);
+	pill_->setText(text);
+	pill_->setAccessibleName(text);
+	pill_->adjustSize();
+	const QRect area = viewport()->geometry();
+	pill_->move(area.center().x() - pill_->width() / 2, area.bottom() - pill_->height() - 6);
+	pill_->show();
+	pill_->raise();
+}
+
+void ChatView::resizeEvent(QResizeEvent *event)
+{
+	QTextBrowser::resizeEvent(event);
+	if (pill_->isVisible())
+		updatePill();
+}
+
+// An emote or badge image arrived: relayout only the messages that use it, keeping the view
+// still when they are above it.
+void ChatView::imageReady(const QString &url)
+{
+	QScrollBar *bar = verticalScrollBar();
+	const bool atBottom = isAtBottom();
+	int keep = bar->value();
+	document()->addResource(QTextDocument::ImageResource, QUrl(url), ImageCache::instance().get(url));
+	QAbstractTextDocumentLayout *layout = document()->documentLayout();
+	for (QTextBlock block = document()->begin(); block.isValid(); block = block.next()) {
+		bool uses = false;
+		for (auto it = block.begin(); !it.atEnd() && !uses; ++it) {
+			const QTextCharFormat format = it.fragment().charFormat();
+			uses = format.isImageFormat() && format.toImageFormat().name() == url;
+		}
+		if (!uses)
+			continue;
+		const QRectF before = layout->blockBoundingRect(block);
+		document()->markContentsDirty(block.position(), block.length());
+		const QRectF after = layout->blockBoundingRect(block);
+		if (before.bottom() <= keep)
+			keep += qRound(after.height() - before.height());
+	}
+	bar->setValue(atBottom ? bar->maximum() : std::max(0, keep));
 }
 
 QVariant ChatView::loadResource(int type, const QUrl &name)
@@ -207,8 +277,11 @@ void ChatView::addMessage(const QJsonObject &m)
 		return;
 
 	QScrollBar *bar = verticalScrollBar();
-	const bool atBottom = bar->value() >= bar->maximum() - 4;
-	const int keep = bar->value();
+	const bool atBottom = isAtBottom();
+	int keep = bar->value();
+	// At the block limit the oldest message goes away: compensate so the view stays put.
+	if (!atBottom && document()->blockCount() >= kMaxMessages)
+		keep -= qRound(document()->documentLayout()->blockBoundingRect(document()->firstBlock()).height());
 	append(html(m)); // QTextEdit::append sigue abajo solo si ya estaba abajo
 
 	auto *data = new MessageData;
@@ -229,7 +302,11 @@ void ChatView::addMessage(const QJsonObject &m)
 	block.setUserData(data);
 	QTextCursor cursor(block);
 	cursor.mergeBlockFormat(format);
-	bar->setValue(atBottom ? bar->maximum() : keep);
+	bar->setValue(atBottom ? bar->maximum() : std::max(0, keep));
+	if (!atBottom && !rebuilding_) {
+		++unread_;
+		updatePill();
+	}
 }
 
 QColor ChatView::featuredColor() const
@@ -297,6 +374,11 @@ void ChatView::mouseReleaseEvent(QMouseEvent *event)
 
 void ChatView::keyPressEvent(QKeyEvent *event)
 {
+	if (event->key() == Qt::Key_End) {
+		scrollToBottom();
+		event->accept();
+		return;
+	}
 	if (event->key() == Qt::Key_Escape && !ChatManager::instance().featured().isEmpty()) {
 		ChatManager::instance().clearFeatured();
 		event->accept();
@@ -401,12 +483,42 @@ void ChatView::setFontSize(int pointSize)
 
 void ChatView::rebuild()
 {
+	QScrollBar *bar = verticalScrollBar();
+	const bool atBottom = isAtBottom();
+	const int oldValue = bar->value();
+	// Reading further up: remember the message at the top of the view and where it was.
+	QString anchorId;
+	qreal anchorOffset = 0;
+	if (!atBottom) {
+		const QTextBlock top = cursorForPosition(QPoint(0, 0)).block();
+		if (const auto *data = dynamic_cast<MessageData *>(top.userData())) {
+			anchorId = data->id;
+			anchorOffset = document()->documentLayout()->blockBoundingRect(top).top() - oldValue;
+		}
+	}
+
 	const QList<QJsonObject> all = messages_;
 	messages_.clear();
+	rebuilding_ = true;
 	clear();
 	for (const QJsonObject &m : all)
 		addMessage(m);
-	verticalScrollBar()->setValue(verticalScrollBar()->maximum());
+	rebuilding_ = false;
+
+	if (atBottom) {
+		scrollToBottom();
+		return;
+	}
+	int value = oldValue;
+	if (!anchorId.isEmpty())
+		for (QTextBlock block = document()->begin(); block.isValid(); block = block.next()) {
+			const auto *data = dynamic_cast<MessageData *>(block.userData());
+			if (data && data->id == anchorId) {
+				value = qRound(document()->documentLayout()->blockBoundingRect(block).top() - anchorOffset);
+				break;
+			}
+		}
+	bar->setValue(std::clamp(value, 0, bar->maximum()));
 }
 
 // ---------------------------------------------------------------------------------------
