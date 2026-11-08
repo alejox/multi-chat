@@ -6,7 +6,6 @@
 #include "../i18n.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/platforms.hpp"
-#include "../tts/voice-source.hpp"
 
 #include <obs-module.h>
 
@@ -164,7 +163,7 @@ private:
 		auto *layout = new QVBoxLayout(page);
 		layout->addWidget(title(i18n::tr("Wizard.Sources.Title"), page));
 		layout->addWidget(wrapped(i18n::tr("Wizard.Sources.Text"), page));
-		// One button adds the three sources; the boxes are there to leave one out.
+		// One button adds both sources; the boxes are there to leave one out.
 		addSources_ = new QPushButton(page);
 		addSources_->setAutoDefault(false);
 		QFont bold = addSources_->font();
@@ -188,18 +187,33 @@ private:
 		auto *featuredHelp = wrapped(i18n::tr("Wizard.Sources.FeaturedHelp"), page);
 		featuredHelp->setContentsMargins(22, 0, 0, 0);
 		layout->addWidget(featuredHelp);
-		voiceSource_ = source(tts::kVoiceSourceId);
+		// The voice is not a source: this turns on the plugin's voice output (same switch as the
+		// settings' Voice tab).
+		layout->addSpacing(8);
+		readAloud_ = new QCheckBox(i18n::tr("Voice.Enabled"), page);
+		readAloud_->setChecked(ChatManager::instance().voiceSettings().enabled);
+		layout->addWidget(readAloud_);
 		auto *voiceHelp = wrapped(i18n::tr("Wizard.Sources.VoiceHelp"), page);
 		voiceHelp->setContentsMargins(22, 0, 0, 0);
 		layout->addWidget(voiceHelp);
 		layout->addStretch(1);
 		connect(addSources_, &QPushButton::clicked, this, [this] { addSources(); });
-		auto enable = [this] {
-			addSources_->setEnabled(chatSource_->isChecked() || featuredSource_->isChecked() ||
-						voiceSource_->isChecked());
-		};
-		for (QCheckBox *box : {chatSource_, featuredSource_, voiceSource_})
+		auto enable = [this] { addSources_->setEnabled(chatSource_->isChecked() || featuredSource_->isChecked()); };
+		for (QCheckBox *box : {chatSource_, featuredSource_})
 			connect(box, &QCheckBox::toggled, this, enable);
+		connect(readAloud_, &QCheckBox::toggled, this, [](bool on) {
+			ChatManager &m = ChatManager::instance();
+			tts::VoiceSettings settings = m.voiceSettings();
+			settings.enabled = on;
+			m.setVoiceSettings(settings);
+		});
+		connect(&ChatManager::instance(), &ChatManager::voiceSettingsChanged, this, [this] {
+			const bool on = ChatManager::instance().voiceSettings().enabled;
+			if (readAloud_->isChecked() != on) {
+				const QSignalBlocker block(readAloud_);
+				readAloud_->setChecked(on);
+			}
+		});
 		return page;
 	}
 
@@ -212,8 +226,7 @@ private:
 
 	void addSources()
 	{
-		const QStringList lines = ui::addMultichatSources(chatSource_->isChecked(), featuredSource_->isChecked(),
-								  voiceSource_->isChecked());
+		const QStringList lines = ui::addMultichatSources(chatSource_->isChecked(), featuredSource_->isChecked());
 		result_->setText(lines.join('\n'));
 		result_->show();
 		updateScene();
@@ -243,7 +256,7 @@ private:
 	QLabel *added_ = nullptr;
 	QCheckBox *chatSource_ = nullptr;
 	QCheckBox *featuredSource_ = nullptr;
-	QCheckBox *voiceSource_ = nullptr;
+	QCheckBox *readAloud_ = nullptr;
 	QPushButton *addSources_ = nullptr;
 	QLabel *result_ = nullptr;
 };

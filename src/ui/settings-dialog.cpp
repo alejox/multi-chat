@@ -5,6 +5,7 @@
 #include "chat-list.hpp"
 #include "chat-dock.hpp"
 #include "first-run-wizard.hpp"
+#include "flow-layout.hpp"
 #include "image-cache.hpp"
 #include "profile-cache.hpp"
 #include "ui-common.hpp"
@@ -12,10 +13,15 @@
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
 #include "../updater.hpp"
+#include "../platforms-registry.hpp"
+#include "../tts/speech-backend.hpp"
+#include "../tts/voice-source.hpp"
 
 #include <QApplication>
 #include <QButtonGroup>
 #include <QDropEvent>
+#include <QFileDialog>
+#include <QFormLayout>
 #include <QHash>
 #include <QCheckBox>
 #include <QComboBox>
@@ -34,12 +40,16 @@
 #include <QRadioButton>
 #include <QRegularExpression>
 #include <QShortcut>
+#include <QSlider>
+#include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <functional>
+#include <memory>
+#include <vector>
 
 namespace {
 
@@ -56,6 +66,7 @@ public:
 		auto *chatsPageLayout = new QVBoxLayout(chatsPage);
 		tabs->addTab(chatsPage, i18n::tr("Settings.Tab.Chats"));
 		tabs->addTab(buildFilters(tabs), i18n::tr("Settings.Tab.Filters"));
+		tabs->addTab(buildVoice(tabs), i18n::tr("Settings.Tab.Voice"));
 		root->addWidget(tabs);
 
 		// Lista de chats.
@@ -139,7 +150,7 @@ public:
 		addResult->hide();
 		root->addWidget(addResult);
 		connect(addSources, &QPushButton::clicked, this, [addResult] {
-			addResult->setText(ui::addMultichatSources(true, true, true).join('\n'));
+			addResult->setText(ui::addMultichatSources(true, true).join('\n'));
 			addResult->show();
 		});
 		connect(wizard, &QPushButton::clicked, this, [this] { open_first_run_wizard(this); });
@@ -189,6 +200,8 @@ public:
 		// Closed right after an edit: do not lose it.
 		if (filtersTimer_.isActive())
 			applyFilters();
+		if (voiceTimer_.isActive())
+			applyVoice();
 	}
 
 private:
@@ -267,6 +280,209 @@ private:
 			hiddenUsers_->setPlainText(users.join('\n'));
 		});
 		return page;
+	}
+
+	// "Voice" tab: the plugin's voice output reads the chat aloud in every scene. Saved a moment
+	// after each change; blocked words and hidden users stay in the Filters tab, volume and
+	// monitoring in OBS's audio mixer.
+	QWidget *buildVoice(QWidget *parent)
+	{
+		auto *page = new QWidget(parent);
+		auto *layout = new QVBoxLayout(page);
+		auto help = [page](const char *key) {
+			auto *label = new QLabel(i18n::tr(key), page);
+			label->setWordWrap(true);
+			label->setForegroundRole(QPalette::PlaceholderText);
+			return label;
+		};
+
+		voiceEnabled_ = new QCheckBox(i18n::tr("Voice.Enabled"), page);
+		QFont bold = voiceEnabled_->font();
+		bold.setBold(true);
+		voiceEnabled_->setFont(bold);
+		layout->addWidget(voiceEnabled_);
+		layout->addWidget(help("Voice.Enabled.Help"));
+
+		auto *form = new QFormLayout();
+		form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+		voiceMode_ = new QComboBox(page);
+		for (const char *id : {"read", "sound", "both"})
+			voiceMode_->addItem(i18n::tr(("Voice.Mode." + QString::fromLatin1(id)).toUtf8().constData()),
+					    QString::fromLatin1(id));
+		voiceMode_->setToolTip(i18n::tr("Voice.Mode.Help"));
+		form->addRow(i18n::tr("Voice.Mode"), voiceMode_);
+
+		// Sound options.
+		auto *soundRow = new QWidget(page);
+		auto *soundLayout = new QHBoxLayout(soundRow);
+		soundLayout->setContentsMargins(0, 0, 0, 0);
+		soundFile_ = new QLineEdit(soundRow);
+		soundFile_->setPlaceholderText(i18n::tr("Voice.SoundFile.Placeholder"));
+		soundFile_->setToolTip(i18n::tr("Voice.SoundFile.Help"));
+		auto *browse = new QPushButton(i18n::tr("Voice.Browse"), soundRow);
+		browse->setAutoDefault(false);
+		soundLayout->addWidget(soundFile_, 1);
+		soundLayout->addWidget(browse);
+		form->addRow(i18n::tr("Voice.SoundFile"), soundRow);
+		soundCooldown_ = new QSpinBox(page);
+		soundCooldown_->setRange(0, tts::VoiceSettings::kMaxCooldownMs);
+		soundCooldown_->setSingleStep(100);
+		soundCooldown_->setSuffix(QStringLiteral(" ms"));
+		soundCooldown_->setToolTip(i18n::tr("Voice.SoundCooldown.Help"));
+		form->addRow(i18n::tr("Voice.SoundCooldown"), soundCooldown_);
+		soundWidgets_ = {soundRow, soundCooldown_};
+
+		// Reading options.
+		voice_ = new QComboBox(page);
+		voice_->addItem(i18n::tr("Voice.DefaultVoice"), QString());
+		for (const tts::VoiceInfo &info : tts::availableVoices())
+			voice_->addItem(info.name, info.id);
+		form->addRow(i18n::tr("Voice.Voice"), voice_);
+		auto *rateRow = new QWidget(page);
+		auto *rateLayout = new QHBoxLayout(rateRow);
+		rateLayout->setContentsMargins(0, 0, 0, 0);
+		rate_ = new QSlider(Qt::Horizontal, rateRow);
+		rate_->setRange(tts::VoiceSettings::kMinRate, tts::VoiceSettings::kMaxRate);
+		rate_->setToolTip(i18n::tr("Voice.Rate.Help"));
+		rateValue_ = new QLabel(rateRow);
+		rateValue_->setMinimumWidth(rateValue_->fontMetrics().horizontalAdvance(QStringLiteral("100 %")));
+		rateLayout->addWidget(rate_, 1);
+		rateLayout->addWidget(rateValue_);
+		form->addRow(i18n::tr("Voice.Rate"), rateRow);
+		maxLength_ = new QSpinBox(page);
+		maxLength_->setRange(tts::VoiceSettings::kMinMaxLength, tts::VoiceSettings::kMaxMaxLength);
+		maxLength_->setSingleStep(10);
+		maxLength_->setToolTip(i18n::tr("Voice.MaxLength.Help"));
+		form->addRow(i18n::tr("Voice.MaxLength"), maxLength_);
+		layout->addLayout(form);
+		readAuthor_ = new QCheckBox(i18n::tr("Voice.ReadAuthor"), page);
+		layout->addWidget(readAuthor_);
+		readWidgets_ = {voice_, rateRow, maxLength_, readAuthor_};
+		for (QWidget *w : {static_cast<QWidget *>(soundRow), static_cast<QWidget *>(soundCooldown_),
+				   static_cast<QWidget *>(voice_), rateRow, static_cast<QWidget *>(maxLength_)})
+			if (QWidget *label = form->labelForField(w)) {
+				(soundWidgets_.contains(w) ? soundWidgets_ : readWidgets_) << label;
+			}
+
+		// Platforms: the filters apply to every mode.
+		auto *platformsBox = new QWidget(page);
+		auto *platformsRow = new FlowLayout(platformsBox, 12);
+		platformsRow->setContentsMargins(0, 0, 0, 0);
+		const QString readPlatform = i18n::tr("Voice.ReadPlatform");
+		for (const platforms::Platform &platform : platforms::kAll) {
+			const QString id = QString::fromUtf8(platform.id);
+			auto *box = new QCheckBox(readPlatform.arg(chat::platformName(id)), platformsBox);
+			readPlatforms_.insert(id, box);
+			platformsRow->addWidget(box);
+		}
+		layout->addWidget(platformsBox);
+
+		auto *skipRow = new QHBoxLayout();
+		auto *skip = new QPushButton(i18n::tr("Voice.Skip"), page);
+		skip->setAutoDefault(false);
+		skipRow->addWidget(skip);
+		skipRow->addStretch(1);
+		layout->addLayout(skipRow);
+		readWidgets_ << skip;
+		layout->addWidget(help("Voice.Note"));
+		layout->addStretch(1);
+
+		loadVoice();
+
+		voiceTimer_.setSingleShot(true);
+		voiceTimer_.setInterval(400);
+		connect(&voiceTimer_, &QTimer::timeout, this, [this] { applyVoice(); });
+		auto changed = [this] { voiceTimer_.start(); };
+		// Turning the voice on or off is not delayed: it creates or removes the mixer entry.
+		connect(voiceEnabled_, &QCheckBox::toggled, this, [this] { applyVoice(); });
+		connect(voiceMode_, &QComboBox::currentIndexChanged, this, [this, changed] {
+			updateVoiceVisibility();
+			changed();
+		});
+		connect(soundFile_, &QLineEdit::textChanged, this, changed);
+		connect(soundCooldown_, &QSpinBox::valueChanged, this, changed);
+		connect(voice_, &QComboBox::currentIndexChanged, this, changed);
+		connect(rate_, &QSlider::valueChanged, this, [this, changed](int value) {
+			rateValue_->setText(QStringLiteral("%1 %").arg(value));
+			changed();
+		});
+		connect(maxLength_, &QSpinBox::valueChanged, this, changed);
+		connect(readAuthor_, &QCheckBox::toggled, this, changed);
+		for (QCheckBox *box : std::as_const(readPlatforms_))
+			connect(box, &QCheckBox::toggled, this, changed);
+		connect(browse, &QPushButton::clicked, this, [this] {
+			const QString file = QFileDialog::getOpenFileName(this, i18n::tr("Voice.SoundFile"),
+									  soundFile_->text(), i18n::tr("Voice.SoundFilter"));
+			if (!file.isEmpty())
+				soundFile_->setText(file);
+		});
+		connect(skip, &QPushButton::clicked, this, [] { voice_skip_current(); });
+		// Turned on or off elsewhere (the assistant) while this is open.
+		connect(&ChatManager::instance(), &ChatManager::voiceSettingsChanged, this, [this] {
+			if (!voiceTimer_.isActive())
+				loadVoice();
+		});
+		return page;
+	}
+
+	// The widgets show the saved voice settings (without counting as changes).
+	void loadVoice()
+	{
+		const tts::VoiceSettings v = ChatManager::instance().voiceSettings();
+		QList<QObject *> widgets = {voiceEnabled_, voiceMode_, soundFile_, soundCooldown_,
+					    voice_,        rate_,      maxLength_, readAuthor_};
+		for (QCheckBox *box : std::as_const(readPlatforms_))
+			widgets << box;
+		std::vector<std::unique_ptr<QSignalBlocker>> blockers;
+		for (QObject *w : widgets)
+			blockers.push_back(std::make_unique<QSignalBlocker>(w));
+		voiceEnabled_->setChecked(v.enabled);
+		voiceMode_->setCurrentIndex(std::max(0, voiceMode_->findData(tts::voiceModeToString(v.mode))));
+		soundFile_->setText(v.soundFile);
+		soundCooldown_->setValue(v.soundCooldownMs);
+		int voiceIndex = voice_->findData(v.voice);
+		if (voiceIndex < 0) { // a voice this system does not have (any more): kept as it is
+			voice_->addItem(v.voice, v.voice);
+			voiceIndex = voice_->count() - 1;
+		}
+		voice_->setCurrentIndex(voiceIndex);
+		rate_->setValue(v.ratePercent);
+		rateValue_->setText(QStringLiteral("%1 %").arg(v.ratePercent));
+		maxLength_->setValue(v.maxLength);
+		readAuthor_->setChecked(v.readAuthor);
+		for (auto it = readPlatforms_.cbegin(); it != readPlatforms_.cend(); ++it)
+			it.value()->setChecked(v.readsPlatform(it.key()));
+		updateVoiceVisibility();
+	}
+
+	// The sound options only show when a sound is used; the reading ones, when the chat is read.
+	void updateVoiceVisibility()
+	{
+		const tts::VoiceMode mode = tts::voiceModeFromString(voiceMode_->currentData().toString());
+		for (QWidget *w : std::as_const(soundWidgets_))
+			w->setVisible(mode != tts::VoiceMode::Read);
+		for (QWidget *w : std::as_const(readWidgets_))
+			w->setVisible(mode != tts::VoiceMode::Sound);
+	}
+
+	void applyVoice()
+	{
+		voiceTimer_.stop();
+		tts::VoiceSettings v;
+		v.enabled = voiceEnabled_->isChecked();
+		v.mode = tts::voiceModeFromString(voiceMode_->currentData().toString());
+		v.voice = voice_->currentData().toString();
+		v.ratePercent = rate_->value();
+		v.readAuthor = readAuthor_->isChecked();
+		for (const platforms::Platform &platform : platforms::kAll) {
+			const QString id = QString::fromUtf8(platform.id);
+			if (QCheckBox *box = readPlatforms_.value(id); box && !box->isChecked())
+				v.mutedPlatforms << id;
+		}
+		v.maxLength = maxLength_->value();
+		v.soundFile = soundFile_->text().trimmed();
+		v.soundCooldownMs = soundCooldown_->value();
+		ChatManager::instance().setVoiceSettings(v);
 	}
 
 	// One entry per line (commas also separate), without blanks or repeats.
@@ -577,6 +793,19 @@ private:
 	QCheckBox *hideCommands_ = nullptr;
 	QPlainTextEdit *blockedWords_ = nullptr;
 	QTimer filtersTimer_;
+	QCheckBox *voiceEnabled_ = nullptr;
+	QComboBox *voiceMode_ = nullptr;
+	QLineEdit *soundFile_ = nullptr;
+	QSpinBox *soundCooldown_ = nullptr;
+	QComboBox *voice_ = nullptr;
+	QSlider *rate_ = nullptr;
+	QLabel *rateValue_ = nullptr;
+	QCheckBox *readAuthor_ = nullptr;
+	QHash<QString, QCheckBox *> readPlatforms_; // by platform id
+	QSpinBox *maxLength_ = nullptr;
+	QList<QWidget *> soundWidgets_; // shown when the mode plays a sound
+	QList<QWidget *> readWidgets_;  // shown when the mode reads aloud
+	QTimer voiceTimer_;
 };
 
 } // namespace
