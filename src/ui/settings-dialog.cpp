@@ -6,6 +6,7 @@
 #include "image-cache.hpp"
 #include "profile-cache.hpp"
 #include "ui-common.hpp"
+#include "../i18n.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
 #include "../updater.hpp"
@@ -44,7 +45,7 @@ namespace ui {
 QString entryErrorText(chat::EntryError code, const QString &arg)
 {
 	const char *key = chat::entryErrorKey(code);
-	return key ? ui::T(key).arg(arg) : QString();
+	return key ? i18n::tr(key).arg(arg) : QString();
 }
 
 QPixmap chatAvatar(const chat::SourceInfo &info, int size, qreal dpr)
@@ -75,8 +76,8 @@ ChannelInput::ChannelInput(QWidget *parent) : QWidget(parent)
 		platform_->addItem(QIcon(ui::platformIcon(p, 16, devicePixelRatioF())), chat::platformName(p),
 				   QString::fromLatin1(p));
 	channel_ = new QLineEdit(this);
-	channel_->setAccessibleName(ui::T("Settings.Chats"));
-	add_ = new QPushButton(ui::T("Settings.Add"), this);
+	channel_->setAccessibleName(i18n::tr("Settings.Chats"));
+	add_ = new QPushButton(i18n::tr("Settings.Add"), this);
 	add_->setAutoDefault(false);
 	addRow->addWidget(platform_);
 	addRow->addWidget(channel_, 1);
@@ -97,7 +98,7 @@ ChannelInput::ChannelInput(QWidget *parent) : QWidget(parent)
 	busy_->setRange(0, 0);
 	busy_->setTextVisible(false);
 	busy_->setFixedWidth(60);
-	busy_->setAccessibleName(ui::T("Settings.Preview.Loading"));
+	busy_->setAccessibleName(i18n::tr("Settings.Preview.Loading"));
 	previewLayout->addWidget(avatar_);
 	previewLayout->addWidget(previewText_, 1);
 	previewLayout->addWidget(busy_, 0, Qt::AlignVCenter);
@@ -121,7 +122,7 @@ ChannelInput::ChannelInput(QWidget *parent) : QWidget(parent)
 		// A new text needs a new check: no stale "add anyway" nor pending add.
 		pendingAdd_.clear();
 		notFound_.clear();
-		add_->setText(ui::T("Settings.Add"));
+		add_->setText(i18n::tr("Settings.Add"));
 		add_->setEnabled(true);
 		check_->hide();
 		previewTimer_.start();
@@ -164,8 +165,8 @@ void ChannelInput::focusInput()
 void ChannelInput::updateHint()
 {
 	const QString p = platform_->currentData().toString();
-	channel_->setPlaceholderText(ui::T(("Settings.Placeholder." + p).toUtf8().constData()));
-	hint_->setText(ui::T(("Settings.Hint." + p).toUtf8().constData()));
+	channel_->setPlaceholderText(i18n::tr(("Settings.Placeholder." + p).toUtf8().constData()));
+	hint_->setText(i18n::tr(("Settings.Hint." + p).toUtf8().constData()));
 }
 
 ChannelInput::Validation ChannelInput::validate()
@@ -186,7 +187,7 @@ ChannelInput::Validation ChannelInput::validate()
 		QString ignored;
 		if (chat::parseEntry(e.entry, other, ignored) && other.key == v.info.key) {
 			v.state = Check::Duplicate;
-			v.message = ui::T("Settings.Validate.Duplicate");
+			v.message = i18n::tr("Settings.Validate.Duplicate");
 			return v;
 		}
 	}
@@ -213,7 +214,7 @@ void ChannelInput::updatePreview()
 	} else {
 		QString text = chat::platformName(v.info.platform) + QStringLiteral(" · ") + v.info.channel;
 		if (v.state == Check::Loading)
-			text = ui::T("Settings.Preview.Loading") + "\n" + text;
+			text = i18n::tr("Settings.Preview.Loading") + "\n" + text;
 		else if (!v.profile.name.isEmpty())
 			text = v.profile.name + "\n" + text;
 		previewText_->setText(text);
@@ -233,16 +234,16 @@ void ChannelInput::updatePreview()
 
 	QString message = v.message;
 	if (v.state == Check::NotFound) {
-		message = ui::T("Settings.Validate.NotFound").arg(chat::platformName(v.info.platform));
+		message = i18n::tr("Settings.Validate.NotFound").arg(chat::platformName(v.info.platform));
 		notFound_ = v.entry;
 	} else {
 		notFound_.clear();
 		if (v.state == Check::Unknown)
-			message = ui::T("Settings.Validate.Unknown").arg(chat::platformName(v.info.platform));
+			message = i18n::tr("Settings.Validate.Unknown").arg(chat::platformName(v.info.platform));
 	}
 	check_->setText(message);
 	check_->setVisible(!message.isEmpty());
-	add_->setText(ui::T(v.state == Check::NotFound ? "Settings.AddAnyway"
+	add_->setText(i18n::tr(v.state == Check::NotFound ? "Settings.AddAnyway"
 			    : pendingAdd_.isEmpty()   ? "Settings.Add"
 						      : "Settings.Checking"));
 	add_->setEnabled(pendingAdd_.isEmpty());
@@ -290,7 +291,7 @@ void ChannelInput::commit(const QString &entry)
 		const QSignalBlocker block(channel_);
 		channel_->clear();
 	}
-	add_->setText(ui::T("Settings.Add"));
+	add_->setText(i18n::tr("Settings.Add"));
 	add_->setEnabled(true);
 	if (onAdd)
 		onAdd(entry);
@@ -317,31 +318,31 @@ class SettingsDialog : public QDialog {
 public:
 	explicit SettingsDialog(QWidget *parent) : QDialog(parent)
 	{
-		setWindowTitle(ui::T("Settings.Title"));
+		setWindowTitle(i18n::tr("Settings.Title"));
 		setAttribute(Qt::WA_DeleteOnClose);
 		setMinimumWidth(460);
 		auto *root = new QVBoxLayout(this);
 		auto *tabs = new QTabWidget(this);
 		auto *chatsPage = new QWidget(tabs);
 		auto *chatsPageLayout = new QVBoxLayout(chatsPage);
-		tabs->addTab(chatsPage, ui::T("Settings.Tab.Chats"));
-		tabs->addTab(buildFilters(tabs), ui::T("Settings.Tab.Filters"));
+		tabs->addTab(chatsPage, i18n::tr("Settings.Tab.Chats"));
+		tabs->addTab(buildFilters(tabs), i18n::tr("Settings.Tab.Filters"));
 		root->addWidget(tabs);
 
 		// Lista de chats.
-		auto *chatsBox = new QGroupBox(ui::T("Settings.Chats"), chatsPage);
+		auto *chatsBox = new QGroupBox(i18n::tr("Settings.Chats"), chatsPage);
 		auto *chatsLayout = new QVBoxLayout(chatsBox);
 		list_ = new ChatList(chatsBox);
 		list_->setMinimumHeight(160);
 		list_->setDragDropMode(QAbstractItemView::InternalMove);
 		list_->setDefaultDropAction(Qt::MoveAction);
 		list_->setSelectionMode(QAbstractItemView::SingleSelection);
-		list_->setAccessibleName(ui::T("Settings.Chats"));
+		list_->setAccessibleName(i18n::tr("Settings.Chats"));
 		list_->onDropped = [this] {
 			QMetaObject::invokeMethod(this, [this] { syncOrderFromList(); }, Qt::QueuedConnection);
 		};
 		chatsLayout->addWidget(list_);
-		auto *listHelp = new QLabel(ui::T("Settings.ListHelp"), chatsBox);
+		auto *listHelp = new QLabel(i18n::tr("Settings.ListHelp"), chatsBox);
 		listHelp->setWordWrap(true);
 		listHelp->setForegroundRole(QPalette::PlaceholderText);
 		chatsLayout->addWidget(listHelp);
@@ -373,28 +374,28 @@ public:
 		chatsPageLayout->addWidget(chatsBox);
 
 		// Cuándo conectar.
-		auto *modeBox = new QGroupBox(ui::T("Settings.When"), chatsPage);
+		auto *modeBox = new QGroupBox(i18n::tr("Settings.When"), chatsPage);
 		auto *modeLayout = new QVBoxLayout(modeBox);
-		auto_ = new QRadioButton(ui::T("Settings.Mode.Auto"), modeBox);
-		always_ = new QRadioButton(ui::T("Settings.Mode.Always"), modeBox);
-		auto *autoHelp = new QLabel(ui::T("Settings.Mode.AutoHelp"), modeBox);
+		auto_ = new QRadioButton(i18n::tr("Settings.Mode.Auto"), modeBox);
+		always_ = new QRadioButton(i18n::tr("Settings.Mode.Always"), modeBox);
+		auto *autoHelp = new QLabel(i18n::tr("Settings.Mode.AutoHelp"), modeBox);
 		autoHelp->setWordWrap(true);
 		autoHelp->setForegroundRole(QPalette::PlaceholderText);
 		autoHelp->setContentsMargins(22, 0, 0, 0);
 		modeLayout->addWidget(auto_);
 		modeLayout->addWidget(autoHelp);
 		modeLayout->addWidget(always_);
-		demo_ = new QCheckBox(ui::T("Settings.Demo"), modeBox);
+		demo_ = new QCheckBox(i18n::tr("Settings.Demo"), modeBox);
 		modeLayout->addWidget(demo_);
 		chatsPageLayout->addWidget(modeBox);
 		chatsPageLayout->addStretch(1);
 
 		// Shortcuts that used to be Tools menu entries or a text telling where to click.
 		auto *actions = new QHBoxLayout();
-		auto *addSources = new QPushButton(ui::T("Settings.AddSources"), this);
-		addSources->setToolTip(ui::T("Settings.AddSources.Help"));
-		auto *wizard = new QPushButton(ui::T("Settings.Wizard"), this);
-		auto *updates = new QPushButton(ui::T("Settings.CheckUpdates"), this);
+		auto *addSources = new QPushButton(i18n::tr("Settings.AddSources"), this);
+		addSources->setToolTip(i18n::tr("Settings.AddSources.Help"));
+		auto *wizard = new QPushButton(i18n::tr("Settings.Wizard"), this);
+		auto *updates = new QPushButton(i18n::tr("Settings.CheckUpdates"), this);
 		for (QPushButton *b : {addSources, wizard, updates})
 			b->setAutoDefault(false);
 		actions->addWidget(addSources);
@@ -460,7 +461,7 @@ private:
 		auto *layout = new QVBoxLayout(page);
 		const chat::FilterRules rules = ChatManager::instance().filters();
 		auto help = [page](const char *key) {
-			auto *label = new QLabel(ui::T(key), page);
+			auto *label = new QLabel(i18n::tr(key), page);
 			label->setWordWrap(true);
 			label->setForegroundRole(QPalette::PlaceholderText);
 			return label;
@@ -468,32 +469,32 @@ private:
 		auto listEdit = [page](const QStringList &items, const char *placeholder) {
 			auto *edit = new QPlainTextEdit(page);
 			edit->setPlainText(items.join('\n'));
-			edit->setPlaceholderText(ui::T(placeholder));
+			edit->setPlaceholderText(i18n::tr(placeholder));
 			edit->setTabChangesFocus(true);
 			edit->setMinimumHeight(90);
 			return edit;
 		};
 
-		auto *usersBox = new QGroupBox(ui::T("Settings.Filters.Users"), page);
+		auto *usersBox = new QGroupBox(i18n::tr("Settings.Filters.Users"), page);
 		auto *usersLayout = new QVBoxLayout(usersBox);
 		hiddenUsers_ = listEdit(rules.hiddenUsers, "Settings.Filters.UsersPlaceholder");
 		usersLayout->addWidget(hiddenUsers_);
 		auto *usersRow = new QHBoxLayout();
 		usersRow->addWidget(help("Settings.Filters.UsersHelp"), 1);
-		auto *restore = new QPushButton(ui::T("Settings.Filters.RestoreBots"), usersBox);
+		auto *restore = new QPushButton(i18n::tr("Settings.Filters.RestoreBots"), usersBox);
 		usersRow->addWidget(restore, 0, Qt::AlignTop);
 		usersLayout->addLayout(usersRow);
 		layout->addWidget(usersBox);
 
-		auto *commandsBox = new QGroupBox(ui::T("Settings.Filters.Commands"), page);
+		auto *commandsBox = new QGroupBox(i18n::tr("Settings.Filters.Commands"), page);
 		auto *commandsLayout = new QVBoxLayout(commandsBox);
-		hideCommands_ = new QCheckBox(ui::T("Settings.Filters.HideCommands"), commandsBox);
+		hideCommands_ = new QCheckBox(i18n::tr("Settings.Filters.HideCommands"), commandsBox);
 		hideCommands_->setChecked(rules.hideCommands);
 		commandsLayout->addWidget(hideCommands_);
 		commandsLayout->addWidget(help("Settings.Filters.CommandsHelp"));
 		layout->addWidget(commandsBox);
 
-		auto *wordsBox = new QGroupBox(ui::T("Settings.Filters.Words"), page);
+		auto *wordsBox = new QGroupBox(i18n::tr("Settings.Filters.Words"), page);
 		auto *wordsLayout = new QVBoxLayout(wordsBox);
 		blockedWords_ = listEdit(rules.blockedWords, "Settings.Filters.WordsPlaceholder");
 		wordsLayout->addWidget(blockedWords_);
@@ -690,8 +691,8 @@ private:
 			const QSignalBlocker block(r.enabled);
 			r.enabled->setChecked(chatEntry.enabled);
 		}
-		r.enabled->setAccessibleName(ui::T("Settings.Row.Enabled").arg(name));
-		r.enabled->setToolTip(ui::T("Settings.Row.EnabledTip"));
+		r.enabled->setAccessibleName(i18n::tr("Settings.Row.Enabled").arg(name));
+		r.enabled->setToolTip(i18n::tr("Settings.Row.EnabledTip"));
 		r.avatar->setPixmap(valid ? ui::chatAvatar(info, 28, devicePixelRatioF()) : QPixmap());
 		r.name->setText(name);
 		r.where->setText(valid ? chat::platformName(info.platform) + QStringLiteral(" · ") + info.channel
@@ -701,26 +702,26 @@ private:
 		QString statusText;
 		if (!valid) {
 			status = "error";
-			statusText = ui::T("Status.error");
+			statusText = i18n::tr("Status.error");
 			detail = ui::entryErrorText(code, arg);
 		} else if (!chatEntry.enabled) {
 			status = "idle";
-			statusText = ui::T("Settings.Row.Paused");
+			statusText = i18n::tr("Settings.Row.Paused");
 			detail.clear();
 			live = -1;
 			viewers = -1;
 		} else {
-			statusText = ui::T(("Status." + status).toUtf8().constData());
+			statusText = i18n::tr(("Status." + status).toUtf8().constData());
 		}
 		r.statusIcon->setPixmap(
 			ui::statusIcon(valid ? info.platform : QString(), status, 14, devicePixelRatioF()).pixmap(14, 14));
 		r.status->setText(statusText);
 		QString liveText;
 		if (live == 1)
-			liveText = QString::fromUtf8("· ● ") + ui::T("Live.Yes");
+			liveText = QString::fromUtf8("· ● ") + i18n::tr("Live.Yes");
 		if (viewers >= 0)
 			liveText += (liveText.isEmpty() ? QStringLiteral("· ") : QStringLiteral("  ")) +
-				    ui::T("Dock.Viewers").arg(ui::formatCount(viewers));
+				    i18n::tr("Dock.Viewers").arg(ui::formatCount(viewers));
 		r.live->setText(liveText);
 		r.live->setVisible(!liveText.isEmpty());
 		r.detail->setText(status == "error" ? detail : QString());
@@ -730,8 +731,8 @@ private:
 		const QPalette::ColorRole nameRole = chatEntry.enabled ? QPalette::WindowText : QPalette::PlaceholderText;
 		r.name->setForegroundRole(nameRole);
 		r.status->setForegroundRole(nameRole);
-		r.remove->setToolTip(ui::T("Settings.Row.Remove").arg(name));
-		r.remove->setAccessibleName(ui::T("Settings.Row.Remove").arg(name));
+		r.remove->setToolTip(i18n::tr("Settings.Row.Remove").arg(name));
+		r.remove->setAccessibleName(i18n::tr("Settings.Row.Remove").arg(name));
 		r.item->setSizeHint(r.widget->sizeHint());
 		const QString accessible = name + ", " + r.where->text() + ", " + statusText;
 		r.item->setData(Qt::AccessibleTextRole, accessible);
@@ -756,7 +757,7 @@ private:
 					list_->setCurrentItem(rows_[entry].item);
 			}
 			if (order.isEmpty()) {
-				auto *item = new QListWidgetItem(ui::T("Settings.NoChats"), list_);
+				auto *item = new QListWidgetItem(i18n::tr("Settings.NoChats"), list_);
 				item->setFlags(Qt::NoItemFlags);
 			}
 			rowOrder_ = order;

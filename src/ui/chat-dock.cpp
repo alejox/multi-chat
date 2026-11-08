@@ -3,6 +3,7 @@
 #include "flow-layout.hpp"
 #include "image-cache.hpp"
 #include "ui-common.hpp"
+#include "../i18n.hpp"
 #include "../chat-manager.hpp"
 #include "../config-store.hpp"
 #include "../chat/message.hpp"
@@ -104,7 +105,7 @@ ChatView::ChatView(QWidget *parent) : QTextBrowser(parent)
 	setUndoRedoEnabled(false);
 	document()->setMaximumBlockCount(kMaxMessages);
 	document()->setDocumentMargin(4);
-	viewport()->setToolTip(ui::T("Dock.FeatureHint"));
+	viewport()->setToolTip(i18n::tr("Dock.FeatureHint"));
 
 	connect(&ImageCache::instance(), &ImageCache::ready, this, &ChatView::imageReady);
 
@@ -142,7 +143,7 @@ void ChatView::updatePill()
 		pill_->hide();
 		return;
 	}
-	const QString text = ui::T("Dock.NewMessages").arg(unread_);
+	const QString text = i18n::tr("Dock.NewMessages").arg(unread_);
 	pill_->setText(text);
 	pill_->setAccessibleName(text);
 	pill_->adjustSize();
@@ -608,12 +609,12 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	statusRow->addWidget(statusViewers_);
 	statusRow->addStretch(1);
 	header->addLayout(statusRow, 1);
-	status_->setAccessibleName(ui::T("Dock.Status"));
+	status_->setAccessibleName(i18n::tr("Dock.Status"));
 	// Monochrome SVG icons tinted with the theme (applyTheme); the tooltip names the action.
 	auto button = [&](const QString &icon, const char *tip, auto slot) {
 		auto *b = new QToolButton(this);
-		b->setToolTip(ui::T(tip));
-		b->setAccessibleName(ui::T(tip));
+		b->setToolTip(i18n::tr(tip));
+		b->setAccessibleName(i18n::tr(tip));
 		b->setAutoRaise(true);
 		b->setIconSize(QSize(16, 16));
 		connect(b, &QToolButton::clicked, this, slot);
@@ -643,7 +644,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	auto *bannerLayout = new QHBoxLayout(banner_);
 	bannerLayout->setContentsMargins(6, 3, 6, 3);
 	bannerLayout->setSpacing(4);
-	bannerText_ = new QLabel(ui::T("Dock.Multistream"), banner_);
+	bannerText_ = new QLabel(i18n::tr("Dock.Multistream"), banner_);
 	QFont bold = bannerText_->font();
 	bold.setBold(true);
 	bannerText_->setFont(bold);
@@ -666,7 +667,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	updateLayout->setContentsMargins(6, 3, 3, 3);
 	auto *updateText = new QLabel(update);
 	updateText->setWordWrap(true);
-	auto *download = new QPushButton(ui::T("Update.Now"), update);
+	auto *download = new QPushButton(i18n::tr("Update.Now"), update);
 	updateLayout->addWidget(updateText, 1);
 	updateLayout->addWidget(download);
 	update->hide();
@@ -674,7 +675,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	auto showUpdate = [update, updateText, download](const chat::Release &release) {
 		if (release.version.isEmpty())
 			return;
-		updateText->setText(ui::T("Update.Available").arg(release.version));
+		updateText->setText(i18n::tr("Update.Available").arg(release.version));
 		update->show();
 	};
 	connect(download, &QPushButton::clicked, this, [] { Updater::instance().update(); });
@@ -697,8 +698,8 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	undoBar_->setStyleSheet("#multichatUndo { background-color: palette(alternate-base); border-radius: 4px; }");
 	auto *undoLayout = new QHBoxLayout(undoBar_);
 	undoLayout->setContentsMargins(6, 3, 3, 3);
-	undoLayout->addWidget(new QLabel(ui::T("Dock.Cleared"), undoBar_), 1);
-	auto *undoButton = new QPushButton(ui::T("Dock.Undo"), undoBar_);
+	undoLayout->addWidget(new QLabel(i18n::tr("Dock.Cleared"), undoBar_), 1);
+	auto *undoButton = new QPushButton(i18n::tr("Dock.Undo"), undoBar_);
 	undoLayout->addWidget(undoButton);
 	undoBar_->hide();
 	root->addWidget(undoBar_);
@@ -720,16 +721,16 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	searchLayout->setContentsMargins(0, 0, 0, 0);
 	searchLayout->setSpacing(4);
 	searchEdit_ = new QLineEdit(searchBar_);
-	searchEdit_->setPlaceholderText(ui::T("Dock.Search.Placeholder"));
-	searchEdit_->setAccessibleName(ui::T("Dock.Search"));
+	searchEdit_->setPlaceholderText(i18n::tr("Dock.Search.Placeholder"));
+	searchEdit_->setAccessibleName(i18n::tr("Dock.Search"));
 	searchEdit_->setClearButtonEnabled(true);
 	searchCount_ = new QLabel(searchBar_);
 	auto *searchClose = new QToolButton(searchBar_);
 	searchClose->setAutoRaise(true);
 	searchClose->setIconSize(QSize(14, 14));
 	iconButtons_.append({searchClose, "close"});
-	searchClose->setToolTip(ui::T("Dock.Search.Close"));
-	searchClose->setAccessibleName(ui::T("Dock.Search.Close"));
+	searchClose->setToolTip(i18n::tr("Dock.Search.Close"));
+	searchClose->setAccessibleName(i18n::tr("Dock.Search.Close"));
 	searchLayout->addWidget(searchEdit_, 1);
 	searchLayout->addWidget(searchCount_);
 	searchLayout->addWidget(searchClose);
@@ -743,10 +744,10 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 
 	empty_ = new QWidget(this);
 	auto *emptyLayout = new QVBoxLayout(empty_);
-	auto *emptyText = new QLabel(ui::T("Dock.Empty"), empty_);
+	auto *emptyText = new QLabel(i18n::tr("Dock.Empty"), empty_);
 	emptyText->setWordWrap(true);
 	emptyText->setAlignment(Qt::AlignCenter);
-	auto *emptyButton = new QPushButton(ui::T("Dock.Configure"), empty_);
+	auto *emptyButton = new QPushButton(i18n::tr("Dock.Configure"), empty_);
 	connect(emptyButton, &QPushButton::clicked, this, [this] { open_multichat_settings(this); });
 	emptyLayout->addStretch(1);
 	emptyLayout->addWidget(emptyText);
@@ -862,23 +863,23 @@ void show_multichat_dock()
 
 void ChatDock::fillGearMenu(QMenu *menu)
 {
-	menu->addAction(ui::T("Dock.Menu.Configure"), this, [this] { open_multichat_settings(this); });
+	menu->addAction(i18n::tr("Dock.Menu.Configure"), this, [this] { open_multichat_settings(this); });
 	menu->addSeparator();
-	QAction *testMessages = menu->addAction(ui::T("Dock.Menu.TestMessages"));
+	QAction *testMessages = menu->addAction(i18n::tr("Dock.Menu.TestMessages"));
 	testMessages->setCheckable(true);
 	testMessages->setChecked(ChatManager::instance().testMessages());
 	connect(testMessages, &QAction::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
-	QAction *time = menu->addAction(ui::T("Dock.Menu.ShowTime"));
+	QAction *time = menu->addAction(i18n::tr("Dock.Menu.ShowTime"));
 	time->setCheckable(true);
 	time->setChecked(timestamps_);
 	connect(time, &QAction::toggled, this, [this](bool on) { setShowTimestamps(on); });
-	QMenu *size = menu->addMenu(ui::T("Dock.Menu.TextSize"));
-	size->addAction(ui::T("Dock.Bigger"), this, [this] { changeFont(1); });
-	size->addAction(ui::T("Dock.Smaller"), this, [this] { changeFont(-1); });
-	menu->addAction(ui::T("Dock.Refresh"), this, [] { ChatManager::instance().refresh(); });
+	QMenu *size = menu->addMenu(i18n::tr("Dock.Menu.TextSize"));
+	size->addAction(i18n::tr("Dock.Bigger"), this, [this] { changeFont(1); });
+	size->addAction(i18n::tr("Dock.Smaller"), this, [this] { changeFont(-1); });
+	menu->addAction(i18n::tr("Dock.Refresh"), this, [] { ChatManager::instance().refresh(); });
 	menu->addSeparator();
-	menu->addAction(ui::T("Dock.Menu.Wizard"), this, [this] { open_first_run_wizard(this); });
-	menu->addAction(ui::T("Dock.Menu.CheckUpdates"), this, [] { Updater::instance().check(true); });
+	menu->addAction(i18n::tr("Dock.Menu.Wizard"), this, [this] { open_first_run_wizard(this); });
+	menu->addAction(i18n::tr("Dock.Menu.CheckUpdates"), this, [] { Updater::instance().check(true); });
 }
 
 void ChatDock::clearWithUndo()
@@ -895,35 +896,35 @@ void ChatDock::showMenu(const QJsonObject &message, const QPoint &globalPos)
 	if (!message.isEmpty()) {
 		const QString id = message.value("id").toString();
 		const bool featured = !id.isEmpty() && manager.featured().value("id").toString() == id;
-		menu.addAction(ui::T(featured ? "Dock.Menu.Unfeature" : "Dock.Menu.Feature"), this,
+		menu.addAction(i18n::tr(featured ? "Dock.Menu.Unfeature" : "Dock.Menu.Feature"), this,
 			       [message, featured] {
 				       if (featured)
 					       ChatManager::instance().clearFeatured();
 				       else
 					       ChatManager::instance().feature(message);
 			       });
-		QAction *hide = menu.addAction(ui::T("Dock.Menu.HideMessage"), this,
+		QAction *hide = menu.addAction(i18n::tr("Dock.Menu.HideMessage"), this,
 					       [message] { ChatManager::instance().hideMessage(message); });
 		hide->setEnabled(!chat::hideMessage(message).isEmpty());
 		QString author = message.value("author").toString();
 		author.replace('&', "&&"); // not a mnemonic
-		QAction *hideUser = menu.addAction(ui::T("Dock.Menu.HideUser").arg(author), this,
+		QAction *hideUser = menu.addAction(i18n::tr("Dock.Menu.HideUser").arg(author), this,
 						   [message] { ChatManager::instance().hideUser(message); });
 		hideUser->setEnabled(!author.isEmpty());
 		menu.addSeparator();
-		menu.addAction(ui::T("Dock.Menu.CopyMessage"), this,
+		menu.addAction(i18n::tr("Dock.Menu.CopyMessage"), this,
 			       [message] { QGuiApplication::clipboard()->setText(chat::plainText(message)); });
-		menu.addAction(ui::T("Dock.Menu.CopyName"), this, [message] {
+		menu.addAction(i18n::tr("Dock.Menu.CopyName"), this, [message] {
 			QGuiApplication::clipboard()->setText(message.value("author").toString());
 		});
 	}
 	if (view_->textCursor().hasSelection())
-		menu.addAction(ui::T("Dock.Menu.CopySelection"), view_, &ChatView::copy);
+		menu.addAction(i18n::tr("Dock.Menu.CopySelection"), view_, &ChatView::copy);
 	if (!menu.isEmpty())
 		menu.addSeparator();
-	QAction *search = menu.addAction(ui::T("Dock.Search"), this, &ChatDock::openSearch);
+	QAction *search = menu.addAction(i18n::tr("Dock.Search"), this, &ChatDock::openSearch);
 	search->setShortcut(QKeySequence::Find);
-	QAction *time = menu.addAction(ui::T("Dock.Menu.ShowTime"));
+	QAction *time = menu.addAction(i18n::tr("Dock.Menu.ShowTime"));
 	time->setCheckable(true);
 	time->setChecked(timestamps_);
 	connect(time, &QAction::toggled, this, [this](bool on) { setShowTimestamps(on); });
@@ -961,7 +962,7 @@ void ChatDock::updateSearchCount()
 		return;
 	}
 	const int n = view_->shownCount();
-	searchCount_->setText(n == 0 ? ui::T("Dock.Search.None") : ui::T("Dock.Search.Count").arg(n));
+	searchCount_->setText(n == 0 ? i18n::tr("Dock.Search.None") : i18n::tr("Dock.Search.Count").arg(n));
 }
 
 void ChatDock::changeFont(int delta)
@@ -1032,7 +1033,7 @@ void ChatDock::updateState(const QJsonObject &state)
 	bool showViewers = viewers >= 0;
 	if (streaming) {
 		const QString service = state.value("service").toString();
-		status_->setText(QString::fromUtf8("● ") + ui::T("Dock.OnAir") +
+		status_->setText(QString::fromUtf8("● ") + i18n::tr("Dock.OnAir") +
 				 (service.isEmpty() ? QString() : QStringLiteral(" · ") + service));
 		const QString style = QStringLiteral("color: %1; font-weight: bold;").arg(alert.name());
 		status_->setStyleSheet(style);
@@ -1042,7 +1043,7 @@ void ChatDock::updateState(const QJsonObject &state)
 		QStringList names;
 		for (const QJsonValue p : live)
 			names << chat::platformName(p.toString());
-		status_->setText(names.isEmpty() ? ui::T("Dock.OffAir") : ui::T("Dock.LiveOn").arg(names.join(", ")));
+		status_->setText(names.isEmpty() ? i18n::tr("Dock.OffAir") : i18n::tr("Dock.LiveOn").arg(names.join(", ")));
 		status_->setStyleSheet(QString());
 		statusViewers_->setStyleSheet(QString());
 		setIconLabel(statusEye_, eye, QString::fromUtf8("👁"));
@@ -1051,7 +1052,7 @@ void ChatDock::updateState(const QJsonObject &state)
 	statusViewers_->setText(showViewers ? ui::formatCount(viewers) : QString());
 	statusEye_->setVisible(showViewers);
 	statusViewers_->setVisible(showViewers);
-	statusEye_->setToolTip(showViewers ? ui::T("Dock.Viewers").arg(ui::formatCount(viewers)) : QString());
+	statusEye_->setToolTip(showViewers ? i18n::tr("Dock.Viewers").arg(ui::formatCount(viewers)) : QString());
 
 	// Aviso de multistream con los logos de las plataformas en vivo.
 	const bool multi = state.value("multistream").toBool();
@@ -1111,15 +1112,15 @@ void ChatDock::updateState(const QJsonObject &state)
 			const QSignalBlocker block(chip);
 			chip->setChecked(!hidden_.contains(key));
 		}
-		const QString statusText = ui::T(("Status." + status).toUtf8().constData());
+		const QString statusText = i18n::tr(("Status." + status).toUtf8().constData());
 		QString tip = chat::platformName(platform) + " · " + s.value("channel").toString() + "\n" + statusText;
 		const int liveState = s.value("live").toInt();
-		tip += " · " + ui::T(liveState == 1 ? "Live.Yes" : liveState == 0 ? "Live.No" : "Live.Unknown");
+		tip += " · " + i18n::tr(liveState == 1 ? "Live.Yes" : liveState == 0 ? "Live.No" : "Live.Unknown");
 		if (chipViewers >= 0)
-			tip += " · " + ui::T("Dock.Viewers").arg(ui::formatCount(chipViewers));
+			tip += " · " + i18n::tr("Dock.Viewers").arg(ui::formatCount(chipViewers));
 		if (!s.value("detail").toString().isEmpty())
 			tip += "\n" + s.value("detail").toString();
-		tip += "\n" + ui::T("Dock.ChipHint");
+		tip += "\n" + i18n::tr("Dock.ChipHint");
 		chip->setToolTip(tip);
 		chip->setAccessibleName(chat::platformName(platform) + " " + s.value("channel").toString());
 		chip->setAccessibleDescription(statusText);

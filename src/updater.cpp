@@ -1,4 +1,5 @@
 #include "updater.hpp"
+#include "i18n.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
@@ -45,11 +46,6 @@ const char *const kAssetSuffix = "-macos.zip";
 #else
 const char *const kAssetSuffix = "-linux-x86_64.tar.gz";
 #endif
-
-QString text(const char *key)
-{
-	return QString::fromUtf8(obs_module_text(key));
-}
 
 QWidget *mainWindow()
 {
@@ -177,8 +173,8 @@ int runElevated(const QString &program, const QString &params, QString *problem)
 	info.nShow = SW_HIDE;
 	if (!ShellExecuteExW(&info) || !info.hProcess) {
 		const DWORD error = GetLastError();
-		*problem = error == ERROR_CANCELLED ? text("Update.Cancelled")
-						    : text("Update.Problem.Elevate").arg(QString::number(error));
+		*problem = error == ERROR_CANCELLED ? i18n::tr("Update.Cancelled")
+						    : i18n::tr("Update.Problem.Elevate").arg(QString::number(error));
 		return -1;
 	}
 	WaitForSingleObject(info.hProcess, 180000);
@@ -229,23 +225,23 @@ bool installWindows(const QString &extracted, QString *problem)
 	const QString dll = QDir(extracted).filePath("obs-multichat/obs-multichat.dll");
 	const QString data = QDir(extracted).filePath("obs-multichat/data");
 	if (target.isEmpty()) {
-		*problem = text("Update.Problem.ProgramData");
+		*problem = i18n::tr("Update.Problem.ProgramData");
 		return false;
 	}
 	if (!QFileInfo::exists(dll) || !QFileInfo(data).isDir()) {
-		*problem = text("Update.Problem.ZipNoFolder");
+		*problem = i18n::tr("Update.Problem.ZipNoFolder");
 		return false;
 	}
 	const Location from = location();
 	if (from == Location::Other) {
-		*problem = text("Update.Problem.NotInPlugins").arg(QDir::toNativeSeparators(moduleBinary()));
+		*problem = i18n::tr("Update.Problem.NotInPlugins").arg(QDir::toNativeSeparators(moduleBinary()));
 		return false;
 	}
 
 	const QString script = QDir(workDir()).filePath("instalar.ps1");
 	QFile scriptFile(script);
 	if (!scriptFile.open(QIODevice::WriteOnly) || scriptFile.write(kInstallScript) < 0) {
-		*problem = text("Update.Problem.Write").arg(QDir::toNativeSeparators(script));
+		*problem = i18n::tr("Update.Problem.Write").arg(QDir::toNativeSeparators(script));
 		return false;
 	}
 	scriptFile.close();
@@ -269,7 +265,7 @@ bool installWindows(const QString &extracted, QString *problem)
 
 	const int code = runElevated("powershell.exe", params, problem);
 	if (code > 0)
-		*problem = text("Update.Problem.CopyTo").arg(QDir::toNativeSeparators(target), QString::number(code));
+		*problem = i18n::tr("Update.Problem.CopyTo").arg(QDir::toNativeSeparators(target), QString::number(code));
 	return code == 0;
 }
 #endif
@@ -286,12 +282,12 @@ bool copyTree(const QString &from, const QString &to, QString *problem)
 		QDir().mkpath(QFileInfo(target).absolutePath());
 		QFile existing(target);
 		if (existing.exists() && !existing.remove()) {
-			*problem = text("Update.Problem.Replace").arg(target, existing.errorString());
+			*problem = i18n::tr("Update.Problem.Replace").arg(target, existing.errorString());
 			return false;
 		}
 		QFile copy(file);
 		if (!copy.copy(target)) {
-			*problem = text("Update.Problem.Copy").arg(target, copy.errorString());
+			*problem = i18n::tr("Update.Problem.Copy").arg(target, copy.errorString());
 			return false;
 		}
 	}
@@ -315,17 +311,17 @@ bool installMac(const QString &extracted, QString *problem)
 	const QString root = bundleRoot();
 	const QString fresh = QDir(extracted).filePath("obs-multichat.plugin");
 	if (QFileInfo(root).fileName() != "obs-multichat.plugin") {
-		*problem = text("Update.Problem.OwnFolder").arg(root);
+		*problem = i18n::tr("Update.Problem.OwnFolder").arg(root);
 		return false;
 	}
 	if (!QFileInfo(fresh).isDir()) {
-		*problem = text("Update.Problem.ZipNoBundle");
+		*problem = i18n::tr("Update.Problem.ZipNoBundle");
 		return false;
 	}
 	const QString backup = root + ".old";
 	QDir(backup).removeRecursively();
 	if (!QDir().rename(root, backup)) {
-		*problem = text("Update.Problem.Move").arg(root);
+		*problem = i18n::tr("Update.Problem.Move").arg(root);
 		return false;
 	}
 	if (!QDir().rename(fresh, root) && !copyTree(fresh, root, problem)) {
@@ -351,25 +347,25 @@ bool installLinux(const QString &extracted, QString *problem)
 	const bool userFolder = root.dirName() == "64bit" && root.cdUp() && root.dirName() == "bin" && root.cdUp() &&
 				root.dirName() == "obs-multichat";
 	if (!userFolder || !QFileInfo(root.absolutePath()).isWritable()) {
-		*problem = text("Update.Problem.NotInLinux").arg(binary);
+		*problem = i18n::tr("Update.Problem.NotInLinux").arg(binary);
 		return false;
 	}
 	const QString fresh = QDir(extracted).filePath("obs-multichat");
 	const QString freshSo = fresh + "/bin/64bit/obs-multichat.so";
 	if (!QFileInfo::exists(freshSo) || !QFileInfo(fresh + "/data").isDir()) {
-		*problem = text("Update.Problem.ArchiveNoFolder");
+		*problem = i18n::tr("Update.Problem.ArchiveNoFolder");
 		return false;
 	}
 	// rename() cambia el archivo de una vez: el .so cargado sigue en memoria hasta reiniciar OBS.
 	const QString temp = binary + ".new";
 	QFile::remove(temp);
 	if (!QFile::copy(freshSo, temp)) {
-		*problem = text("Update.Problem.CopyFile").arg(temp);
+		*problem = i18n::tr("Update.Problem.CopyFile").arg(temp);
 		return false;
 	}
 	if (std::rename(QFile::encodeName(temp).constData(), QFile::encodeName(binary).constData()) != 0) {
 		QFile::remove(temp);
-		*problem = text("Update.Problem.ReplaceFile").arg(binary);
+		*problem = i18n::tr("Update.Problem.ReplaceFile").arg(binary);
 		return false;
 	}
 	return copyTree(fresh + "/data", root.filePath("data"), problem);
@@ -418,7 +414,7 @@ void Updater::check(bool manual)
 		if (code != 0) {
 			obs_log(LOG_INFO, "could not check for updates (curl %d)", code);
 			if (manual)
-				fail(text("Update.CheckFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
+				fail(i18n::tr("Update.CheckFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
 			return;
 		}
 		handleRelease(json, manual);
@@ -429,7 +425,7 @@ void Updater::check(bool manual)
 		curl->deleteLater();
 		busy_ = false;
 		if (manual)
-			fail(text("Update.CheckFailed"), curl->errorString());
+			fail(i18n::tr("Update.CheckFailed"), curl->errorString());
 	});
 	QString program;
 	QStringList args;
@@ -444,12 +440,12 @@ void Updater::handleRelease(const QByteArray &json, bool manual)
 	const QString current = QString::fromLatin1(PLUGIN_VERSION);
 	if (release.version.isEmpty() || !release.url.endsWith(QLatin1String(kAssetSuffix))) {
 		if (manual)
-			fail(text("Update.CheckFailed"), text("Update.Problem.NoAsset").arg(QString::fromLatin1(kAssetSuffix)));
+			fail(i18n::tr("Update.CheckFailed"), i18n::tr("Update.Problem.NoAsset").arg(QString::fromLatin1(kAssetSuffix)));
 		return;
 	}
 	if (!chat::isNewerVersion(release.version, current)) {
 		if (manual)
-			QMessageBox::information(mainWindow(), text("Update.Title"), text("Update.UpToDate").arg(current));
+			QMessageBox::information(mainWindow(), i18n::tr("Update.Title"), i18n::tr("Update.UpToDate").arg(current));
 		return;
 	}
 	obs_log(LOG_INFO, "a new version is available: %s", release.version.toUtf8().constData());
@@ -464,15 +460,15 @@ void Updater::askToUpdate(const chat::Release &release)
 {
 	asked_ = release.version;
 	QMessageBox box(mainWindow());
-	box.setWindowTitle(text("Update.Title"));
+	box.setWindowTitle(i18n::tr("Update.Title"));
 	box.setIcon(QMessageBox::Information);
 	box.setTextFormat(Qt::RichText);
 	box.setTextInteractionFlags(Qt::TextBrowserInteraction);
-	box.setText(text("Update.Ask").arg(release.version, QString::fromLatin1(PLUGIN_VERSION),
+	box.setText(i18n::tr("Update.Ask").arg(release.version, QString::fromLatin1(PLUGIN_VERSION),
 					   release.page.toHtmlEscaped()));
-	QPushButton *now = box.addButton(text("Update.Now"), QMessageBox::AcceptRole);
-	box.addButton(text("Update.Later"), QMessageBox::RejectRole);
-	QPushButton *skip = box.addButton(text("Update.Skip"), QMessageBox::DestructiveRole);
+	QPushButton *now = box.addButton(i18n::tr("Update.Now"), QMessageBox::AcceptRole);
+	box.addButton(i18n::tr("Update.Later"), QMessageBox::RejectRole);
+	QPushButton *skip = box.addButton(i18n::tr("Update.Skip"), QMessageBox::DestructiveRole);
 	box.setDefaultButton(now);
 	box.exec();
 	if (box.clickedButton() == now)
@@ -497,8 +493,8 @@ void Updater::download(const chat::Release &release)
 	QDir().mkpath(dir);
 	const QString zip = QDir(dir).filePath("plugin.zip");
 
-	progress_ = new QProgressDialog(text("Update.Downloading").arg(release.version), QString(), 0, 0, mainWindow());
-	progress_->setWindowTitle(text("Update.Title"));
+	progress_ = new QProgressDialog(i18n::tr("Update.Downloading").arg(release.version), QString(), 0, 0, mainWindow());
+	progress_->setWindowTitle(i18n::tr("Update.Title"));
 	progress_->setWindowModality(Qt::WindowModal);
 	progress_->setMinimumDuration(0);
 	progress_->show();
@@ -509,7 +505,7 @@ void Updater::download(const chat::Release &release)
 		curl->deleteLater();
 		if (code != 0 || QFileInfo(zip).size() == 0) {
 			busy_ = false;
-			fail(text("Update.DownloadFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
+			fail(i18n::tr("Update.DownloadFailed"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
 			return;
 		}
 		verify(release, zip);
@@ -519,7 +515,7 @@ void Updater::download(const chat::Release &release)
 			return;
 		curl->deleteLater();
 		busy_ = false;
-		fail(text("Update.DownloadFailed"), curl->errorString());
+		fail(i18n::tr("Update.DownloadFailed"), curl->errorString());
 	});
 	QString program;
 	QStringList args;
@@ -537,7 +533,7 @@ void Updater::verify(const chat::Release &release, const QString &zipPath)
 	}
 	if (release.sumsUrl.isEmpty() || release.assetName.isEmpty()) {
 		busy_ = false;
-		fail(text("Update.NoChecksum"), text("Update.Problem.NoSums"));
+		fail(i18n::tr("Update.NoChecksum"), i18n::tr("Update.Problem.NoSums"));
 		return;
 	}
 	const QString sums = QDir(workDir()).filePath("SHA256SUMS");
@@ -548,7 +544,7 @@ void Updater::verify(const chat::Release &release, const QString &zipPath)
 		QFile file(sums);
 		if (code != 0 || !file.open(QIODevice::ReadOnly)) {
 			busy_ = false;
-			fail(text("Update.NoChecksum"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
+			fail(i18n::tr("Update.NoChecksum"), QString("%1 %2: %3").arg(tool(curl), QString::number(code), error));
 			return;
 		}
 		installIfMatches(release.version, zipPath, chat::sha256FromSums(file.readAll(), release.assetName));
@@ -558,7 +554,7 @@ void Updater::verify(const chat::Release &release, const QString &zipPath)
 			return;
 		curl->deleteLater();
 		busy_ = false;
-		fail(text("Update.NoChecksum"), curl->errorString());
+		fail(i18n::tr("Update.NoChecksum"), curl->errorString());
 	});
 	QString program;
 	QStringList args;
@@ -570,7 +566,7 @@ void Updater::installIfMatches(const QString &version, const QString &zipPath, c
 {
 	if (expected.isEmpty()) {
 		busy_ = false;
-		fail(text("Update.NoChecksum"), text("Update.Problem.NotListed"));
+		fail(i18n::tr("Update.NoChecksum"), i18n::tr("Update.Problem.NotListed"));
 		return;
 	}
 	const QString actual = chat::sha256OfFile(zipPath);
@@ -578,7 +574,7 @@ void Updater::installIfMatches(const QString &version, const QString &zipPath, c
 		busy_ = false;
 		obs_log(LOG_WARNING, "update %s: SHA-256 mismatch (expected %s, got %s)", version.toUtf8().constData(),
 			expected.toUtf8().constData(), actual.toUtf8().constData());
-		fail(text("Update.VerifyFailed"), text("Update.Problem.Hash").arg(expected, actual));
+		fail(i18n::tr("Update.VerifyFailed"), i18n::tr("Update.Problem.Hash").arg(expected, actual));
 		return;
 	}
 	obs_log(LOG_INFO, "update %s: SHA-256 verified", version.toUtf8().constData());
@@ -599,7 +595,7 @@ void Updater::install(const QString &version, const QString &zipPath)
 	QString problem;
 	bool ok = false;
 	if (unzip != 0) {
-		problem = text("Update.Problem.Unzip").arg(QDir::toNativeSeparators(zipPath), QString::number(unzip));
+		problem = i18n::tr("Update.Problem.Unzip").arg(QDir::toNativeSeparators(zipPath), QString::number(unzip));
 	} else {
 #if defined(_WIN32)
 		ok = installWindows(extracted, &problem);
@@ -617,11 +613,11 @@ void Updater::install(const QString &version, const QString &zipPath)
 	}
 	if (!ok) {
 		obs_log(LOG_WARNING, "could not install version %s", version.toUtf8().constData());
-		fail(text("Update.InstallFailed"), problem);
+		fail(i18n::tr("Update.InstallFailed"), problem);
 		return;
 	}
 	obs_log(LOG_INFO, "version %s installed; it is used after restarting OBS", version.toUtf8().constData());
-	QMessageBox::information(mainWindow(), text("Update.Title"), text("Update.Done").arg(version));
+	QMessageBox::information(mainWindow(), i18n::tr("Update.Title"), i18n::tr("Update.Done").arg(version));
 }
 
 void Updater::fail(const QString &message, const QString &detail)
@@ -635,12 +631,12 @@ void Updater::fail(const QString &message, const QString &detail)
 		progress_ = nullptr;
 	}
 	QMessageBox box(mainWindow());
-	box.setWindowTitle(text("Update.Title"));
+	box.setWindowTitle(i18n::tr("Update.Title"));
 	box.setIcon(QMessageBox::Warning);
 	box.setText(message);
 	if (!detail.isEmpty())
 		box.setInformativeText(detail);
-	QPushButton *open = box.addButton(text("Update.OpenPage"), QMessageBox::AcceptRole);
+	QPushButton *open = box.addButton(i18n::tr("Update.OpenPage"), QMessageBox::AcceptRole);
 	box.addButton(QMessageBox::Close);
 	box.exec();
 	if (box.clickedButton() == open)

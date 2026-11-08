@@ -1,7 +1,10 @@
 // Tests for the pure overlay helpers (CSS values from OBS settings), without OBS.
 
 #include "../src/overlay-presets.hpp"
+#include "../src/platforms-registry.hpp"
 
+#include <QFile>
+#include <QRegularExpression>
 #include <QtTest/QtTest>
 
 #include <map>
@@ -270,6 +273,38 @@ private slots:
 		QCOMPARE(sanitizeCustomCss(std::string(kCustomCssMax + 50, 'a')).size(), kCustomCssMax);
 		const std::string cut = sanitizeCustomCss(std::string(kCustomCssMax - 1, 'a') + "é");
 		QCOMPARE(cut, std::string(kCustomCssMax - 1, 'a'));
+	}
+
+	void platformRegistryOrderAndNames()
+	{
+		QCOMPARE(platforms::order("twitch"), 0);
+		QCOMPARE(platforms::order("starvios"), 4);
+		QCOMPARE(platforms::order("demo"), 5);
+		QCOMPARE(platforms::order("nope"), -1);
+		QCOMPARE(QString(platforms::find("youtube")->name), QString("YouTube"));
+		QCOMPARE(platforms::find("demo")->color, platforms::kUnknownColor);
+		QVERIFY(!platforms::find("nope"));
+	}
+
+	// The pages keep their own table in icons.js: same ids, order and colors as the C++ registry.
+	void iconsJsMatchesTheRegistry()
+	{
+		QFile file(QStringLiteral(MULTICHAT_DATA_DIR "/overlay/icons.js"));
+		QVERIFY(file.open(QIODevice::ReadOnly));
+		const QString js = QString::fromUtf8(file.readAll());
+		const QRegularExpressionMatch table =
+			QRegularExpression("const PLATFORMS = \\{([^}]*)\\}").match(js);
+		QVERIFY(table.hasMatch());
+		QStringList found;
+		auto it = QRegularExpression("(\\w+):\\s*'#([0-9A-Fa-f]{6})'").globalMatch(table.captured(1));
+		while (it.hasNext()) {
+			const QRegularExpressionMatch m = it.next();
+			found << m.captured(1) + "=" + m.captured(2).toUpper();
+		}
+		QStringList expected;
+		for (const platforms::Platform &p : platforms::kAll)
+			expected << QLatin1String(p.id) + "=" + QString("%1").arg(p.color, 6, 16, QChar('0')).toUpper();
+		QCOMPARE(found, expected);
 	}
 };
 

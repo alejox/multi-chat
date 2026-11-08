@@ -26,6 +26,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <QMetaObject>
 
 #include "chat-manager.hpp"
+#include "i18n.hpp"
 #include "overlay-source.hpp"
 #include "ui/chat-dock.hpp"
 #include "ui/first-run-wizard.hpp"
@@ -58,7 +59,7 @@ ChatManager::Environment managerEnvironment()
 {
 	ChatManager::Environment env;
 	env.store = ConfigStore(configPath("config.json"));
-	env.translate = [](const QString &key) { return QString::fromUtf8(obs_module_text(key.toUtf8().constData())); };
+	env.translate = i18n::translator();
 	env.log = [](bool warning, const QString &line) {
 		obs_log(warning ? LOG_WARNING : LOG_INFO, "%s", line.toUtf8().constData());
 	};

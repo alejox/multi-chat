@@ -1,4 +1,6 @@
 #include "ui-common.hpp"
+#include "../i18n.hpp"
+#include "../platforms-registry.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
@@ -12,11 +14,6 @@
 
 namespace ui {
 
-QString T(const char *key)
-{
-	return QString::fromUtf8(obs_module_text(key));
-}
-
 QString formatCount(int count)
 {
 	QLocale locale;
@@ -29,17 +26,8 @@ QString formatCount(int count)
 
 QColor platformColor(const QString &platform)
 {
-	if (platform == "twitch")
-		return QColor(0x91, 0x46, 0xFF);
-	if (platform == "youtube")
-		return QColor(0xFF, 0x00, 0x33);
-	if (platform == "kick")
-		return QColor(0x53, 0xFC, 0x18);
-	if (platform == "tiktok")
-		return QColor(0xFE, 0x2C, 0x55);
-	if (platform == "starvios")
-		return QColor(0x8B, 0x5C, 0xF6);
-	return QColor(0x88, 0x88, 0x88);
+	const platforms::Platform *p = platforms::find(platform);
+	return QColor(QRgb(p ? p->color : platforms::kUnknownColor));
 }
 
 QPixmap platformIcon(const QString &platform, int size, qreal dpr)
@@ -214,7 +202,7 @@ bool badgeStyle(const QString &badge, QString &label, QColor &background)
 		label = "SUB";
 		background = QColor(0x6e, 0x56, 0xcf);
 	} else if (badge == "member") {
-		label = T("Badge.Member");
+		label = i18n::tr("Badge.Member");
 		background = QColor(0x6e, 0x56, 0xcf);
 	} else if (badge == "verified") {
 		label = QString::fromUtf8("✓");
@@ -389,16 +377,16 @@ QStringList addMultichatSources(bool chat, bool featured, bool voice)
 		const QString name = QString::fromUtf8(obs_source_get_display_name(id));
 		switch (addToCurrentScene(id, scene)) {
 		case AddResult::Added:
-			lines << T("Wizard.Sources.Added").arg(name, scene);
+			lines << i18n::tr("Wizard.Sources.Added").arg(name, scene);
 			break;
 		case AddResult::AlreadyThere:
-			lines << T("Wizard.Sources.AlreadyThere").arg(name, scene);
+			lines << i18n::tr("Wizard.Sources.AlreadyThere").arg(name, scene);
 			break;
 		case AddResult::NoScene:
-			lines << T("Wizard.Sources.NoScene");
+			lines << i18n::tr("Wizard.Sources.NoScene");
 			break;
 		case AddResult::Failed:
-			lines << T("Wizard.Sources.Failed").arg(name);
+			lines << i18n::tr("Wizard.Sources.Failed").arg(name);
 			break;
 		}
 	};
