@@ -15,6 +15,7 @@
 class FlowLayout;
 class QLabel;
 class QLineEdit;
+class QMenu;
 class QPushButton;
 class QToolButton;
 
@@ -98,6 +99,8 @@ private:
 	void updateState(const QJsonObject &state);
 	void changeFont(int delta);
 	void showMenu(const QJsonObject &message, const QPoint &globalPos);
+	// Settings…, test messages, time, text size, re-detect, assistant, updates.
+	void fillGearMenu(QMenu *menu);
 	void clearWithUndo();
 	void openSearch();
 	void closeSearch();

@@ -4,8 +4,21 @@
 #include <QIcon>
 #include <QPixmap>
 #include <QString>
+#include <QStringList>
 
 namespace ui {
+
+// ---- Scenes (shared by the settings window and the first-run assistant) ----
+
+enum class AddResult { Added, AlreadyThere, NoScene, Failed };
+// Name of the scene being edited (the preview in studio mode); empty without scenes.
+QString editedSceneName();
+// Adds a source of type `id` to the edited scene, unless one is already there. A source of that
+// type with the default name in another scene is reused (same settings, no duplicate names).
+AddResult addToCurrentScene(const char *id, QString &sceneName);
+// Adds the chosen Multichat sources (chat, featured message, voice) and returns one translated
+// line per source saying what happened (Wizard.Sources.*), repeats removed.
+QStringList addMultichatSources(bool chat, bool featured, bool voice);
 
 // Texto traducido de data/locale/*.ini.
 QString T(const char *key);

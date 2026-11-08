@@ -22,7 +22,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 🧩 **Dock "Multichat"** | Todos los mensajes juntos con el logo de cada plataforma, insignias (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, suscripciones y regalos de TikTok. |
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en directo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
-| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Si no se pudo comprobar (sin conexión o la plataforma no respondió), lo dice y deja añadirlo con **Añadir**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
+| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat…** (o la rueda del dock → *Configurar…*). Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Si no se pudo comprobar (sin conexión o la plataforma no respondió), lo dice y deja añadirlo con **Añadir**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
 | 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades muestran lo esencial (Preajuste, Diseño, Plataformas e insignias) y, con *Mostrar opciones avanzadas*, el resto (Texto, Fondo, Avanzado). |
 | ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
 | 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
@@ -32,7 +32,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 🔊 **Fuente "Multichat (voz)"** | Lee el chat en voz alta como una fuente de audio más, que llega a la emisión y se controla en el mezclador. |
 | 🌐 **Español e inglés** | Todo sigue el idioma de OBS: menús, errores de conexión, mensajes de ejemplo en pantalla y los avisos que arma Multichat (regalos de TikTok; raids, canjes, suscripciones y regalos de Starvios). Los avisos de Twitch y YouTube llegan ya escritos por la plataforma. |
 | 🛡️ **Moderación** | Si un moderador borra un mensaje, o banea o expulsa temporalmente a alguien, sus mensajes desaparecen del dock, del chat en pantalla y del destacado. Mira [Moderación y filtros](#-moderación-y-filtros). |
-| 🚫 **Filtros** | Oculta bots (Nightbot, StreamElements, Streamlabs… vienen de serie), comandos que empiezan por `!` y palabras bloqueadas, desde la pestaña **Filtros** de **Multichat: configurar chats**. |
+| 🚫 **Filtros** | Oculta bots (Nightbot, StreamElements, Streamlabs… vienen de serie), comandos que empiezan por `!` y palabras bloqueadas, desde la pestaña **Filtros** de **Herramientas → Multichat…**. |
 | 🔇 **Silenciar canal** | Clic en un canal del dock para silenciar sus mensajes en Multichat o volver a mostrarlos. No toca la plataforma. |
 | 🧪 **Mensajes de prueba** | Un solo interruptor (en la rueda del dock y en Configurar) que llena el dock con un chat de prueba y hace que las fuentes en pantalla muestren mensajes y números de ejemplo mientras no hay chat. Nunca salen mientras transmites. |
 
@@ -96,7 +96,7 @@ Compilado en Ubuntu 24.04 para el OBS del [PPA oficial](https://launchpad.net/~o
 
 ### Actualizaciones automáticas
 
-Al abrir OBS, el plugin revisa si hay una versión nueva en las Releases de GitHub. Si la hay, muestra un aviso con **Actualizar ahora**, **Más tarde** u **Omitir esta versión** (y el dock **Multichat** lo recuerda con su botón). **Actualizar ahora** la descarga, comprueba su suma SHA-256, la instala y pide reiniciar OBS. También se puede revisar a mano en **Herramientas → Multichat: buscar actualizaciones**.
+Al abrir OBS, el plugin revisa si hay una versión nueva en las Releases de GitHub. Si la hay, muestra un aviso con **Actualizar ahora**, **Más tarde** u **Omitir esta versión** (y el dock **Multichat** lo recuerda con su botón). **Actualizar ahora** la descarga, comprueba su suma SHA-256, la instala y pide reiniciar OBS. También se puede revisar a mano con **Buscar actualizaciones**, en **Herramientas → Multichat…** o en la rueda del dock.
 
 Antes de instalar, el plugin compara el archivo descargado con la suma SHA-256 publicada en la Release: la que da GitHub para cada archivo y, si falta, el `SHA256SUMS` que se publica junto a los zips. Si no coincide o no se puede obtener, no instala nada y lo dice; la versión se puede descargar a mano desde la página.
 
@@ -108,9 +108,9 @@ Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 
 ## 🎛️ Usarlo
 
-La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: añade tu canal y pone las fuentes **Multichat** en la escena que estás editando (sin duplicarlas si ya están). Se puede saltar y volver a abrir desde **Herramientas → Multichat: asistente de inicio**.
+La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: añade tu canal y pone las fuentes **Multichat** en la escena que estás editando (sin duplicarlas si ya están). Se puede saltar y volver a abrir con **Asistente de inicio**, en **Herramientas → Multichat…** o en la rueda del dock.
 
-1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube. Mientras busca el canal se ve una barra de carga; si el nombre tiene un formato que la plataforma no admite, lo dice debajo, y si el canal no existe, el botón pasa a **Añadir igualmente** (Intro nunca añade un canal no encontrado).
+1. **Herramientas → Multichat…**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube. Mientras busca el canal se ve una barra de carga; si el nombre tiene un formato que la plataforma no admite, lo dice debajo, y si el canal no existe, el botón pasa a **Añadir igualmente** (Intro nunca añade un canal no encontrado).
    - **Pausar**: desmarca la casilla de un chat para desconectarlo sin perderlo; vuelve a marcarla para reconectarlo.
    - **Ordenar**: arrastra los chats (o selecciona uno y pulsa **Alt+↑ / Alt+↓**). Los chips del dock siguen el mismo orden.
    - **Quitar**: la ✕ de la fila o la tecla **Supr** con el chat seleccionado.
@@ -129,6 +129,7 @@ La primera vez que abres OBS con el plugin, sin chats configurados, aparece el *
   - *Ocultar usuario* lo añade a **Filtros → Ocultar usuarios** y quita sus mensajes de ese chat.
 - **Buscar**: **Ctrl+F** (⌘F en macOS) o el botón de la lupa. Filtra por texto, emote o nombre, sin distinguir mayúsculas ni tildes, y dice cuántos coinciden. **Esc** cierra la búsqueda.
 - **Hora**: clic derecho → *Mostrar hora* añade la hora a cada mensaje (apagado por defecto; se recuerda).
+- **La rueda** (arriba a la derecha): *Configurar…*, *Mensajes de prueba*, *Mostrar hora*, *Tamaño del texto*, *Volver a detectar en qué plataformas estás en directo*, *Asistente de inicio* y *Buscar actualizaciones*.
 - **Vaciar el chat**: el botón de la papelera vacía el dock, el chat en pantalla y el destacado. Durante unos segundos aparece **Chat vaciado · Deshacer**; *Deshacer* devuelve los mensajes al dock y al chat en pantalla (en la cinta horizontal, solo los 3 últimos). La voz no los vuelve a leer.
 - **Tema**: los íconos y los colores se adaptan al tema de OBS, claro u oscuro.
 
@@ -176,7 +177,7 @@ Cuando los moderadores de una plataforma borran un mensaje o banean a alguien, M
 
 TikTok no envía, en lo que lee Multichat, ningún aviso de borrado que se pueda relacionar con los mensajes ya mostrados. Starvios solo avisa de mensajes borrados.
 
-En **Herramientas → Multichat: configurar chats → Filtros** puedes:
+En **Herramientas → Multichat… → Filtros** puedes:
 
 - **Ocultar usuarios**: uno por línea. Vienen los bots más comunes (Nightbot, StreamElements, Streamlabs, Moobot, Fossabot, Wizebot, Botrix); el botón *Añadir bots conocidos* los recupera si los borraste.
 - **Ocultar comandos**: los mensajes que empiezan por `!` (activado de serie). Las suscripciones, Super Chats, bits y regalos se muestran siempre.

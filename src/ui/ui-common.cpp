@@ -1,5 +1,6 @@
 #include "ui-common.hpp"
 
+#include <obs-frontend-api.h>
 #include <obs-module.h>
 
 #include <QLocale>
@@ -7,6 +8,7 @@
 #include <QPainterPath>
 
 #include <algorithm>
+#include <cstring>
 
 namespace ui {
 
@@ -283,6 +285,118 @@ QIcon themedIcon(const QString &name, const QColor &color, int size, qreal dpr)
 	faded.setAlphaF(0.4f);
 	icon.addPixmap(paint(faded), QIcon::Disabled);
 	return icon;
+}
+
+// ---- Scenes ----
+
+namespace {
+
+// The scene being edited: the preview in studio mode, otherwise the program scene. Adds a reference.
+obs_source_t *editedScene()
+{
+	if (obs_frontend_preview_program_mode_active())
+		if (obs_source_t *preview = obs_frontend_get_current_preview_scene())
+			return preview;
+	return obs_frontend_get_current_scene();
+}
+
+bool sceneHasSourceOfType(obs_scene_t *scene, const char *id)
+{
+	struct Search {
+		const char *id;
+		bool found;
+	} search{id, false};
+	obs_scene_enum_items(
+		scene,
+		[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+			auto *s = static_cast<Search *>(param);
+			const char *itemId = obs_source_get_id(obs_sceneitem_get_source(item));
+			if (itemId && std::strcmp(itemId, s->id) == 0)
+				s->found = true;
+			return !s->found;
+		},
+		&search);
+	return search.found;
+}
+
+} // namespace
+
+QString editedSceneName()
+{
+	obs_source_t *scene = editedScene();
+	const QString name = scene ? QString::fromUtf8(obs_source_get_name(scene)) : QString();
+	obs_source_release(scene);
+	return name;
+}
+
+AddResult addToCurrentScene(const char *id, QString &sceneName)
+{
+	obs_source_t *sceneSource = editedScene();
+	obs_scene_t *scene = sceneSource ? obs_scene_from_source(sceneSource) : nullptr;
+	if (!scene) {
+		obs_source_release(sceneSource);
+		return AddResult::NoScene;
+	}
+	sceneName = QString::fromUtf8(obs_source_get_name(sceneSource));
+	if (sceneHasSourceOfType(scene, id)) {
+		obs_source_release(sceneSource);
+		return AddResult::AlreadyThere;
+	}
+
+	const QString base = QString::fromUtf8(obs_source_get_display_name(id));
+	obs_source_t *source = nullptr;
+	QString name = base;
+	for (int n = 2; n < 100; ++n) {
+		obs_source_t *existing = obs_get_source_by_name(name.toUtf8().constData());
+		if (!existing)
+			break;
+		const char *existingId = obs_source_get_id(existing);
+		if (existingId && std::strcmp(existingId, id) == 0) {
+			source = existing; // keeps the reference
+			break;
+		}
+		obs_source_release(existing);
+		name = base + QStringLiteral(" %1").arg(n);
+	}
+	if (!source)
+		source = obs_source_create(id, name.toUtf8().constData(), nullptr, nullptr);
+	AddResult result = AddResult::Failed;
+	if (source && obs_scene_add(scene, source))
+		result = AddResult::Added;
+	obs_source_release(source);
+	obs_source_release(sceneSource);
+	return result;
+}
+
+QStringList addMultichatSources(bool chat, bool featured, bool voice)
+{
+	QStringList lines;
+	auto add = [&lines](const char *id) {
+		QString scene;
+		const QString name = QString::fromUtf8(obs_source_get_display_name(id));
+		switch (addToCurrentScene(id, scene)) {
+		case AddResult::Added:
+			lines << T("Wizard.Sources.Added").arg(name, scene);
+			break;
+		case AddResult::AlreadyThere:
+			lines << T("Wizard.Sources.AlreadyThere").arg(name, scene);
+			break;
+		case AddResult::NoScene:
+			lines << T("Wizard.Sources.NoScene");
+			break;
+		case AddResult::Failed:
+			lines << T("Wizard.Sources.Failed").arg(name);
+			break;
+		}
+	};
+	if (chat)
+		add("multichat_overlay");
+	if (featured)
+		add("multichat_featured");
+	if (voice)
+		add("multichat_voice");
+	lines.removeDuplicates();
+	return lines;
 }
 
 } // namespace ui
