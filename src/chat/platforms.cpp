@@ -88,13 +88,14 @@ bool youtubeChannel(const QString &channel, SourceInfo &out)
 }
 
 // Usuario de TikTok: letras, números, "_" y ".".
-bool tiktokChannel(QString user, SourceInfo &out, QString &error)
+bool tiktokChannel(QString user, SourceInfo &out, EntryError &error, QString &arg)
 {
 	if (user.startsWith('@'))
 		user.remove(0, 1);
 	static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9_.]{2,24}$"));
 	if (!valid.match(user).hasMatch()) {
-		error = QStringLiteral("usuario de TikTok no válido: %1").arg(user);
+		error = EntryError::TikTokUser;
+		arg = user;
 		return false;
 	}
 	out = make("tiktok", '@' + user.toLower());
@@ -102,13 +103,14 @@ bool tiktokChannel(QString user, SourceInfo &out, QString &error)
 }
 
 // Usuario de Starvios: la misma regla que aplica su web. Va a URLs y al nombre visible del canal.
-bool starviosChannel(QString user, SourceInfo &out, QString &error)
+bool starviosChannel(QString user, SourceInfo &out, EntryError &error, QString &arg)
 {
 	if (user.startsWith('@'))
 		user.remove(0, 1);
 	static const QRegularExpression valid(QStringLiteral("^[A-Za-z0-9_]{3,25}$"));
 	if (!valid.match(user).hasMatch()) {
-		error = QStringLiteral("usuario de Starvios no válido: %1").arg(user);
+		error = EntryError::StarviosUser;
+		arg = user;
 		return false;
 	}
 	out = make("starvios", user.toLower());
@@ -133,7 +135,7 @@ bool starviosReservedPath(const QString &segment)
 
 // starvios.com/<usuario> y las rutas que llevan a ese canal: /canal/<usuario> redirige ahí, /live/<usuario>
 // es el directo y /directo/<usuario> redirige al directo. La web no usa "@" en ninguna de ellas.
-bool starviosUrl(const QString &url, const QString &raw, SourceInfo &out, QString &error)
+bool starviosUrl(const QString &url, const QString &raw, SourceInfo &out, EntryError &error, QString &arg)
 {
 	const QStringList path = url.section('?', 0, 0).section('#', 0, 0).split('/', Qt::SkipEmptyParts);
 	QString user;
@@ -145,19 +147,22 @@ bool starviosUrl(const QString &url, const QString &raw, SourceInfo &out, QStrin
 			user = path[2];
 	}
 	if (user.isEmpty() || user.startsWith('@')) {
-		error = QStringLiteral("URL de Starvios no reconocida: %1").arg(raw);
+		error = EntryError::StarviosUrl;
+		arg = raw;
 		return false;
 	}
-	return starviosChannel(user, out, error);
+	return starviosChannel(user, out, error, arg);
 }
 
 } // namespace
 
-bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
+bool parseEntry(const QString &entry, SourceInfo &out, EntryError &error, QString &arg)
 {
+	error = EntryError::None;
+	arg.clear();
 	const QString raw = entry.trimmed();
 	if (raw.isEmpty()) {
-		error = QStringLiteral("entrada vacía");
+		error = EntryError::Empty;
 		return false;
 	}
 
@@ -178,9 +183,9 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 		return true;
 	}
 	if (host == "tiktok.com" && seg.size() > 1 && seg[1].startsWith('@'))
-		return tiktokChannel(seg[1], out, error);
+		return tiktokChannel(seg[1], out, error, arg);
 	if (host == "starvios.com" || host == "www.starvios.com")
-		return starviosUrl(url, raw, out, error);
+		return starviosUrl(url, raw, out, error, arg);
 	if (host == "youtube.com" || host == "youtu.be") {
 		if (!youtube::parseVideoId(url).isEmpty())
 			return youtubeChannel(url, out);
@@ -188,7 +193,8 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 			return youtubeChannel(seg[2], out);
 		if (seg.size() > 1 && seg[1].startsWith('@'))
 			return youtubeChannel(seg[1], out);
-		error = QStringLiteral("URL de YouTube no reconocida: %1").arg(raw);
+		error = EntryError::YouTubeUrl;
+		arg = raw;
 		return false;
 	}
 
@@ -198,7 +204,8 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 	if (platform == "yt")
 		platform = "youtube";
 	if (colon < 0 || channel.isEmpty()) {
-		error = QStringLiteral("usa el formato plataforma:canal (ej. twitch:micanal): %1").arg(raw);
+		error = EntryError::Format;
+		arg = raw;
 		return false;
 	}
 	if (platform == "twitch") {
@@ -216,15 +223,154 @@ bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
 	if (platform == "youtube")
 		return youtubeChannel(channel, out);
 	if (platform == "tiktok" || platform == "tt")
-		return tiktokChannel(channel, out, error);
+		return tiktokChannel(channel, out, error, arg);
 	if (platform == "starvios")
-		return starviosChannel(channel, out, error);
+		return starviosChannel(channel, out, error, arg);
 	if (platform == "demo") {
 		out = make("demo", channel);
 		return true;
 	}
-	error = QStringLiteral("plataforma no soportada: %1 (usa twitch, youtube, kick, tiktok o starvios)").arg(platform);
+	error = EntryError::Platform;
+	arg = platform;
 	return false;
+}
+
+const char *entryErrorKey(EntryError error)
+{
+	switch (error) {
+	case EntryError::None:
+		break;
+	case EntryError::Empty:
+		return "Entry.Error.Empty";
+	case EntryError::Format:
+		return "Entry.Error.Format";
+	case EntryError::Platform:
+		return "Entry.Error.Platform";
+	case EntryError::TikTokUser:
+		return "Entry.Error.TikTokUser";
+	case EntryError::StarviosUser:
+		return "Entry.Error.StarviosUser";
+	case EntryError::YouTubeUrl:
+		return "Entry.Error.YouTubeUrl";
+	case EntryError::StarviosUrl:
+		return "Entry.Error.StarviosUrl";
+	}
+	return nullptr;
+}
+
+bool parseEntry(const QString &entry, SourceInfo &out, QString &error)
+{
+	EntryError code = EntryError::None;
+	QString arg;
+	if (parseEntry(entry, out, code, arg))
+		return true;
+	switch (code) {
+	case EntryError::Empty:
+		error = QStringLiteral("empty entry");
+		break;
+	case EntryError::Format:
+		error = QStringLiteral("use the platform:channel format: %1").arg(arg);
+		break;
+	case EntryError::Platform:
+		error = QStringLiteral("unsupported platform: %1").arg(arg);
+		break;
+	case EntryError::TikTokUser:
+		error = QStringLiteral("invalid TikTok username: %1").arg(arg);
+		break;
+	case EntryError::StarviosUser:
+		error = QStringLiteral("invalid Starvios username: %1").arg(arg);
+		break;
+	case EntryError::YouTubeUrl:
+		error = QStringLiteral("YouTube URL not recognized: %1").arg(arg);
+		break;
+	case EntryError::StarviosUrl:
+		error = QStringLiteral("Starvios URL not recognized: %1").arg(arg);
+		break;
+	case EntryError::None:
+		break;
+	}
+	return false;
+}
+
+QString entryFromInput(const QString &text, const QString &platform)
+{
+	const QString value = text.trimmed();
+	if (value.isEmpty())
+		return {};
+	// URLs, with or without the scheme.
+	static const QRegularExpression url(
+		QStringLiteral("^(https?://|(www\\.|m\\.)?(twitch\\.tv|kick\\.com|youtube\\.com|youtu\\.be|tiktok\\.com|"
+			       "starvios\\.com)(/|$))"),
+		QRegularExpression::CaseInsensitiveOption);
+	// "word:" is an explicit platform (an unknown one is reported as unsupported by parseEntry).
+	static const QRegularExpression prefix(QStringLiteral("^[A-Za-z]+\\s*:"));
+	if (url.match(value).hasMatch() || prefix.match(value).hasMatch())
+		return value;
+	return platform + ':' + value;
+}
+
+QList<ChatEntry> chatEntriesFromJson(const QJsonObject &config)
+{
+	QSet<QString> disabled;
+	for (const QJsonValue v : config.value("disabled").toArray())
+		disabled.insert(v.toString().trimmed());
+	QList<ChatEntry> out;
+	for (const QJsonValue v : config.value("chats").toArray()) {
+		ChatEntry e;
+		if (v.isObject()) {
+			const QJsonObject o = v.toObject();
+			e.entry = o.value("entry").toString().trimmed();
+			e.enabled = o.value("enabled").toBool(true);
+		} else {
+			e.entry = v.toString().trimmed();
+		}
+		if (e.entry.isEmpty())
+			continue;
+		if (disabled.contains(e.entry))
+			e.enabled = false;
+		out << e;
+	}
+	return out;
+}
+
+void chatEntriesToJson(const QList<ChatEntry> &entries, QJsonObject &config)
+{
+	QJsonArray chats, disabled;
+	for (const ChatEntry &e : entries) {
+		chats.append(e.entry);
+		if (!e.enabled)
+			disabled.append(e.entry);
+	}
+	config.insert("chats", chats);
+	if (disabled.isEmpty())
+		config.remove("disabled");
+	else
+		config.insert("disabled", disabled);
+}
+
+SourcePlan planSources(const QList<ChatEntry> &entries, bool demo)
+{
+	SourcePlan plan;
+	auto add = [&plan](const QString &entry, bool connect) {
+		SourceInfo info;
+		EntryProblem problem;
+		if (!parseEntry(entry, info, problem.code, problem.arg)) {
+			plan.errors << problem;
+			return;
+		}
+		if (!connect)
+			return;
+		for (const SourceInfo &s : plan.sources)
+			if (s.key == info.key)
+				return;
+		plan.sources.push_back(info);
+	};
+	for (const ChatEntry &e : entries)
+		if (!e.entry.trimmed().isEmpty())
+			add(e.entry, e.enabled);
+	if (demo)
+		add(QStringLiteral("demo:demo"), true);
+	return plan;
 }
 
 // Mensajes de ejemplo para probar el dock y el overlay sin estar en directo.

@@ -41,11 +41,13 @@ public:
 	void save() const;
 	void shutdown();
 
-	QStringList entries() const { return entries_; }
+	// Configured chats in the user's order, paused ones included.
+	QList<chat::ChatEntry> chats() const { return chats_; }
 	Mode mode() const { return mode_; }
 	bool demo() const { return demo_; }
-	// Cambia la lista de chats. Devuelve los errores de las entradas no válidas.
-	QStringList configure(const QStringList &entries, Mode mode, bool demo);
+	// Changes the chat list: paused chats are disconnected but kept, and sources follow the list's
+	// order. Returns the (translated) errors of the invalid entries.
+	QStringList configure(const QList<chat::ChatEntry> &chats, Mode mode, bool demo);
 
 	// Hidden users, commands and blocked words. They apply to messages that arrive from now on.
 	chat::FilterRules filters() const { return filters_; }
@@ -104,7 +106,8 @@ private:
 	void applyDeletion(QJsonObject deletion);
 	Source *find(const QString &key, quint64 generation);
 
-	QStringList entries_;
+	QList<chat::ChatEntry> chats_;
+	QJsonObject config_; // as loaded: keys this version does not know are written back untouched
 	QStringList errors_;
 	Mode mode_ = Mode::Auto;
 	bool demo_ = false;

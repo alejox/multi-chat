@@ -136,7 +136,7 @@ public:
 		root->addWidget(buttons);
 
 		ChatManager &m = ChatManager::instance();
-		entries_ = m.entries();
+		entries_ = m.chats();
 		(m.mode() == ChatManager::Mode::Always ? always_ : auto_)->setChecked(true);
 		demo_->setChecked(m.demo());
 
@@ -278,15 +278,16 @@ private:
 		hint_->setText(ui::T(("Settings.Hint." + p).toUtf8().constData()));
 	}
 
-	// Si pegan una URL o "plataforma:canal" se respeta; si no, se usa la plataforma elegida.
+	// A pasted URL or "platform:channel" is kept; anything else uses the platform picked in the list.
 	QString entryFromInput() const
 	{
-		const QString text = channel_->text().trimmed();
-		if (text.isEmpty())
-			return {};
-		const bool explicitEntry = text.contains("://") || text.contains(".tv/") || text.contains(".com/") ||
-					   text.contains("youtu.be/") || text.contains(':');
-		return explicitEntry ? text : platform_->currentData().toString() + ':' + text;
+		return chat::entryFromInput(channel_->text(), platform_->currentData().toString());
+	}
+
+	static QString errorText(chat::EntryError code, const QString &arg)
+	{
+		const char *key = chat::entryErrorKey(code);
+		return key ? ui::T(key).arg(arg) : QString();
 	}
 
 	// Foto de perfil del canal (o el logo de la plataforma mientras llega o si no hay).
@@ -328,16 +329,17 @@ private:
 		if (entry.isEmpty())
 			return;
 		chat::SourceInfo info;
-		QString error;
-		if (!chat::parseEntry(entry, info, error)) {
-			error_->setText(error);
+		chat::EntryError code = chat::EntryError::None;
+		QString arg;
+		if (!chat::parseEntry(entry, info, code, arg)) {
+			error_->setText(errorText(code, arg));
 			error_->show();
 			return;
 		}
 		error_->hide();
 		channel_->clear();
 		preview_->hide();
-		entries_ << entry;
+		entries_ << chat::ChatEntry{entry, true};
 		apply();
 	}
 
@@ -345,7 +347,7 @@ private:
 	{
 		if (entry.isEmpty())
 			return;
-		entries_.removeAll(entry);
+		entries_.removeIf([&entry](const chat::ChatEntry &e) { return e.entry == entry; });
 		apply();
 	}
 
@@ -356,7 +358,7 @@ private:
 			entries_, always_->isChecked() ? ChatManager::Mode::Always : ChatManager::Mode::Auto,
 			demo_->isChecked());
 		m.save();
-		entries_ = m.entries();
+		entries_ = m.chats();
 		refreshList();
 		if (!errors.isEmpty()) {
 			error_->setText(errors.join("\n"));
@@ -370,7 +372,8 @@ private:
 		const QString selected = list_->currentItem() ? list_->currentItem()->data(Qt::UserRole).toString()
 							      : QString();
 		list_->clear();
-		for (const QString &entry : entries_) {
+		for (const chat::ChatEntry &chatEntry : entries_) {
+			const QString &entry = chatEntry.entry;
 			chat::SourceInfo info;
 			QString error;
 			if (!chat::parseEntry(entry, info, error))
@@ -435,7 +438,7 @@ private:
 		}
 	}
 
-	QStringList entries_;
+	QList<chat::ChatEntry> entries_;
 	QListWidget *list_ = nullptr;
 	QComboBox *platform_ = nullptr;
 	QLineEdit *channel_ = nullptr;
