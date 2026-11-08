@@ -53,6 +53,18 @@ QString emoteUrl(const QString &id)
 	return QStringLiteral("https://files.kick.com/emotes/%1/fullsize").arg(id);
 }
 
+// Kick sends ids as strings or numbers.
+QString idText(const QJsonValue &id)
+{
+	return id.isString() ? id.toString() : (id.isDouble() ? QString::number(id.toInteger()) : QString());
+}
+
+QJsonObject eventData(const QJsonObject &evt)
+{
+	const QJsonValue data = evt.value("data");
+	return data.isString() ? QJsonDocument::fromJson(data.toString().toUtf8()).object() : data.toObject();
+}
+
 // Datos del canal (id del chatroom y si está en vivo). Kick a veces bloquea esta API.
 QJsonObject channelInfo(const QString &slug, QString &error)
 {
@@ -112,10 +124,31 @@ QJsonObject toMessage(const QJsonObject &data, const QString &channel)
 		if (!name.isEmpty() && !o.badges.contains(name))
 			o.badges << name;
 	}
-	const QJsonValue id = data.value("id");
-	o.id = id.isString() ? id.toString() : (id.isDouble() ? QString::number(id.toInteger()) : QString());
+	o.id = idText(data.value("id"));
+	o.authorId = idText(sender.value("id"));
 	return makeMessage("kick", channel, sender.value("username").toString("?"),
 			   splitContent(data.value("content").toString()), o);
+}
+
+QJsonObject toDeletion(const QString &event, const QJsonObject &data)
+{
+	if (event == "App\\Events\\MessageDeletedEvent") {
+		// {"id": event id, "message": {"id": chat message id}}
+		const QString id = idText(data.value("message").toObject().value("id"));
+		return id.isEmpty() ? QJsonObject() : deleteMessage("kick", id);
+	}
+	if (event == "App\\Events\\UserBannedEvent") {
+		// {"user": {"id", "username", "slug"}, "banned_by": {...}, "permanent", "duration"}: ban or timeout.
+		const QJsonObject user = data.value("user").toObject();
+		const QString userId = idText(user.value("id"));
+		const QString username = user.value("username").toString();
+		if (userId.isEmpty() && username.isEmpty())
+			return {};
+		return deleteAuthor("kick", userId, username);
+	}
+	if (event == "App\\Events\\ChatroomClearEvent")
+		return clearChannel("kick");
+	return {};
 }
 
 LiveResult checkLive(const QString &channel)
@@ -198,11 +231,11 @@ protected:
 							.arg(err.value("code").toInt())
 							.arg(err.value("message").toString()));
 			} else if (name == "App\\Events\\ChatMessageEvent") {
-				QJsonValue data = evt.value("data");
-				QJsonObject obj = data.isString()
-							  ? QJsonDocument::fromJson(data.toString().toUtf8()).object()
-							  : data.toObject();
-				post_(toMessage(obj, source_.channel));
+				post_(toMessage(eventData(evt), source_.channel));
+			} else {
+				QJsonObject deletion = toDeletion(name, eventData(evt));
+				if (!deletion.isEmpty())
+					post_(deletion);
 			}
 		}
 	}

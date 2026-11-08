@@ -411,6 +411,19 @@ QString authorOf(const QJsonObject &row)
 	return display.isEmpty() ? jsonText(profile.value(QStringLiteral("username"))).trimmed() : display;
 }
 
+QJsonObject toDeletion(const QJsonObject &payload)
+{
+	const QString op = jsonText(payload.value(QStringLiteral("op")));
+	const QJsonObject row = payload.value(QStringLiteral("msg")).toObject();
+	const QString id = jsonText(row.value(QStringLiteral("id")));
+	if (id.isEmpty())
+		return {};
+	if (op == QStringLiteral("DELETE") ||
+	    (op == QStringLiteral("UPDATE") && row.value(QStringLiteral("is_deleted")).toBool()))
+		return deleteMessage(QStringLiteral("starvios"), id);
+	return {};
+}
+
 QJsonObject toMessage(const QJsonObject &row, const QString &channel, const QString &ownerId, const EmoteMap &emotes,
 		      bool recovered)
 {
@@ -862,8 +875,13 @@ private:
 			return;
 		}
 		// Una edición o un borrado de un mensaje ya emitido no es un mensaje nuevo.
-		if (op == QStringLiteral("UPDATE") || op == QStringLiteral("DELETE"))
+		if (op == QStringLiteral("UPDATE") || op == QStringLiteral("DELETE")) {
+			// A deletion (moderation) removes the message already shown.
+			const QJsonObject deletion = toDeletion(payload);
+			if (!deletion.isEmpty() && !stopped())
+				post_(deletion);
 			return;
+		}
 		if (row.value(QStringLiteral("is_deleted")).toBool() || !remember(jsonText(row.value(QStringLiteral("id")))))
 			return;
 		noteCreatedAt(jsonText(row.value(QStringLiteral("created_at"))));

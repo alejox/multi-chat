@@ -38,9 +38,15 @@ Hoy Twitch solo procesa `USERNOTICE`: `CLEARMSG` y `CLEARCHAT` se ignoran, así 
 - [x] T1 Modelo + Twitch `CLEARMSG`/`CLEARCHAT` + `ChatManager` + dock + overlay + destacado, con pruebas. Route: delegated (writer; varios archivos no triviales).
   - Diseño: el evento de borrado viaja por el mismo `PostFn` que los mensajes (mismo `QueuedConnection`); `ChatManager::receive` lo separa con `chat::isDeletion`, quita del historial, añade `ids`, quita el destacado (y el "último destacado") si coincide y emite `deleted`. `chat::deletionMatches` es pura y exige mismo `source` y `platform`.
   - Twitch: los mensajes ya usan la etiqueta IRC `id`; ahora guardan `authorId` (`user-id`). `CLEARMSG` → `target-msg-id`; `CLEARCHAT #c :login` → `target-user-id` + login; `CLEARCHAT #c` → todo el canal.
-  - Checks: compilación macOS OK, 0 warnings. Pruebas `twitchModeration` y `deletionByAuthorName`: solo comprobación de sintaxis (`clang++ -fsyntax-only` con un stub de QtTest); no hubo RED/GREEN observado localmente (falta Qt6Test), las corre el CI de Ubuntu.
-  - Commit: ver T2 (el hash se anota en el commit siguiente).
-- [ ] T2 YouTube, Kick (y TikTok/Starvios si aplica), con pruebas de parser. Route: delegated (writer).
+  - Checks: compilación macOS OK, 0 warnings. Con Qt de Homebrew (instalado después de escribir T1): `test-chat twitchModeration deletionByAuthorName` → 4 passed, 0 failed (GREEN observado). RED no observado: la implementación se escribió antes de tener el runner local.
+  - Commit: `f299f97`.
+- [x] T2 YouTube, Kick (y TikTok/Starvios si aplica), con pruebas de parser. Route: delegated (writer).
+  - YouTube: `markChatItemAsDeletedAction`/`removeChatItemAction` (`targetItemId` = `id` del renderer) y `markChatItemsByAuthorAsDeletedAction`/`removeChatItemByAuthorAction` (`externalChannelId` = `authorExternalChannelId`, que ahora se guarda como `authorId`). No hay acción de "vaciar todo".
+  - Kick (Pusher, `chatrooms.<id>.v2`): `App\Events\MessageDeletedEvent` (`message.id`), `App\Events\UserBannedEvent` (`user.id`, `user.username`; ban y timeout) y `App\Events\ChatroomClearEvent` (todo el canal). Los mensajes guardan `sender.id` como `authorId`.
+  - Starvios: la difusión `{op, msg}` con `op` `DELETE`, o `UPDATE` con `msg.is_deleted`, quita el mensaje `msg.id`. Sin evidencia de baneos ni de vaciado.
+  - TikTok: no soportado; el parser no guarda id de mensaje ni lee ningún mensaje de borrado del protocolo.
+  - Checks: RED observado con stubs vacíos (`kickModeration`, `youtubeModeration`, `starviosModeration`: 3 failed); GREEN: `test-chat` 49 passed, 0 failed; `ctest` 2/2. Compilación macOS OK, 0 warnings.
+  - Commit: ver T3.
 - [ ] T3 Filtros de bots, comandos y palabras, con UI en el diálogo de configuración y pruebas. Route: delegated (writer).
 - [ ] T4 README, compilación e instalación local en macOS. Route: delegated (writer).
 
@@ -48,4 +54,4 @@ Hoy Twitch solo procesa `USERNOTICE`: `CLEARMSG` y `CLEARCHAT` se ignoran, así 
 - Rama creada desde `feat/featured-messages` (6c93ea1). Bloque 1 probado por el usuario en OBS: funciona.
 
 ## Next step
-T2: YouTube, Kick, TikTok y Starvios.
+T3: filtros.

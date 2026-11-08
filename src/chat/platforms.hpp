@@ -65,6 +65,9 @@ std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn po
 namespace kick {
 QJsonArray splitContent(const QString &content);
 QJsonObject toMessage(const QJsonObject &data, const QString &channel);
+// Pusher events MessageDeletedEvent, UserBannedEvent and ChatroomClearEvent as a moderation event
+// (see message.hpp); empty for any other event.
+QJsonObject toDeletion(const QString &event, const QJsonObject &data);
 LiveResult checkLive(const QString &channel);
 // En la respuesta de /api/v2/channels/<canal>.
 Profile profileFromChannel(const QJsonObject &channel);
@@ -74,6 +77,9 @@ std::shared_ptr<Connector> create(const SourceInfo &source, Connector::PostFn po
 
 namespace youtube {
 QJsonObject toMessage(const QJsonObject &action, const QString &channel);
+// markChatItemAsDeletedAction, markChatItemsByAuthorAsDeletedAction, removeChatItemAction and
+// removeChatItemByAuthorAction as a moderation event (see message.hpp); empty for other actions.
+QJsonObject toDeletion(const QJsonObject &action);
 // Siguiente continuación del chat y cuánto esperar (ms).
 QString nextContinuation(const QJsonObject &liveChatContinuation, int &timeoutMs);
 // Busca el id del vídeo en una URL (watch?v=, youtu.be/, /live/).
@@ -181,6 +187,10 @@ QString authorOf(const QJsonObject &row);
 // borrada, vacía). ownerId es el id del canal: su dueño lleva insignia aunque la fila no la traiga.
 QJsonObject toMessage(const QJsonObject &row, const QString &channel, const QString &ownerId = {},
 		      const EmoteMap &emotes = {}, bool recovered = false);
+
+// A broadcast payload {op, msg} that deletes an already shown row (op DELETE, or UPDATE with
+// is_deleted) as a moderation event (see message.hpp); empty otherwise.
+QJsonObject toDeletion(const QJsonObject &payload);
 
 // En la respuesta de /api/public/discovery. Rellena los ids solo si el directo está en vivo.
 LiveResult parseDiscovery(const QJsonObject &response, QString &streamId, QString &channelId);
