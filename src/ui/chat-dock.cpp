@@ -30,6 +30,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace {
 
 constexpr int kMaxMessages = 300;
@@ -309,6 +311,79 @@ void ChatView::setMessages(const QList<QJsonObject> &messages)
 	rebuild();
 }
 
+void ChatView::removeMessages(const QJsonObject &deletion)
+{
+	QSet<QString> ids;
+	for (const QJsonValue v : deletion.value("ids").toArray())
+		ids.insert(v.toString());
+	for (auto it = messages_.begin(); it != messages_.end();) {
+		if (ids.contains(it->value("id").toString()) || chat::deletionMatches(deletion, *it)) {
+			ids.insert(it->value("id").toString());
+			it = messages_.erase(it);
+		} else {
+			++it;
+		}
+	}
+	ids.remove(QString());
+	if (ids.isEmpty())
+		return;
+
+	QScrollBar *bar = verticalScrollBar();
+	const bool atBottom = bar->value() >= bar->maximum() - 4;
+	int keep = bar->value();
+	QAbstractTextDocumentLayout *layout = document()->documentLayout();
+	QList<QTextBlock> doomed;
+	for (QTextBlock block = document()->begin(); block.isValid(); block = block.next()) {
+		const auto *data = dynamic_cast<MessageData *>(block.userData());
+		if (!data || !ids.contains(data->id))
+			continue;
+		doomed << block;
+		// Content above the viewport shifts up when removed: compensate so the view stays put.
+		const QRectF rect = layout->blockBoundingRect(block);
+		if (rect.bottom() <= keep)
+			keep -= qRound(rect.height());
+	}
+	if (doomed.isEmpty())
+		return;
+
+	QTextCursor cursor(document());
+	cursor.beginEditBlock();
+	// From the last one so earlier positions stay valid.
+	for (auto it = doomed.crbegin(); it != doomed.crend(); ++it) {
+		const QTextBlock block = *it;
+		const QTextBlock next = block.next();
+		if (block.blockNumber() > 0) {
+			// Takes the separator before the block too, so no empty line is left behind.
+			cursor.setPosition(block.position() - 1);
+			cursor.setPosition(block.position() + block.length() - 1, QTextCursor::KeepAnchor);
+			cursor.removeSelectedText();
+		} else if (next.isValid()) {
+			// Removing the first block keeps its format and data on the merged block: carry the
+			// next message's ones over explicitly.
+			const auto *nextData = dynamic_cast<MessageData *>(next.userData());
+			auto *copy = new MessageData;
+			if (nextData) {
+				copy->id = nextData->id;
+				copy->background = nextData->background;
+			}
+			const QTextBlockFormat format = next.blockFormat();
+			cursor.setPosition(block.position());
+			cursor.setPosition(next.position(), QTextCursor::KeepAnchor);
+			cursor.removeSelectedText();
+			QTextBlock first = document()->firstBlock();
+			first.setUserData(copy);
+			cursor.setPosition(first.position());
+			cursor.setBlockFormat(format);
+		} else {
+			cursor.select(QTextCursor::Document);
+			cursor.removeSelectedText();
+			document()->firstBlock().setUserData(nullptr);
+		}
+	}
+	cursor.endEditBlock();
+	bar->setValue(atBottom ? bar->maximum() : std::max(0, keep));
+}
+
 void ChatView::setHiddenSources(const QSet<QString> &hidden)
 {
 	hidden_ = hidden;
@@ -449,6 +524,7 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	view_->setMessages(history);
 	connect(&manager, &ChatManager::message, view_, &ChatView::addMessage);
 	connect(&manager, &ChatManager::cleared, view_, [this] { view_->setMessages({}); });
+	connect(&manager, &ChatManager::deleted, view_, &ChatView::removeMessages);
 	connect(&manager, &ChatManager::stateChanged, this, &ChatDock::updateState);
 	updateState(manager.state());
 

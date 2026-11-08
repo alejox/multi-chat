@@ -36,11 +36,56 @@ QJsonObject makeMessage(const QString &platform, const QString &channel, const Q
 		m.insert("amount", o.amount);
 	if (!o.system.isEmpty())
 		m.insert("system", o.system);
+	if (!o.authorId.isEmpty())
+		m.insert("authorId", o.authorId);
 	if (o.action)
 		m.insert("action", true);
 	if (o.recovered)
 		m.insert("recovered", true);
 	return m;
+}
+
+QJsonObject deleteMessage(const QString &platform, const QString &id)
+{
+	return QJsonObject{{"type", "delete"}, {"platform", platform}, {"id", id}};
+}
+
+QJsonObject deleteAuthor(const QString &platform, const QString &authorId, const QString &author)
+{
+	QJsonObject e{{"type", "delete"}, {"platform", platform}};
+	if (!authorId.isEmpty())
+		e.insert("authorId", authorId);
+	if (!author.isEmpty())
+		e.insert("author", author);
+	return e;
+}
+
+QJsonObject clearChannel(const QString &platform)
+{
+	return QJsonObject{{"type", "delete"}, {"platform", platform}, {"all", true}};
+}
+
+bool isDeletion(const QJsonObject &object)
+{
+	return object.value("type").toString() == QLatin1String("delete");
+}
+
+bool deletionMatches(const QJsonObject &d, const QJsonObject &m)
+{
+	if (!isDeletion(d) || d.value("source").toString() != m.value("source").toString() ||
+	    d.value("platform").toString() != m.value("platform").toString())
+		return false;
+	if (d.value("all").toBool())
+		return true;
+	const QString id = d.value("id").toString();
+	if (!id.isEmpty())
+		return id == m.value("id").toString();
+	const QString authorId = d.value("authorId").toString();
+	const QString messageAuthorId = m.value("authorId").toString();
+	if (!authorId.isEmpty() && !messageAuthorId.isEmpty())
+		return authorId == messageAuthorId;
+	const QString author = d.value("author").toString();
+	return !author.isEmpty() && author.compare(m.value("author").toString(), Qt::CaseInsensitive) == 0;
 }
 
 QString platformName(const QString &platform)

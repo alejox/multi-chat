@@ -68,6 +68,9 @@ signals:
 	void message(const QJsonObject &message);
 	void stateChanged(const QJsonObject &state);
 	void cleared();
+	// Moderation: messages deleted by the platform (see chat::deleteMessage). `ids` lists the
+	// history messages removed; consumers holding more messages use chat::deletionMatches.
+	void deleted(const QJsonObject &deletion);
 	// Cambió el destacado; vacío = se quitó.
 	void featuredChanged(const QJsonObject &message);
 
@@ -79,6 +82,8 @@ private:
 	void disconnectSource(Source &s);
 	void reapRetired(bool wait);
 	void publishState();
+	void receive(const QJsonObject &object);
+	void applyDeletion(QJsonObject deletion);
 	Source *find(const QString &key, quint64 generation);
 
 	QStringList entries_;

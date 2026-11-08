@@ -25,6 +25,8 @@ public:
 	void setFontSize(int pointSize);
 	void addMessage(const QJsonObject &message);
 	void setMessages(const QList<QJsonObject> &messages);
+	// Removes the messages a moderation event affects, keeping the scroll position.
+	void removeMessages(const QJsonObject &deletion);
 	// Resalta el mensaje destacado (id vacío: ninguno).
 	void setFeatured(const QString &id);
 

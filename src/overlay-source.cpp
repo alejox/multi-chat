@@ -1151,6 +1151,8 @@ void register_overlay_source()
 	QObject::connect(&manager, &ChatManager::message, &manager,
 			 [](const QJsonObject &m) { sendAll(QJsonObject{{"type", "message"}, {"message", m}}); });
 	QObject::connect(&manager, &ChatManager::cleared, &manager, [] { sendAll(QJsonObject{{"type", "clear"}}); });
+	// The deletion event already has type "delete", source and the ids to remove.
+	QObject::connect(&manager, &ChatManager::deleted, &manager, [](const QJsonObject &d) { sendAll(d); });
 	auto pushViewers = [] {
 		const QJsonArray list = ChatManager::instance().state().value("sources").toArray();
 		{

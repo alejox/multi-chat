@@ -156,6 +156,7 @@ QJsonObject toMessage(const IrcMessage &msg, const QString &channel)
 	o.color = msg.tags.value("color");
 	o.badges = badges(msg.tags.value("badges"));
 	o.id = msg.tags.value("id");
+	o.authorId = msg.tags.value("user-id");
 
 	if (msg.command == "PRIVMSG") {
 		QString body = msg.params.isEmpty() ? QString() : msg.params.last();
@@ -178,6 +179,22 @@ QJsonObject toMessage(const IrcMessage &msg, const QString &channel)
 		o.system = msg.tags.value("system-msg");
 		return makeMessage("twitch", channel, author,
 				   body.isEmpty() ? QJsonArray() : splitEmotes(body, msg.tags.value("emotes")), o);
+	}
+	return {};
+}
+
+QJsonObject toDeletion(const IrcMessage &msg)
+{
+	if (msg.command == "CLEARMSG") {
+		// @login=ronni;target-msg-id=abc :tmi.twitch.tv CLEARMSG #chan :text
+		const QString id = msg.tags.value("target-msg-id");
+		return id.isEmpty() ? QJsonObject() : deleteMessage("twitch", id);
+	}
+	if (msg.command == "CLEARCHAT") {
+		// With a trailing user it is a ban or timeout (target-user-id); without one, a full clear.
+		if (msg.params.size() < 2)
+			return clearChannel("twitch");
+		return deleteAuthor("twitch", msg.tags.value("target-user-id"), msg.params.last());
 	}
 	return {};
 }
@@ -265,6 +282,10 @@ protected:
 				} else if (msg.command == "NOTICE" &&
 					   msg.tags.value("msg-id").startsWith("msg_channel_suspended")) {
 					throw ChatError("canal suspendido o inexistente");
+				} else if (msg.command == "CLEARMSG" || msg.command == "CLEARCHAT") {
+					QJsonObject d = toDeletion(msg);
+					if (!d.isEmpty())
+						post_(d);
 				} else {
 					QJsonObject m = toMessage(msg, chan);
 					if (!m.isEmpty())
