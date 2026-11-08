@@ -8,6 +8,7 @@
 // espera a su hilo. Al terminar ese destructor nadie más puede usar la fuente.
 
 #include "voice-source.hpp"
+#include "notification-sound.hpp"
 #include "voice-engine.hpp"
 #include "speech-text.hpp"
 #include "../chat-manager.hpp"
@@ -18,10 +19,13 @@
 #include <plugin-support.h>
 #include <util/platform.h>
 
+#include <QFile>
 #include <QJsonObject>
 #include <QObject>
 #include <QString>
 
+#include <algorithm>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -33,11 +37,30 @@ namespace {
 
 constexpr int kDefaultMaxLength = 200;
 constexpr int kDefaultRatePercent = 50;
+constexpr int kDefaultCooldownMs = 1500;
+constexpr double kMaxSoundSeconds = 10.0;
+
+// What the source does with each message that passes the filters.
+enum class Mode { Read, Sound, Both };
+
+Mode modeFromString(const char *mode)
+{
+	if (mode && std::strcmp(mode, "sound") == 0)
+		return Mode::Sound;
+	if (mode && std::strcmp(mode, "both") == 0)
+		return Mode::Both;
+	return Mode::Read;
+}
 
 struct VoiceSource {
 	obs_source_t *self = nullptr;
 	tts::SpeechOptions options;
 	std::unique_ptr<tts::VoiceEngine> engine; // solo existe activada
+	Mode mode = Mode::Read;
+	tts::PcmBuffer sound; // the chime or the user's WAV, at kChimeSampleRate
+	QString soundPath;    // file the sound came from (empty: built-in)
+	int cooldownMs = kDefaultCooldownMs;
+	uint64_t lastChimeNs = 0;
 };
 
 std::mutex sourcesMutex;
@@ -72,6 +95,23 @@ std::unique_ptr<tts::VoiceEngine> makeEngine(obs_source_t *self)
 	return std::make_unique<tts::VoiceEngine>(std::move(config));
 }
 
+// The user's WAV, resampled to the delivery rate; the built-in chime when there is none or it
+// cannot be read (which the log says).
+tts::PcmBuffer loadSound(const QString &path)
+{
+	if (!path.isEmpty()) {
+		QFile file(path);
+		tts::PcmBuffer wav;
+		if (file.open(QIODevice::ReadOnly))
+			wav = tts::parseWav(file.readAll(), kMaxSoundSeconds);
+		if (!wav.samples.empty())
+			return tts::resamplePcm(wav, tts::kChimeSampleRate);
+		obs_log(LOG_WARNING, "notification sound %s could not be read (PCM 16-bit WAV of at most %.0f s expected); using the built-in chime",
+			path.toUtf8().constData(), kMaxSoundSeconds);
+	}
+	return tts::notificationChime(tts::kChimeSampleRate);
+}
+
 tts::SpeechOptions readOptions(obs_data_t *settings)
 {
 	tts::SpeechOptions options;
@@ -96,10 +136,28 @@ void applySettings(VoiceSource *s, obs_data_t *settings)
 	const bool enabled = obs_data_get_bool(settings, "enabled");
 	const QString voice = QString::fromUtf8(obs_data_get_string(settings, "voice"));
 	const double rate = double(obs_data_get_int(settings, "rate")) / 100.0;
+	const Mode mode = modeFromString(obs_data_get_string(settings, "mode"));
+	const QString soundPath = QString::fromUtf8(obs_data_get_string(settings, "sound_file"));
+	const int cooldownMs = int(obs_data_get_int(settings, "sound_cooldown"));
+	// File reading happens outside the lock; only when the sound is used and the path changed.
+	tts::PcmBuffer sound;
+	bool reloadSound = false;
+	if (mode != Mode::Read) {
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		reloadSound = s->sound.samples.empty() || s->soundPath != soundPath;
+	}
+	if (reloadSound)
+		sound = loadSound(soundPath);
 
 	std::unique_ptr<tts::VoiceEngine> stopped; // se destruye al salir, ya sin el candado
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	s->options = std::move(options);
+	s->mode = mode;
+	s->cooldownMs = std::max(0, cooldownMs);
+	if (reloadSound) {
+		s->sound = std::move(sound);
+		s->soundPath = soundPath;
+	}
 	if (enabled && !shuttingDown) {
 		if (!s->engine)
 			s->engine = makeEngine(s->self);
@@ -119,9 +177,21 @@ void onMessage(const QJsonObject &message)
 		// Una fuente que no está en la escena en emisión no se oye: no se gasta nada en ella.
 		if (!s->engine || !obs_source_active(s->self))
 			continue;
+		// The filters (platforms, blocked words, recovered messages) gate every mode: what would
+		// not be read makes no sound either.
 		const QString text = tts::speechTextForMessage(message, s->options);
-		if (!text.isEmpty())
-			s->engine->enqueue(text, message.value(QStringLiteral("id")).toString());
+		if (text.isEmpty())
+			continue;
+		const QString id = message.value(QStringLiteral("id")).toString();
+		if (s->mode != Mode::Read) {
+			const uint64_t now = os_gettime_ns();
+			if (tts::chimeAllowed(now, s->lastChimeNs, s->cooldownMs)) {
+				s->lastChimeNs = now;
+				s->engine->enqueueSound(s->sound, id);
+			}
+		}
+		if (s->mode != Mode::Sound)
+			s->engine->enqueue(text, id);
 	}
 }
 
@@ -188,6 +258,9 @@ void voice_deactivate(void *data)
 void voice_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "enabled", true); // new sources read aloud; saved ones keep their value
+	obs_data_set_default_string(settings, "mode", "read");
+	obs_data_set_default_string(settings, "sound_file", "");
+	obs_data_set_default_int(settings, "sound_cooldown", kDefaultCooldownMs);
 	obs_data_set_default_string(settings, "voice", "");
 	obs_data_set_default_int(settings, "rate", kDefaultRatePercent);
 	obs_data_set_default_bool(settings, "read_author", true);
@@ -210,11 +283,36 @@ bool voice_skip_clicked(obs_properties_t *, obs_property_t *, void *data)
 	return false;
 }
 
+// The sound options only show when a sound is used; the voice ones, when the chat is read.
+bool voice_mode_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
+{
+	const Mode mode = modeFromString(obs_data_get_string(settings, "mode"));
+	for (const char *key : {"sound_file", "sound_cooldown"})
+		obs_property_set_visible(obs_properties_get(props, key), mode != Mode::Read);
+	for (const char *key : {"voice", "rate", "read_author", "max_length", "skip"})
+		obs_property_set_visible(obs_properties_get(props, key), mode != Mode::Sound);
+	return true;
+}
+
 obs_properties_t *voice_properties(void *data)
 {
 	obs_properties_t *props = obs_properties_create();
 	obs_property_t *enabled = obs_properties_add_bool(props, "enabled", obs_module_text("Voice.Enabled"));
 	obs_property_set_long_description(enabled, obs_module_text("Voice.Enabled.Help"));
+
+	obs_property_t *mode = obs_properties_add_list(props, "mode", obs_module_text("Voice.Mode"), OBS_COMBO_TYPE_LIST,
+						       OBS_COMBO_FORMAT_STRING);
+	for (const char *id : {"read", "sound", "both"})
+		obs_property_list_add_string(mode, obs_module_text(("Voice.Mode." + std::string(id)).c_str()), id);
+	obs_property_set_long_description(mode, obs_module_text("Voice.Mode.Help"));
+	obs_property_set_modified_callback(mode, voice_mode_changed);
+	obs_property_t *soundFile = obs_properties_add_path(props, "sound_file", obs_module_text("Voice.SoundFile"),
+							    OBS_PATH_FILE, obs_module_text("Voice.SoundFilter"), nullptr);
+	obs_property_set_long_description(soundFile, obs_module_text("Voice.SoundFile.Help"));
+	obs_property_t *cooldown =
+		obs_properties_add_int(props, "sound_cooldown", obs_module_text("Voice.SoundCooldown"), 0, 60000, 100);
+	obs_property_int_set_suffix(cooldown, " ms");
+	obs_property_set_long_description(cooldown, obs_module_text("Voice.SoundCooldown.Help"));
 
 	obs_property_t *voice = obs_properties_add_list(props, "voice", obs_module_text("Voice.Voice"),
 							OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);

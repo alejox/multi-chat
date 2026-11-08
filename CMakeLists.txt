@@ -55,6 +55,8 @@ target_sources(
     src/chat/updates.hpp
     src/net/net.hpp
     src/tts/bounded-queue.hpp
+    src/tts/notification-sound.cpp
+    src/tts/notification-sound.hpp
     src/tts/pcm.hpp
     src/tts/speech-backend.hpp
     src/tts/speech-text.cpp

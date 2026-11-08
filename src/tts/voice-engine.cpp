@@ -16,7 +16,8 @@ using SteadyClock = std::chrono::steady_clock;
 
 struct QueuedText {
 	QString text;
-	QString id; // chat message id, empty if unknown
+	QString id;      // chat message id, empty if unknown
+	PcmBuffer sound; // ready-made audio instead of a text (text is empty then)
 };
 
 constexpr uint64_t kNsPerSecond = 1000000000ULL;
@@ -66,7 +67,20 @@ std::size_t VoiceEngine::enqueue(const QString &text, const QString &id)
 	std::size_t dropped;
 	{
 		std::lock_guard<std::mutex> lock(shared_->mutex);
-		dropped = shared_->queue.push(QueuedText{text, id});
+		dropped = shared_->queue.push(QueuedText{text, id, {}});
+	}
+	shared_->wake.notify_all();
+	return dropped;
+}
+
+std::size_t VoiceEngine::enqueueSound(const PcmBuffer &sound, const QString &id)
+{
+	if (sound.samples.empty() || !sound.channels || !sound.sampleRate)
+		return 0;
+	std::size_t dropped;
+	{
+		std::lock_guard<std::mutex> lock(shared_->mutex);
+		dropped = shared_->queue.push(QueuedText{QString(), id, sound});
 	}
 	shared_->wake.notify_all();
 	return dropped;
@@ -166,11 +180,17 @@ void VoiceEngine::run()
 			}
 			const uint64_t generation = ++s.generation;
 			s.currentId = next.id;
-			SpeechRequest request{next.text, s.voiceId, s.rate};
 			speaking = true;
 			firstChunkOfText = true;
-			s.renderDone = false;
 			s.lastActivity = SteadyClock::now();
+			if (!next.sound.samples.empty()) {
+				// A sound is already rendered: it only needs the real-time delivery below.
+				s.pcm.push_back(std::move(next.sound));
+				s.renderDone = true;
+				continue;
+			}
+			SpeechRequest request{next.text, s.voiceId, s.rate};
+			s.renderDone = false;
 			lock.unlock();
 
 			if (!backend && config_.backendFactory)
