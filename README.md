@@ -276,7 +276,8 @@ src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, 
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
 src/ui/                    dock (chat-dock, chat-view, dock-prefs), ventana de configuración (settings-dialog, channel-input, chat-list), asistente de inicio, cachés de emotes y de perfiles
 data/icons/                íconos SVG monocromos del dock (se tiñen con el color del tema)
-src/updater.*              actualizaciones automáticas desde las Releases de GitHub
+src/updater.*              actualizaciones automáticas desde las Releases de GitHub: consulta, descarga y comprobación SHA-256
+src/updater/               instaladores por sistema (install-win/-mac/-linux.cpp, solo se compila el del sistema), copy-tree.cpp y el script de PowerShell (install-script-win.hpp)
 data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la antigua fuente de fecha y hora (clock.html); icons.js y overlay.js son el código compartido
 data/locale/               textos en español e inglés (también los avisos del chat y los errores de conexión, según el idioma de OBS)
 tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts), overlay (test-overlay), medida de recuadros (test-box-measure, QtGui sin pantalla), manager (test-manager) y JS de las páginas (overlay-js.test.js, con node si está instalado)

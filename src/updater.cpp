@@ -1,14 +1,13 @@
 #include "updater.hpp"
 #include "i18n.hpp"
+#include "updater/install.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
 #include <plugin-support.h>
 
-#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QDir>
-#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
@@ -20,19 +19,6 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QUrl>
-
-#include <cstdio>
-
-#ifdef _WIN32
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#include <shellapi.h>
-#endif
 
 namespace {
 
@@ -95,10 +81,14 @@ QString tool(const QProcess *process)
 	return QFileInfo(process->program()).baseName();
 }
 
-QString workDir()
+} // namespace
+
+QString updater::workDir()
 {
 	return QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation)).filePath("obs-multichat-update");
 }
+
+namespace {
 
 // La versión que el usuario pidió no volver a ofrecer.
 QString skipFile()
@@ -125,254 +115,16 @@ void skipVersion(const QString &version)
 	}
 }
 
+} // namespace
+
 // El binario cargado, con ruta completa (en la carpeta de OBS llega relativa a bin\64bit).
-QString moduleBinary()
+QString updater::moduleBinary()
 {
 	return QDir::cleanPath(
 		QFileInfo(QString::fromUtf8(obs_get_module_binary_path(obs_current_module()))).absoluteFilePath());
 }
 
-#ifdef _WIN32
-// La carpeta de OBS 33: C:\ProgramData\obs-studio\plugins\obs-multichat (vacío si no se sabe).
-QString pluginFolder()
-{
-	QString programData = qEnvironmentVariable("ProgramData");
-	if (programData.isEmpty())
-		programData = qEnvironmentVariable("ALLUSERSPROFILE");
-	return programData.isEmpty() ? QString() : QDir::cleanPath(programData + "/obs-studio/plugins/obs-multichat");
-}
-
-enum class Location { PluginFolder, LegacyObsFolder, LegacyProgramData, Other };
-
-Location location()
-{
-	const QString binDir = QFileInfo(moduleBinary()).absolutePath();
-	const QString target = pluginFolder();
-	if (!target.isEmpty() && binDir.compare(target, Qt::CaseInsensitive) == 0)
-		return Location::PluginFolder;
-	if (!target.isEmpty() && binDir.compare(target + "/bin/64bit", Qt::CaseInsensitive) == 0)
-		return Location::LegacyProgramData;
-	QDir dir(binDir);
-	if (dir.dirName() == "64bit" && QFileInfo(dir.absolutePath()).dir().dirName() == "obs-plugins")
-		return Location::LegacyObsFolder;
-	return Location::Other;
-}
-
-// Pide permiso de administrador y ejecuta el programa. Devuelve el código de salida, o -1 si no
-// se pudo pedir el permiso (o se canceló).
-int runElevated(const QString &program, const QString &params, QString *problem)
-{
-	const std::wstring file = program.toStdWString();
-	const std::wstring args = params.toStdWString();
-	SHELLEXECUTEINFOW info = {};
-	info.cbSize = sizeof(info);
-	info.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC;
-	info.lpVerb = L"runas";
-	info.lpFile = file.c_str();
-	info.lpParameters = args.c_str();
-	info.nShow = SW_HIDE;
-	if (!ShellExecuteExW(&info) || !info.hProcess) {
-		const DWORD error = GetLastError();
-		*problem = error == ERROR_CANCELLED ? i18n::tr("Update.Cancelled")
-						    : i18n::tr("Update.Problem.Elevate").arg(QString::number(error));
-		return -1;
-	}
-	WaitForSingleObject(info.hProcess, 180000);
-	DWORD code = 1;
-	GetExitCodeProcess(info.hProcess, &code);
-	CloseHandle(info.hProcess);
-	return int(code);
-}
-
-// Copia el plugin nuevo a la carpeta de OBS 33 y quita las copias de antes. El .dll cargado no
-// se puede borrar, pero sí renombrar: queda como .old (lo borra la actualización siguiente) y el
-// nuevo se usa al reiniciar OBS. Si la copia falla, vuelve el .dll de antes.
-const char *const kInstallScript = R"PS(param([string]$Dll, [string]$Data, [string]$Target, [string]$OldDll = '', [string]$OldData = '', [string]$OldBin = '')
-$ErrorActionPreference = 'Stop'
-$newDll = Join-Path $Target 'obs-multichat.dll'
-$backup = ''
-$copying = $false
-try {
-  New-Item -ItemType Directory -Force -Path $Target | Out-Null
-  Get-ChildItem -LiteralPath $Target -Filter 'obs-multichat.dll.*.old' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-  if (Test-Path -LiteralPath $newDll) {
-    $name = "obs-multichat.dll.$([DateTimeOffset]::Now.ToUnixTimeSeconds()).old"
-    Rename-Item -LiteralPath $newDll -NewName $name
-    $backup = Join-Path $Target $name
-  }
-  $copying = $true
-  Copy-Item -LiteralPath $Dll -Destination $newDll -Force
-  robocopy $Data (Join-Path $Target 'data') /E /NFL /NDL /NJH /NJS /NP | Out-Null
-  if ($LASTEXITCODE -ge 8) { throw "robocopy $LASTEXITCODE" }
-} catch {
-  if ($copying) { Remove-Item -LiteralPath $newDll -Force -ErrorAction SilentlyContinue }
-  if ($backup) { Rename-Item -LiteralPath $backup -NewName 'obs-multichat.dll' -ErrorAction SilentlyContinue }
-  exit 1
-}
-if ($OldDll -and (Test-Path -LiteralPath $OldDll)) {
-  Get-ChildItem -LiteralPath (Split-Path $OldDll) -Filter 'obs-multichat.dll.*.old' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-  Rename-Item -LiteralPath $OldDll -NewName "obs-multichat.dll.$([DateTimeOffset]::Now.ToUnixTimeSeconds()).old" -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath ([IO.Path]::ChangeExtension($OldDll, '.pdb')) -Force -ErrorAction SilentlyContinue
-}
-if ($OldData -and (Test-Path -LiteralPath $OldData)) { Remove-Item -LiteralPath $OldData -Recurse -Force -ErrorAction SilentlyContinue }
-if ($OldBin -and (Test-Path -LiteralPath $OldBin)) { Remove-Item -LiteralPath $OldBin -Recurse -Force -ErrorAction SilentlyContinue }
-exit 0
-)PS";
-
-bool installWindows(const QString &extracted, QString *problem)
-{
-	const QString target = pluginFolder();
-	const QString dll = QDir(extracted).filePath("obs-multichat/obs-multichat.dll");
-	const QString data = QDir(extracted).filePath("obs-multichat/data");
-	if (target.isEmpty()) {
-		*problem = i18n::tr("Update.Problem.ProgramData");
-		return false;
-	}
-	if (!QFileInfo::exists(dll) || !QFileInfo(data).isDir()) {
-		*problem = i18n::tr("Update.Problem.ZipNoFolder");
-		return false;
-	}
-	const Location from = location();
-	if (from == Location::Other) {
-		*problem = i18n::tr("Update.Problem.NotInPlugins").arg(QDir::toNativeSeparators(moduleBinary()));
-		return false;
-	}
-
-	const QString script = QDir(workDir()).filePath("instalar.ps1");
-	QFile scriptFile(script);
-	if (!scriptFile.open(QIODevice::WriteOnly) || scriptFile.write(kInstallScript) < 0) {
-		*problem = i18n::tr("Update.Problem.Write").arg(QDir::toNativeSeparators(script));
-		return false;
-	}
-	scriptFile.close();
-
-	auto arg = [](const char *name, const QString &value) {
-		return QString(" -%1 \"%2\"").arg(QString::fromUtf8(name), QDir::toNativeSeparators(value));
-	};
-	QString params =
-		QString("-NoProfile -ExecutionPolicy Bypass -File \"%1\"").arg(QDir::toNativeSeparators(script));
-	params += arg("Dll", dll) + arg("Data", data) + arg("Target", target);
-	// La copia de antes: el .dll cargado se renombra. Sus datos (que el overlay está usando) se
-	// borran en la actualización siguiente, cuando el plugin ya corre desde la carpeta nueva.
-	if (from != Location::PluginFolder)
-		params += arg("OldDll", moduleBinary());
-	const QString obsRoot = QDir::cleanPath(QCoreApplication::applicationDirPath() + "/../..");
-	const QString oldData = obsRoot + "/data/obs-plugins/obs-multichat";
-	if (from == Location::PluginFolder && QFileInfo(oldData).isDir())
-		params += arg("OldData", oldData);
-	if (QFileInfo(target + "/bin").isDir())
-		params += arg("OldBin", target + "/bin");
-
-	const int code = runElevated("powershell.exe", params, problem);
-	if (code > 0)
-		*problem = i18n::tr("Update.Problem.CopyTo").arg(QDir::toNativeSeparators(target), QString::number(code));
-	return code == 0;
-}
-#endif
-
-#ifndef _WIN32
-// Copia un árbol de carpetas encima de otro (crea lo que falte, pisa lo que exista).
-bool copyTree(const QString &from, const QString &to, QString *problem)
-{
-	QDir source(from);
-	QDirIterator it(from, QDir::Files | QDir::NoDotAndDotDot | QDir::Hidden, QDirIterator::Subdirectories);
-	while (it.hasNext()) {
-		const QString file = it.next();
-		const QString target = QDir(to).filePath(source.relativeFilePath(file));
-		QDir().mkpath(QFileInfo(target).absolutePath());
-		QFile existing(target);
-		if (existing.exists() && !existing.remove()) {
-			*problem = i18n::tr("Update.Problem.Replace").arg(target, existing.errorString());
-			return false;
-		}
-		QFile copy(file);
-		if (!copy.copy(target)) {
-			*problem = i18n::tr("Update.Problem.Copy").arg(target, copy.errorString());
-			return false;
-		}
-	}
-	return true;
-}
-#endif
-
-#ifdef __APPLE__
-// …/obs-multichat.plugin (el binario está en Contents/MacOS/).
-QString bundleRoot()
-{
-	QDir dir = QFileInfo(moduleBinary()).absoluteDir();
-	dir.cdUp();
-	dir.cdUp();
-	return dir.absolutePath();
-}
-
-// En macOS el binario cargado sigue funcionando aunque se reemplace el paquete.
-bool installMac(const QString &extracted, QString *problem)
-{
-	const QString root = bundleRoot();
-	const QString fresh = QDir(extracted).filePath("obs-multichat.plugin");
-	if (QFileInfo(root).fileName() != "obs-multichat.plugin") {
-		*problem = i18n::tr("Update.Problem.OwnFolder").arg(root);
-		return false;
-	}
-	if (!QFileInfo(fresh).isDir()) {
-		*problem = i18n::tr("Update.Problem.ZipNoBundle");
-		return false;
-	}
-	const QString backup = root + ".old";
-	QDir(backup).removeRecursively();
-	if (!QDir().rename(root, backup)) {
-		*problem = i18n::tr("Update.Problem.Move").arg(root);
-		return false;
-	}
-	if (!QDir().rename(fresh, root) && !copyTree(fresh, root, problem)) {
-		QDir(root).removeRecursively();
-		QDir().rename(backup, root); // deja el plugin como estaba
-		return false;
-	}
-	QDir(backup).removeRecursively();
-	// Sin la marca de "descargado de internet", macOS no vuelve a pedir permiso para abrirlo.
-	QProcess::execute("/usr/bin/xattr", {"-cr", root});
-	return true;
-}
-#endif
-
-#if !defined(_WIN32) && !defined(__APPLE__)
-// La carpeta de plugins del usuario: ~/.config/obs-studio/plugins/obs-multichat, con el .so en
-// bin/64bit y los datos en data. Ahí OBS no pide permisos; si el plugin vino en un paquete del
-// sistema (/usr/lib/…), lo actualiza ese paquete.
-bool installLinux(const QString &extracted, QString *problem)
-{
-	const QString binary = moduleBinary();
-	QDir root = QFileInfo(binary).absoluteDir();
-	const bool userFolder = root.dirName() == "64bit" && root.cdUp() && root.dirName() == "bin" && root.cdUp() &&
-				root.dirName() == "obs-multichat";
-	if (!userFolder || !QFileInfo(root.absolutePath()).isWritable()) {
-		*problem = i18n::tr("Update.Problem.NotInLinux").arg(binary);
-		return false;
-	}
-	const QString fresh = QDir(extracted).filePath("obs-multichat");
-	const QString freshSo = fresh + "/bin/64bit/obs-multichat.so";
-	if (!QFileInfo::exists(freshSo) || !QFileInfo(fresh + "/data").isDir()) {
-		*problem = i18n::tr("Update.Problem.ArchiveNoFolder");
-		return false;
-	}
-	// rename() cambia el archivo de una vez: el .so cargado sigue en memoria hasta reiniciar OBS.
-	const QString temp = binary + ".new";
-	QFile::remove(temp);
-	if (!QFile::copy(freshSo, temp)) {
-		*problem = i18n::tr("Update.Problem.CopyFile").arg(temp);
-		return false;
-	}
-	if (std::rename(QFile::encodeName(temp).constData(), QFile::encodeName(binary).constData()) != 0) {
-		QFile::remove(temp);
-		*problem = i18n::tr("Update.Problem.ReplaceFile").arg(binary);
-		return false;
-	}
-	return copyTree(fresh + "/data", root.filePath("data"), problem);
-}
-#endif
-
-} // namespace
+using updater::workDir;
 
 Updater &Updater::instance()
 {
@@ -597,13 +349,7 @@ void Updater::install(const QString &version, const QString &zipPath)
 	if (unzip != 0) {
 		problem = i18n::tr("Update.Problem.Unzip").arg(QDir::toNativeSeparators(zipPath), QString::number(unzip));
 	} else {
-#if defined(_WIN32)
-		ok = installWindows(extracted, &problem);
-#elif defined(__APPLE__)
-		ok = installMac(extracted, &problem);
-#else
-		ok = installLinux(extracted, &problem);
-#endif
+		ok = updater::installPlugin(extracted, &problem);
 	}
 	busy_ = false;
 	if (progress_) {

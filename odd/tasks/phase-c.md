@@ -34,7 +34,11 @@ Cerrar los últimos pendientes de la revisión de arquitectura: una fuente menos
   - `refresh()` llama a `requestMeasure()`: en el hilo de la interfaz mide y redimensiona en el acto; desde otro hilo (`create`/`ov_update` de OBS) encola con `QMetaObject::invokeMethod(app, ..., Qt::QueuedConnection)` guardando solo una referencia débil (`obs_source_get_weak_source`); si la fuente ya no existe no hace nada. `ov_update` solo guarda la configuración y pide la medida.
   - Prueba nueva `tests/test-box-measure.cpp` (QGuiApplication en `offscreen`, 9 casos). Excepción a RED: es caracterización de código movido, no cambio de comportamiento; el cambio de hilo necesita OBS y no tiene prueba automática.
   - Pruebas: 6/6 suites; build macOS BUILD SUCCEEDED sin avisos.
-- [ ] T3 Separar el actualizador. Route: delegated (writer).
+- [x] T3 Separar el actualizador. Route: delegated (writer). Tras T2: ef9bb5c.
+  - `src/updater.cpp` se queda con consulta, descarga, verificación SHA-256 y descompresión; `updater::installPlugin()` (`src/updater/install.hpp`) lo implementan `install-win.cpp`, `install-mac.cpp` e `install-linux.cpp`; `copy-tree.cpp` lo comparten macOS y Linux; el script de PowerShell va en `install-script-win.hpp` (constante, sin empaquetado nuevo).
+  - CMakeLists compila cada instalador solo en su sistema (bloques `OS_WINDOWS` / `OS_MACOS` / Linux existentes).
+  - Movimiento sin cambios: cuerpos de `installWindows/Mac/Linux` → `installPlugin`, `pluginFolder`, `location`, `runElevated`, `bundleRoot`, `copyTree` y el script comprobados idénticos byte a byte contra HEAD con un script.
+  - Pruebas: build macOS BUILD SUCCEEDED sin avisos; `install-linux.cpp` y `copy-tree.cpp` pasan `clang++ -fsyntax-only -Wall -Wextra -Werror` con el Qt de Homebrew; `install-win.cpp` no se pudo compilar aquí (sin MSVC); 6/6 suites, checksum de test-chat sin cambios.
 - [ ] T4 Compilación, pruebas, instalación y README. Route: delegated (writer).
 
 ## Next step
