@@ -100,7 +100,7 @@ Al abrir OBS, el plugin revisa si hay una versión nueva en las Releases de GitH
 
 Antes de instalar, el plugin compara el archivo descargado con la suma SHA-256 publicada en la Release: la que da GitHub para cada archivo y, si falta, el `SHA256SUMS` que se publica junto a los zips. Si no coincide o no se puede obtener, no instala nada y lo dice; la versión se puede descargar a mano desde la página.
 
-- **Windows:** se instala en `C:\ProgramData\obs-studio\plugins\obs-multichat`, que es de administrador: Windows pide permiso una vez para copiar el plugin. Si estaba en la carpeta de antes (`C:\Program Files\obs-studio`), queda en la nueva y se quita la copia de antes.
+- **Windows:** se instala en `C:\ProgramData\obs-studio\plugins\obs-multichat`, que es de administrador: Windows pide permiso una vez para copiar el plugin. Si estaba en la carpeta de antes (`C:\Program Files\obs-studio`), queda en la nueva y se quita la copia de antes. Si la copia tarda más de 3 minutos (un antivirus lento, por ejemplo), el plugin avisa de que sigue en marcha en vez de darla por fallida. Pendiente antes de la próxima versión: el script elevado y los archivos extraídos quedan en la carpeta temporal del usuario entre la comprobación y el permiso de administrador.
 - **macOS:** se reemplaza `obs-multichat.plugin` en su carpeta y se le quita la marca de "descargado de internet", así que macOS no vuelve a pedir permiso.
 - **Linux:** se reemplaza en `~/.config/obs-studio/plugins/obs-multichat`, sin pedir permisos (descarga con `curl` o, si no está, con `wget`).
 
@@ -130,7 +130,7 @@ La primera vez que abres OBS con el plugin, sin chats configurados, aparece el *
 - **Buscar**: **Ctrl+F** (⌘F en macOS) o el botón de la lupa. Filtra por texto, emote o nombre, sin distinguir mayúsculas ni tildes, y dice cuántos coinciden. **Esc** cierra la búsqueda.
 - **Hora**: clic derecho → *Mostrar hora* añade la hora a cada mensaje (apagado por defecto; se recuerda).
 - **La rueda** (arriba a la derecha): *Configurar…*, *Mensajes de prueba*, *Mostrar hora*, *Tamaño del texto*, *Volver a detectar en qué plataformas estás en directo*, *Asistente de inicio* y *Buscar actualizaciones*.
-- **Vaciar el chat**: el botón de la papelera vacía el dock, el chat en pantalla y el destacado. Durante unos segundos aparece **Chat vaciado · Deshacer**; *Deshacer* devuelve los mensajes al dock y al chat en pantalla (en la cinta horizontal, solo los 3 últimos). La voz no los vuelve a leer.
+- **Vaciar el chat**: el botón de la papelera vacía el dock, el chat en pantalla y el destacado. Durante unos segundos aparece **Chat vaciado · Deshacer**; *Deshacer* devuelve los mensajes al dock y al chat en pantalla (en la cinta horizontal, solo los 3 últimos). Si vacías dos veces seguidas, *Deshacer* devuelve todo. La voz no los vuelve a leer.
 - **Tema**: los íconos y los colores se adaptan al tema de OBS, claro u oscuro.
 
 ### ⭐ Destacar un mensaje
@@ -190,7 +190,7 @@ Los filtros se guardan al momento y se aplican a los mensajes que llegan a parti
 Funciona en Windows, macOS y Linux con las voces del sistema, sin servicios externos. En Linux usa **espeak-ng**: la voz es más robótica que las de Windows y macOS.
 
 1. Añade **Fuentes → + → Multichat (voz)** a tu escena.
-2. Empieza a leer en cuanto la añades (para silenciarla sin quitarla, baja su volumen en el mezclador). En sus **Propiedades** eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen, el máximo de caracteres por mensaje y las palabras bloqueadas.
+2. Empieza a leer en cuanto la añades (para silenciarla sin quitarla, baja su volumen en el mezclador). Las fuentes de voz que ya tenías en tus escenas de una versión anterior siguen como estaban: si nunca activaste *Leer el chat en voz alta*, siguen sin leer hasta que lo actives. En sus **Propiedades** eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen, el máximo de caracteres por mensaje y las palabras bloqueadas.
 3. El volumen se controla en el **mezclador de audio**, como cualquier otra fuente. Es audio de OBS: llega a la emisión y a la grabación. Para oírlo tú, activa la monitorización en *Propiedades avanzadas de audio*.
 
 Qué se lee y qué no:
@@ -201,7 +201,7 @@ Qué se lee y qué no:
 - Un mensaje con una palabra bloqueada no se lee entero.
 - Si un mensaje se borra (moderación de la plataforma u *Ocultar mensaje* en el dock) antes de leerse, sale de la cola; si se estaba leyendo, se corta.
 - Se leen de uno en uno. Si la cola llega a 20 mensajes, se descarta el más antiguo para no acumular retraso.
-- **Al llegar un mensaje** elige qué hace la fuente: *Leerlo en voz alta* (lo de siempre), *Avisar con un sonido* (un aviso corto por mensaje, sin leer, para enterarte sin mirar la pantalla) o *Sonido y luego leerlo*. El aviso viene integrado; puedes poner un WAV propio (PCM de 16 bits, hasta 10 s) y limitar cuántos suenan con *Mínimo entre dos avisos* (por defecto 1,5 s; en el modo mixto solo limita el sonido). Los filtros de plataformas y palabras valen para los tres modos, y un mensaje borrado antes de sonar no suena.
+- **Al llegar un mensaje** elige qué hace la fuente: *Leerlo en voz alta* (lo de siempre), *Avisar con un sonido* (un aviso corto por mensaje, sin leer, para enterarte sin mirar la pantalla) o *Sonido y luego leerlo*. El aviso viene integrado; puedes poner un WAV propio (PCM de 16 bits, hasta 10 s) y limitar cuántos suenan con *Mínimo entre dos avisos* (por defecto 1,5 s; en el modo mixto solo limita el sonido). Los filtros de plataformas y palabras valen para los tres modos, y un mensaje borrado antes de sonar no suena (tampoco los que quedaban en cola de alguien expulsado o silenciado en ese chat).
 - El botón *Saltar el mensaje actual* corta el que se está leyendo. Al desactivar la fuente se vacía la cola y se detiene la voz.
 - Los *Mensajes de prueba* también se leen, para escuchar la voz sin estar en directo, pero nunca mientras transmites.
 
@@ -271,7 +271,7 @@ src/overlay/               fuentes "Multichat", "Multichat (espectadores)", "Mul
   box-measure.*            medida pura de los recuadros de espectadores y reloj con QFont (sin OBS, con pruebas en tests/test-box-measure.cpp)
   wiring.cpp               estado compartido y reparto de los eventos del manager a las páginas
 src/overlay-presets.*      valores por defecto, preajustes y saneado de CSS/colores/fuentes (sin OBS, con pruebas en tests/test-overlay.cpp)
-src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
+src/tts/                   fuente "Multichat (voz)" (versión 2; la versión 0, obsoleta, sigue registrada para las escenas guardadas): filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
 src/ui/                    dock (chat-dock, chat-view, dock-prefs), ventana de configuración (settings-dialog, channel-input, chat-list), asistente de inicio, cachés de emotes y de perfiles
