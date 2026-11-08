@@ -824,7 +824,7 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "fit_canvas"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "ticker_width"), horizontal && !manualSize);
 	obs_property_set_visible(obs_properties_get(props, "scroll"), horizontal);
-	obs_property_set_visible(obs_properties_get(props, "clock"), horizontal);
+	obs_property_set_visible(obs_properties_get(props, "group_clock"), horizontal);
 	const bool clockOn = horizontal && obs_data_get_bool(settings, "clock");
 	for (const char *key : {"clock_date", "clock_time", "clock_seconds", "clock_hour24", "clock_bar"})
 		obs_property_set_visible(obs_properties_get(props, key), clockOn);
@@ -832,8 +832,8 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "hspacing"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "spacing"), !horizontal);
 	obs_property_set_visible(obs_properties_get(props, "align"), !horizontal);
-	obs_property_set_visible(obs_properties_get(props, "fade"), !horizontal);
-	obs_property_set_visible(obs_properties_get(props, "max"), !horizontal);
+	// Hiding and the message limit only apply to the vertical list: the whole section goes.
+	obs_property_set_visible(obs_properties_get(props, "group_animation"), !horizontal);
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
 	showBoxStyle(props, settings, "panel_", obs_data_get_bool(settings, "panel"));
 	obs_property_set_visible(obs_properties_get(props, "style"),
@@ -849,80 +849,104 @@ bool ov_open_settings(obs_properties_t *, obs_property_t *, void *)
 	return false;
 }
 
-obs_properties_t *ov_properties(void *)
+// Sections of the properties window. The settings inside a group stay flat in the same
+// obs_data, so the keys saved by older versions keep working.
+obs_properties_t *addGroup(obs_properties_t *props, const char *name, const char *text)
 {
-	obs_properties_t *props = obs_properties_create();
-	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
+	obs_properties_t *group = obs_properties_create();
+	obs_properties_add_group(props, name, obs_module_text(text), OBS_GROUP_NORMAL, group);
+	return group;
+}
 
-	obs_property_t *layout = obs_properties_add_list(props, "layout", obs_module_text("Source.Layout"),
-							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Vertical"), "vertical");
-	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Horizontal"), "horizontal");
-	obs_property_set_long_description(layout, obs_module_text("Source.Layout.Help"));
-	obs_property_set_modified_callback(layout, ov_layout_changed);
-	obs_property_t *fit = obs_properties_add_bool(props, "fit_canvas", obs_module_text("Source.FitCanvas"));
-	obs_property_set_long_description(fit, obs_module_text("Source.FitCanvas.Help"));
-	obs_property_set_modified_callback(fit, ov_layout_changed);
-	obs_property_t *tickerWidthProp =
-		obs_properties_add_int(props, "ticker_width", obs_module_text("Source.TickerWidth"), 0, 8192, 1);
-	obs_property_int_set_suffix(tickerWidthProp, " px");
-	obs_property_set_long_description(tickerWidthProp, obs_module_text("Source.TickerWidth.Help"));
-	obs_property_t *scroll = obs_properties_add_list(props, "scroll", obs_module_text("Source.Scroll"),
-							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Continuous"), "continuous");
-	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Message"), "message");
-	obs_property_t *clock = obs_properties_add_bool(props, "clock", obs_module_text("Source.Clock"));
-	obs_property_set_long_description(clock, obs_module_text("Source.Clock.Help"));
-	obs_property_set_modified_callback(clock, ov_layout_changed);
-	obs_properties_add_bool(props, "clock_date", obs_module_text("Clock.Date"));
-	obs_properties_add_bool(props, "clock_time", obs_module_text("Clock.Time"));
-	obs_properties_add_bool(props, "clock_seconds", obs_module_text("Clock.Seconds"));
-	obs_properties_add_bool(props, "clock_hour24", obs_module_text("Clock.Hour24"));
-	obs_properties_add_bool(props, "clock_bar", obs_module_text("Clock.Bar"));
-	obs_property_t *speed =
-		obs_properties_add_int_slider(props, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
-	obs_property_int_set_suffix(speed, " px/s");
-	obs_property_t *spacing =
-		obs_properties_add_int_slider(props, "spacing", obs_module_text("Source.Spacing"), -40, 60, 1);
-	obs_property_int_set_suffix(spacing, " px");
-	obs_property_t *hspacing =
-		obs_properties_add_int_slider(props, "hspacing", obs_module_text("Source.Spacing"), -200, 400, 2);
-	obs_property_int_set_suffix(hspacing, " px");
-	addPadding(props, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
-
-	obs_property_t *size =
-		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
-	obs_property_int_set_suffix(size, " px");
-	obs_property_t *fade = obs_properties_add_int(props, "fade", obs_module_text("Source.Fade"), 0, 600, 1);
-	obs_property_int_set_suffix(fade, " s");
-	obs_property_set_long_description(fade, obs_module_text("Source.Fade.Help"));
-	obs_properties_add_int(props, "max", obs_module_text("Source.Max"), 1, 100, 1);
-
+void addPlatforms(obs_properties_t *props)
+{
 	obs_properties_add_bool(props, "show_twitch", obs_module_text("Source.ShowTwitch"));
 	obs_properties_add_bool(props, "show_youtube", obs_module_text("Source.ShowYouTube"));
 	obs_properties_add_bool(props, "show_kick", obs_module_text("Source.ShowKick"));
 	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
 	obs_properties_add_bool(props, "show_starvios", obs_module_text("Source.ShowStarvios"));
-	obs_properties_add_bool(props, "icons", obs_module_text("Source.Icons"));
-	obs_properties_add_bool(props, "badges", obs_module_text("Source.Badges"));
-	addStyleList(props);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), ov_layout_changed);
-	obs_property_set_modified_callback(
-		obs_properties_add_bool(props, "background", obs_module_text("Source.Background")), ov_layout_changed);
-	addBoxStyle(props, "");
-	addPadding(props, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
-	obs_property_set_modified_callback(obs_properties_add_bool(props, "panel", obs_module_text("Source.Panel")),
-					   ov_layout_changed);
-	addBoxStyle(props, "panel_");
+}
 
-	obs_property_t *align = obs_properties_add_list(props, "align", obs_module_text("Source.Align"),
+obs_properties_t *ov_properties(void *)
+{
+	obs_properties_t *props = obs_properties_create();
+	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
+
+	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
+	obs_property_t *layout = obs_properties_add_list(design, "layout", obs_module_text("Source.Layout"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Vertical"), "vertical");
+	obs_property_list_add_string(layout, obs_module_text("Source.Layout.Horizontal"), "horizontal");
+	obs_property_set_long_description(layout, obs_module_text("Source.Layout.Help"));
+	obs_property_set_modified_callback(layout, ov_layout_changed);
+	obs_property_t *fit = obs_properties_add_bool(design, "fit_canvas", obs_module_text("Source.FitCanvas"));
+	obs_property_set_long_description(fit, obs_module_text("Source.FitCanvas.Help"));
+	obs_property_set_modified_callback(fit, ov_layout_changed);
+	obs_property_t *tickerWidthProp =
+		obs_properties_add_int(design, "ticker_width", obs_module_text("Source.TickerWidth"), 0, 8192, 1);
+	obs_property_int_set_suffix(tickerWidthProp, " px");
+	obs_property_set_long_description(tickerWidthProp, obs_module_text("Source.TickerWidth.Help"));
+	obs_properties_add_int(design, "width", obs_module_text("Source.Width"), 100, 4096, 1);
+	obs_properties_add_int(design, "height", obs_module_text("Source.Height"), 100, 4096, 1);
+	obs_property_t *align = obs_properties_add_list(design, "align", obs_module_text("Source.Align"),
 							OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(align, obs_module_text("Source.Align.Bottom"), "bottom");
 	obs_property_list_add_string(align, obs_module_text("Source.Align.Top"), "top");
+	obs_property_t *scroll = obs_properties_add_list(design, "scroll", obs_module_text("Source.Scroll"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Continuous"), "continuous");
+	obs_property_list_add_string(scroll, obs_module_text("Source.Scroll.Message"), "message");
+	obs_property_t *speed =
+		obs_properties_add_int_slider(design, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
+	obs_property_int_set_suffix(speed, " px/s");
+	obs_property_t *spacing =
+		obs_properties_add_int_slider(design, "spacing", obs_module_text("Source.Spacing"), -40, 60, 1);
+	obs_property_int_set_suffix(spacing, " px");
+	obs_property_t *hspacing =
+		obs_properties_add_int_slider(design, "hspacing", obs_module_text("Source.Spacing"), -200, 400, 2);
+	obs_property_int_set_suffix(hspacing, " px");
+	addPadding(design, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
 
-	obs_properties_add_bool(props, "preview", obs_module_text("Source.Preview"));
-	obs_properties_add_int(props, "width", obs_module_text("Source.Width"), 100, 4096, 1);
-	obs_properties_add_int(props, "height", obs_module_text("Source.Height"), 100, 4096, 1);
+	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
+	obs_property_t *size =
+		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
+	obs_property_int_set_suffix(size, " px");
+
+	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
+	addPlatforms(platforms);
+	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
+	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
+
+	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
+	obs_property_set_modified_callback(
+		obs_properties_add_bool(background, "background", obs_module_text("Source.Background")),
+		ov_layout_changed);
+	addStyleList(background);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), ov_layout_changed);
+	addBoxStyle(background, "");
+	addPadding(background, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
+	obs_property_set_modified_callback(
+		obs_properties_add_bool(background, "panel", obs_module_text("Source.Panel")), ov_layout_changed);
+	addBoxStyle(background, "panel_");
+
+	obs_properties_t *animation = addGroup(props, "group_animation", "Group.Animation");
+	obs_property_t *fade = obs_properties_add_int(animation, "fade", obs_module_text("Source.Fade"), 0, 600, 1);
+	obs_property_int_set_suffix(fade, " s");
+	obs_property_set_long_description(fade, obs_module_text("Source.Fade.Help"));
+	obs_properties_add_int(animation, "max", obs_module_text("Source.Max"), 1, 100, 1);
+
+	obs_properties_t *clock = addGroup(props, "group_clock", "Group.TickerClock");
+	obs_property_t *clockOn = obs_properties_add_bool(clock, "clock", obs_module_text("Source.Clock"));
+	obs_property_set_long_description(clockOn, obs_module_text("Source.Clock.Help"));
+	obs_property_set_modified_callback(clockOn, ov_layout_changed);
+	obs_properties_add_bool(clock, "clock_date", obs_module_text("Clock.Date"));
+	obs_properties_add_bool(clock, "clock_time", obs_module_text("Clock.Time"));
+	obs_properties_add_bool(clock, "clock_seconds", obs_module_text("Clock.Seconds"));
+	obs_properties_add_bool(clock, "clock_hour24", obs_module_text("Clock.Hour24"));
+	obs_properties_add_bool(clock, "clock_bar", obs_module_text("Clock.Bar"));
+
+	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	obs_properties_add_bool(advanced, "preview", obs_module_text("Source.Preview"));
 	return props;
 }
 
@@ -931,29 +955,31 @@ obs_properties_t *vw_properties(void *)
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
 
-	obs_property_t *layout = obs_properties_add_list(props, "layout", obs_module_text("Viewers.Layout"),
+	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
+	obs_property_t *layout = obs_properties_add_list(design, "layout", obs_module_text("Viewers.Layout"),
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(layout, obs_module_text("Viewers.Layout.Row"), "row");
 	obs_property_list_add_string(layout, obs_module_text("Viewers.Layout.Column"), "column");
+	obs_properties_add_bool(design, "total", obs_module_text("Viewers.Total"));
+	obs_properties_add_bool(design, "names", obs_module_text("Viewers.Names"));
+	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+
+	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
 	obs_property_t *size =
-		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 120, 1);
+		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 120, 1);
 	obs_property_int_set_suffix(size, " px");
-	obs_properties_add_bool(props, "total", obs_module_text("Viewers.Total"));
-	obs_properties_add_bool(props, "names", obs_module_text("Viewers.Names"));
 
-	obs_properties_add_bool(props, "show_twitch", obs_module_text("Source.ShowTwitch"));
-	obs_properties_add_bool(props, "show_youtube", obs_module_text("Source.ShowYouTube"));
-	obs_properties_add_bool(props, "show_kick", obs_module_text("Source.ShowKick"));
-	obs_properties_add_bool(props, "show_tiktok", obs_module_text("Source.ShowTikTok"));
-	obs_properties_add_bool(props, "show_starvios", obs_module_text("Source.ShowStarvios"));
-	addStyleList(props);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
+	addPlatforms(addGroup(props, "group_platforms", "Group.PlatformsOnly"));
+
+	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
 	obs_property_set_modified_callback(
-		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), box_changed);
-	addBoxStyle(props, "");
-	addPadding(props, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+		obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background")), box_changed);
+	addStyleList(background);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
+	addBoxStyle(background, "");
 
-	obs_properties_add_bool(props, "preview", obs_module_text("Viewers.Preview"));
+	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	obs_properties_add_bool(advanced, "preview", obs_module_text("Viewers.Preview"));
 	return props;
 }
 
@@ -980,20 +1006,27 @@ void ck_defaults(obs_data_t *settings)
 obs_properties_t *ck_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
+	obs_properties_t *clock = addGroup(props, "group_clock", "Group.Clock");
+	obs_properties_add_bool(clock, "date", obs_module_text("Clock.Date"));
+	obs_properties_add_bool(clock, "time", obs_module_text("Clock.Time"));
+	obs_properties_add_bool(clock, "seconds", obs_module_text("Clock.Seconds"));
+	obs_properties_add_bool(clock, "hour24", obs_module_text("Clock.Hour24"));
+	obs_properties_add_bool(clock, "bar", obs_module_text("Clock.Bar"));
+
+	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
 	obs_property_t *size =
-		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 10, 160, 1);
+		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 160, 1);
 	obs_property_int_set_suffix(size, " px");
-	obs_properties_add_bool(props, "date", obs_module_text("Clock.Date"));
-	obs_properties_add_bool(props, "time", obs_module_text("Clock.Time"));
-	obs_properties_add_bool(props, "seconds", obs_module_text("Clock.Seconds"));
-	obs_properties_add_bool(props, "hour24", obs_module_text("Clock.Hour24"));
-	obs_properties_add_bool(props, "bar", obs_module_text("Clock.Bar"));
-	addStyleList(props);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
+
+	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
+	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+
+	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
 	obs_property_set_modified_callback(
-		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), box_changed);
-	addBoxStyle(props, "");
-	addPadding(props, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+		obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background")), box_changed);
+	addStyleList(background);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), box_changed);
+	addBoxStyle(background, "");
 	return props;
 }
 
@@ -1036,48 +1069,55 @@ bool fe_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *s
 obs_properties_t *fe_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
-	obs_property_t *size =
-		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 12, 120, 1);
-	obs_property_int_set_suffix(size, " px");
-
-	obs_property_t *animation = obs_properties_add_list(props, "animation", obs_module_text("Featured.Animation"),
-							    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	for (const char *id : {"slide", "fade", "zoom", "none"})
-		obs_property_list_add_string(animation, obs_module_text(("Featured.Animation." + std::string(id)).c_str()),
-					     id);
-
-	obs_property_t *autoHide = obs_properties_add_bool(props, "auto_hide", obs_module_text("Featured.AutoHide"));
-	obs_property_set_long_description(autoHide, obs_module_text("Featured.AutoHide.Help"));
-	obs_property_set_modified_callback(autoHide, fe_changed);
-	obs_property_t *base = obs_properties_add_int(props, "hide_base", obs_module_text("Featured.HideBase"), 1, 300, 1);
-	obs_property_int_set_suffix(base, " s");
-	obs_property_t *perChar =
-		obs_properties_add_int(props, "hide_per_char", obs_module_text("Featured.HidePerChar"), 0, 1000, 5);
-	obs_property_int_set_suffix(perChar, " ms");
-	obs_property_t *max = obs_properties_add_int(props, "hide_max", obs_module_text("Featured.HideMax"), 1, 600, 1);
-	obs_property_int_set_suffix(max, " s");
-
-	obs_property_t *valign = obs_properties_add_list(props, "valign", obs_module_text("Featured.VAlign"),
+	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
+	obs_property_t *valign = obs_properties_add_list(design, "valign", obs_module_text("Featured.VAlign"),
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	for (const char *id : {"top", "center", "bottom"})
 		obs_property_list_add_string(valign, obs_module_text(("Featured.VAlign." + std::string(id)).c_str()), id);
-	obs_property_t *halign = obs_properties_add_list(props, "halign", obs_module_text("Featured.HAlign"),
+	obs_property_t *halign = obs_properties_add_list(design, "halign", obs_module_text("Featured.HAlign"),
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	for (const char *id : {"left", "center", "right"})
 		obs_property_list_add_string(halign, obs_module_text(("Featured.HAlign." + std::string(id)).c_str()), id);
+	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+	obs_properties_add_int(design, "width", obs_module_text("Source.Width"), 100, 4096, 1);
+	obs_properties_add_int(design, "height", obs_module_text("Source.Height"), 100, 4096, 1);
 
-	obs_properties_add_bool(props, "icons", obs_module_text("Source.Icons"));
-	obs_properties_add_bool(props, "badges", obs_module_text("Source.Badges"));
-	addStyleList(props);
-	obs_property_set_modified_callback(obs_properties_get(props, "style"), fe_changed);
+	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
+	obs_property_t *size =
+		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 12, 120, 1);
+	obs_property_int_set_suffix(size, " px");
+
+	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
+	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
+	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
+
+	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
 	obs_property_set_modified_callback(
-		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), fe_changed);
-	addBoxStyle(props, "");
-	addPadding(props, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+		obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background")), fe_changed);
+	addStyleList(background);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), fe_changed);
+	addBoxStyle(background, "");
 
-	obs_properties_add_bool(props, "preview", obs_module_text("Featured.Preview"));
-	obs_properties_add_int(props, "width", obs_module_text("Source.Width"), 100, 4096, 1);
-	obs_properties_add_int(props, "height", obs_module_text("Source.Height"), 100, 4096, 1);
+	obs_properties_t *animation = addGroup(props, "group_animation", "Group.Animation");
+	obs_property_t *anim = obs_properties_add_list(animation, "animation", obs_module_text("Featured.Animation"),
+						       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	for (const char *id : {"slide", "fade", "zoom", "none"})
+		obs_property_list_add_string(anim, obs_module_text(("Featured.Animation." + std::string(id)).c_str()), id);
+	obs_property_t *autoHide =
+		obs_properties_add_bool(animation, "auto_hide", obs_module_text("Featured.AutoHide"));
+	obs_property_set_long_description(autoHide, obs_module_text("Featured.AutoHide.Help"));
+	obs_property_set_modified_callback(autoHide, fe_changed);
+	obs_property_t *base =
+		obs_properties_add_int(animation, "hide_base", obs_module_text("Featured.HideBase"), 1, 300, 1);
+	obs_property_int_set_suffix(base, " s");
+	obs_property_t *perChar =
+		obs_properties_add_int(animation, "hide_per_char", obs_module_text("Featured.HidePerChar"), 0, 1000, 5);
+	obs_property_int_set_suffix(perChar, " ms");
+	obs_property_t *max = obs_properties_add_int(animation, "hide_max", obs_module_text("Featured.HideMax"), 1, 600, 1);
+	obs_property_int_set_suffix(max, " s");
+
+	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	obs_properties_add_bool(advanced, "preview", obs_module_text("Featured.Preview"));
 	return props;
 }
 
