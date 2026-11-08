@@ -41,6 +41,25 @@ bool isDeletion(const QJsonObject &object);
 // True if the deletion event affects the message. Never matches across sources (channels).
 bool deletionMatches(const QJsonObject &deletion, const QJsonObject &message);
 
+// Streamer-side filters, applied by ChatManager before a message is stored or shown.
+struct FilterRules {
+	QStringList hiddenUsers;  // exact names, case- and accent-insensitive
+	bool hideCommands = true; // chat messages starting with "!"
+	QStringList blockedWords; // whole words or phrases, case- and accent-insensitive
+
+	// Known bots hidden, commands hidden, no blocked words.
+	static FilterRules defaults();
+	// Missing keys keep their default value.
+	static FilterRules fromJson(const QJsonObject &json);
+	QJsonObject toJson() const;
+};
+QStringList defaultHiddenUsers();
+// Lower case without accents or other combining marks (NFD), for comparisons.
+QString foldText(const QString &text);
+// True if the message must not be shown. Highlights (subs, Super Chats, donations...) are never
+// hidden by the command rule.
+bool isFiltered(const QJsonObject &message, const FilterRules &rules);
+
 // Nombre visible de la plataforma.
 QString platformName(const QString &platform);
 
