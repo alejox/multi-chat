@@ -20,9 +20,10 @@ QString editedSceneName();
 // already there; a new one is created as the latest version. A source of that type with the
 // default name in another scene is reused (same settings, no duplicate names).
 AddResult addToCurrentScene(const char *id, QString &sceneName);
-// Adds the chosen Multichat sources (chat, featured message, voice) and returns one translated
-// line per source saying what happened (Wizard.Sources.*), repeats removed.
-QStringList addMultichatSources(bool chat, bool featured, bool voice);
+// Adds the chosen Multichat sources (chat, featured message) and returns one translated line per
+// source saying what happened (Wizard.Sources.*), repeats removed. The voice is not a scene
+// source: it is turned on in the settings (see voice-source.hpp).
+QStringList addMultichatSources(bool chat, bool featured);
 
 QColor platformColor(const QString &platform);
 // 950 · 1,2 K · 3,4 M

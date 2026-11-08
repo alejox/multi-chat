@@ -1,7 +1,6 @@
 #include "ui-common.hpp"
 #include "../i18n.hpp"
 #include "../platforms-registry.hpp"
-#include "../tts/voice-source.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
@@ -373,7 +372,7 @@ AddResult addToCurrentScene(const char *id, QString &sceneName)
 	return result;
 }
 
-QStringList addMultichatSources(bool chat, bool featured, bool voice)
+QStringList addMultichatSources(bool chat, bool featured)
 {
 	QStringList lines;
 	auto add = [&lines](const char *id) {
@@ -398,8 +397,6 @@ QStringList addMultichatSources(bool chat, bool featured, bool voice)
 		add("multichat_overlay");
 	if (featured)
 		add("multichat_featured");
-	if (voice)
-		add(tts::kVoiceSourceId);
 	lines.removeDuplicates();
 	return lines;
 }

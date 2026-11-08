@@ -29,7 +29,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en el recuadro de espectadores y en la fecha y hora. |
 | 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en directo, y el total. En fila o en columna, con o sin el nombre del canal. |
 | ⭐ **Mensaje destacado** | Clic en un mensaje del dock y aparece en grande en pantalla con la fuente **"Multichat (destacado)"**: logo de la plataforma, nombre con su color, insignias, emotes y monto de las donaciones. Entra y sale con una animación y se oculta solo al rato. Clic otra vez o Esc para quitarlo, también con atajos de teclado. |
-| 🔊 **Fuente "Multichat (voz)"** | Lee el chat en voz alta como una fuente de audio más, que llega a la emisión y se controla en el mezclador. También puede avisar con un sonido por mensaje (o sonido y lectura) para que te enteres sin mirar la pantalla. |
+| 🔊 **Voz** | Lee el chat en voz alta en todas las escenas, con una casilla en la pestaña **Voz** de **Herramientas → Multichat…**. Aparece en el mezclador como «Multichat (voz)», llega a la emisión y tú también la oyes. También puede avisar con un sonido por mensaje (o sonido y lectura) para que te enteres sin mirar la pantalla. |
 | 🌐 **Español e inglés** | Todo sigue el idioma de OBS: menús, errores de conexión, mensajes de ejemplo en pantalla y los avisos que arma Multichat (regalos de TikTok; raids, canjes, suscripciones y regalos de Starvios). Los avisos de Twitch y YouTube llegan ya escritos por la plataforma. |
 | 🛡️ **Moderación** | Si un moderador borra un mensaje, o banea o expulsa temporalmente a alguien, sus mensajes desaparecen del dock, del chat en pantalla y del destacado. Mira [Moderación y filtros](#-moderación-y-filtros). |
 | 🚫 **Filtros** | Oculta bots (Nightbot, StreamElements, Streamlabs… vienen de serie), comandos que empiezan por `!` y palabras bloqueadas, desde la pestaña **Filtros** de **Herramientas → Multichat…**. |
@@ -108,17 +108,17 @@ Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 
 ## 🎛️ Usarlo
 
-La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: la plataforma viene elegida según tu servicio de emisión, añades tu canal, un botón pone el chat, el destacado y la voz en la escena que estás editando (sin duplicarlos si ya están) y al terminar se abre el dock. Se puede saltar y volver a abrir con **Asistente de inicio**, en **Herramientas → Multichat…** o en la rueda del dock.
+La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: la plataforma viene elegida según tu servicio de emisión, añades tu canal, un botón pone el chat y el destacado en la escena que estás editando (sin duplicarlos si ya están), una casilla activa *Leer el chat en voz alta* y al terminar se abre el dock. Se puede saltar y volver a abrir con **Asistente de inicio**, en **Herramientas → Multichat…** o en la rueda del dock.
 
 1. **Herramientas → Multichat…**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube. Mientras busca el canal se ve una barra de carga; si el nombre tiene un formato que la plataforma no admite, lo dice debajo, y si el canal no existe, el botón pasa a **Añadir igualmente** (Intro nunca añade un canal no encontrado).
    - **Pausar**: desmarca la casilla de un chat para desconectarlo sin perderlo; vuelve a marcarla para reconectarlo.
    - **Ordenar**: arrastra los chats (o selecciona uno y pulsa **Alt+↑ / Alt+↓**). Los chips del dock siguen el mismo orden.
    - **Quitar**: la ✕ de la fila o la tecla **Supr** con el chat seleccionado.
 2. **Docks → Multichat** para ver el chat dentro de OBS (el asistente lo abre al terminar).
-3. **Añadir fuentes a la escena** (en Configurar) pone de una vez el chat, el destacado y la voz en la escena que editas, solo los que falten. Para hacerlo a mano o para las demás fuentes: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Fecha y hora → Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha; en vertical van encima o debajo de los mensajes (*Posición en vertical*).
+3. **Añadir fuentes a la escena** (en Configurar) pone de una vez el chat y el destacado en la escena que editas, solo los que falten. Para hacerlo a mano o para las demás fuentes: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Fecha y hora → Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha; en vertical van encima o debajo de los mensajes (*Posición en vertical*).
 4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
 5. La fecha y la hora son una opción del chat (grupo **Fecha y hora** en sus Propiedades). Las escenas que ya tenían la fuente "Multichat (fecha y hora)" la conservan tal cual; para quitarla, bórrala de la escena y activa la opción en el chat.
-6. Para que lea el chat en voz alta: **Fuentes → + → Multichat (voz)**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
+6. Para que lea el chat en voz alta: **Herramientas → Multichat… → Voz → Leer el chat en voz alta**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
 7. Para mostrar en grande un mensaje concreto: **Fuentes → + → Multichat (destacado)**. Mira [Destacar un mensaje](#-destacar-un-mensaje).
 
 ### 🧩 El dock
@@ -189,20 +189,22 @@ Los filtros se guardan al momento y se aplican a los mensajes que llegan a parti
 
 Funciona en Windows, macOS y Linux con las voces del sistema, sin servicios externos. En Linux usa **espeak-ng**: la voz es más robótica que las de Windows y macOS.
 
-1. Añade **Fuentes → + → Multichat (voz)** a tu escena.
-2. Empieza a leer en cuanto la añades (para silenciarla sin quitarla, baja su volumen en el mezclador). Las fuentes de voz que ya tenías en tus escenas de una versión anterior siguen como estaban: si nunca activaste *Leer el chat en voz alta*, siguen sin leer hasta que lo actives. En sus **Propiedades** eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen, el máximo de caracteres por mensaje y las palabras bloqueadas.
-3. El volumen se controla en el **mezclador de audio**, como cualquier otra fuente. Es audio de OBS: llega a la emisión y a la grabación. Para oírlo tú, activa la monitorización en *Propiedades avanzadas de audio*.
+1. Abre **Herramientas → Multichat…**, pestaña **Voz**, y marca **Leer el chat en voz alta** (también está en el asistente de inicio). Ahí eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen y el máximo de caracteres por mensaje. No hay que añadir ninguna fuente: suena en todas las escenas.
+2. Al activarla aparece **Multichat (voz)** en el **mezclador de audio**. Ahí se ajustan el volumen, el silencio, la monitorización y los filtros de audio, como en cualquier otro audio, y se guardan entre sesiones. La primera vez viene en *Monitorizar y emitir*: llega a la emisión y a la grabación y tú también la oyes. Al desmarcar la casilla desaparece del mezclador.
+3. Las palabras bloqueadas, los usuarios ocultos y los comandos son los de la pestaña **Filtros**: lo que ocultan no se muestra ni se lee.
+
+Si vienes de una versión anterior: la primera vez se toman los ajustes de la primera fuente de voz de tus escenas que hubieras cambiado (activada o no, como estuviera) y las palabras bloqueadas de todas ellas pasan, sin repetir, a la pestaña **Filtros**. Esas fuentes antiguas siguen cargando pero ya no leen nada; puedes eliminarlas.
 
 Qué se lee y qué no:
 
-- Solo mensajes nuevos, nunca el historial, y solo mientras la fuente está en la escena en emisión. Si sale de ella, se vacía la cola.
+- Solo mensajes nuevos, nunca el historial.
 - No se leen los emotes, los enlaces ni los emojis. Un mensaje que se queda sin letras ni números se omite.
 - Sí se leen los avisos del chat (suscripciones, regalos…). Un `/me` de Twitch se lee como «Ana saluda».
-- Un mensaje con una palabra bloqueada no se lee entero.
+- Un mensaje oculto por los filtros (por ejemplo, con una palabra bloqueada) no se lee.
 - Si un mensaje se borra (moderación de la plataforma u *Ocultar mensaje* en el dock) antes de leerse, sale de la cola; si se estaba leyendo, se corta.
 - Se leen de uno en uno. Si la cola llega a 20 mensajes, se descarta el más antiguo para no acumular retraso.
-- **Al llegar un mensaje** elige qué hace la fuente: *Leerlo en voz alta* (lo de siempre), *Avisar con un sonido* (un aviso corto por mensaje, sin leer, para enterarte sin mirar la pantalla) o *Sonido y luego leerlo*. El aviso viene integrado; puedes poner un WAV propio (PCM de 16 bits, hasta 10 s) y limitar cuántos suenan con *Mínimo entre dos avisos* (por defecto 1,5 s; en el modo mixto solo limita el sonido). Los filtros de plataformas y palabras valen para los tres modos, y un mensaje borrado antes de sonar no suena (tampoco los que quedaban en cola de alguien expulsado o silenciado en ese chat).
-- El botón *Saltar el mensaje actual* corta el que se está leyendo. Al desactivar la fuente se vacía la cola y se detiene la voz.
+- **Al llegar un mensaje** elige qué hace la voz: *Leerlo en voz alta* (lo de siempre), *Avisar con un sonido* (un aviso corto por mensaje, sin leer, para enterarte sin mirar la pantalla) o *Sonido y luego leerlo*. El aviso viene integrado; puedes poner un WAV propio (PCM de 16 bits, hasta 10 s) y limitar cuántos suenan con *Mínimo entre dos avisos* (por defecto 1,5 s; en el modo mixto solo limita el sonido). Las plataformas elegidas y los filtros valen para los tres modos, y un mensaje borrado antes de sonar no suena (tampoco los que quedaban en cola de alguien expulsado o silenciado en ese chat).
+- El botón *Saltar el mensaje actual* corta el que se está leyendo. Al desmarcar *Leer el chat en voz alta* se vacía la cola y se detiene la voz.
 - Los *Mensajes de prueba* también se leen, para escuchar la voz sin estar en directo, pero nunca mientras transmites.
 
 Límites: el primer mensaje puede tardar unos segundos en sonar mientras el sistema carga la voz, y solo se quitan los enlaces que empiezan por `http://`, `https://` o `www.`, así que `ejemplo.com` se leería.
@@ -271,7 +273,7 @@ src/overlay/               fuentes "Multichat", "Multichat (espectadores)", "Mul
   box-measure.*            medida pura de los recuadros de espectadores y reloj con QFont (sin OBS, con pruebas en tests/test-box-measure.cpp)
   wiring.cpp               estado compartido y reparto de los eventos del manager a las páginas
 src/overlay-presets.*      valores por defecto, preajustes y saneado de CSS/colores/fuentes (sin OBS, con pruebas en tests/test-overlay.cpp)
-src/tts/                   fuente "Multichat (voz)" (versión 2; la versión 0, obsoleta, sigue registrada para las escenas guardadas): filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
+src/tts/                   voz: ajustes globales y migración (voice-settings), salida propia "Multichat (voz)" en un canal de salida libre (voice-source; las fuentes v0 y v2 guardadas en escenas cargan en silencio), filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
 src/ui/                    dock (chat-dock, chat-view, dock-prefs), ventana de configuración (settings-dialog, channel-input, chat-list), asistente de inicio, cachés de emotes y de perfiles
