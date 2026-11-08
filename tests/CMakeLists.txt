@@ -42,7 +42,9 @@ add_executable(
   test-manager.cpp
   net-stub.cpp
   ${src}/chat-manager.cpp
+  ${src}/chat-history.cpp
   ${src}/config-store.cpp
+  ${src}/featured-state.cpp
   ${src}/chat/message.cpp
   ${src}/chat/connector.cpp
   ${src}/chat/platforms.cpp

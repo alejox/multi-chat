@@ -6,7 +6,9 @@
 
 #include "chat/message.hpp"
 #include "chat/platforms.hpp"
+#include "chat-history.hpp"
 #include "config-store.hpp"
+#include "featured-state.hpp"
 
 #include <QHash>
 #include <QJsonArray>
@@ -105,8 +107,8 @@ public:
 
 	// Mensaje destacado (el que la fuente "Multichat (destacado)" muestra en grande).
 	// Vacío si no hay ninguno. featuredAt: cuándo se destacó, en ms desde la época.
-	QJsonObject featured() const { return featured_; }
-	qint64 featuredAt() const { return featuredAt_; }
+	QJsonObject featured() const { return featured_.current(); }
+	qint64 featuredAt() const { return featured_.changedAt(); }
 	// Destaca el mensaje del historial con ese id. Devuelve false si ya no está.
 	bool feature(const QString &id);
 	void feature(const QJsonObject &message);
@@ -162,14 +164,9 @@ private:
 	quint64 nextGeneration_ = 1;
 	std::vector<std::unique_ptr<Source>> sources_;
 	std::vector<std::shared_ptr<chat::Connector>> retired_;
-	QJsonArray history_;
-	QJsonArray clearedHistory_; // for undoClear()
-	QJsonObject clearedLastFeatured_;
+	ChatHistory history_;
 	chat::FilterRules filters_ = chat::FilterRules::defaults();
-	QJsonObject featured_;
-	QJsonObject lastFeatured_;
-	qint64 featuredAt_ = 0;
-	QHash<QString, chat::FeaturedHidePolicy> featuredPolicies_; // by featured source id
+	FeaturedState featured_;
 	QTimer featuredTimer_;
 	QJsonObject lastState_;
 	QTimer timer_;

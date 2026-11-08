@@ -34,8 +34,12 @@ target_sources(
     src/plugin-main.cpp
     src/chat-manager.cpp
     src/chat-manager.hpp
+    src/chat-history.cpp
+    src/chat-history.hpp
     src/config-store.cpp
     src/config-store.hpp
+    src/featured-state.cpp
+    src/featured-state.hpp
     src/overlay-presets.cpp
     src/overlay-presets.hpp
     src/overlay-source.cpp

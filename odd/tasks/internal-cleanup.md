@@ -44,7 +44,10 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
 - [x] T1 Pruebas de caracterización de `ChatManager` + `ConfigStore`/traductor inyectables. Route: delegated (writer).
   - `ChatManager::Environment` (store, traductor, log, fábrica de conectores, `checkLive`, reloj); `plugin-main.cpp` instala el de OBS con `ChatManager::install()`. Nuevo `src/config-store.*` y `tests/test-manager.cpp` (25 casos, conectores y reloj falsos).
   - Checks: test-chat 71, test-tts 56, test-overlay 17, test-manager 25 (3 corridas seguidas sin fallos); build macOS SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T2 `ChatHistory` + `FeaturedState`; un solo tope de historial. Route: delegated (writer).
+- [x] T2 `ChatHistory` + `FeaturedState`; un solo tope de historial. Route: delegated (writer). Previo: T1 `0f02d58`.
+  - `src/chat-history.*` (historial, tope, borrados, copia para deshacer) y `src/featured-state.*` (actual, último, copia para deshacer, políticas y tiempo restante); el temporizador y las señales siguen en `ChatManager`.
+  - Tope único: `chat::kHistoryLimit = 300` en `chat/message.hpp`, usado por el manager y por `ChatView`. Se eligió la constante compartida (y no que el dock pinte desde el manager) porque el dock recorta, filtra y reconstruye su propia lista; se eligió 300 (el del dock) para que lo visible no cambie. Efecto: el manager guarda 300 en vez de 200 (ver "Found bugs").
+  - Checks: test-chat 71, test-tts 56, test-overlay 17, test-manager 27 (las dos pruebas de tope ahora usan `chat::kHistoryLimit`; +2 de las clases nuevas); build macOS SUCCEEDED, 0 errores, 0 warnings.
 - [ ] T3 `version` + guardado atómico. Route: delegated (writer).
 - [ ] T4 `i18n.hpp` y registro de plataformas únicos. Route: delegated (writer).
 - [ ] T5 `overlay.js` compartido + pruebas con node. Route: delegated (writer).
@@ -56,7 +59,7 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
 - Rama creada desde `feat/simplify-ux` (b137ee7). Fase A instalada; prueba manual del usuario pendiente.
 
 ## Found bugs
-- Ninguno por ahora.
+- Topes distintos (dock 300, manager 200): un mensaje que el dock mostraba más allá de los 200 últimos no se podía destacar (`feature(id)` no lo encontraba) y tras "Deshacer" el dock volvía con 200. Queda resuelto como efecto de T2 (alcance pedido), no por un arreglo aparte.
 
 ## Next step
 T1–T8 con un writer delegado.
