@@ -60,10 +60,14 @@ Auditoría: `src/overlay-source.cpp` registra unas 71 llamadas `obs_properties_a
   - La página vacía la lista y el conjunto de ids vistos y vuelve a añadirlos con `add()` (respeta plataformas, máximo y «ocultar después de»); en la cinta horizontal solo los 3 últimos para no repetir una cola larga.
   - Sin prueba RED/GREEN: la conexión depende de OBS y la página no tiene runner de pruebas; `node --check` OK y prueba manual en el checklist de T5.
   - Checks: build macOS `BUILD SUCCEEDED`, 0 errores, 0 warnings.
-- [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
+  - Commit: `71e2265`.
+- [x] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
+  - README: fila «Preajustes y tipografía», sección «Aspecto de las fuentes» (tabla de preajustes, texto, CSS), deshacer ahora también en pantalla, estructura con `overlay-presets.*` y `featured.html`.
+  - Checks: `cmake --preset macos && cmake --build --preset macos` → `BUILD SUCCEEDED`, 0 ` error:`, 0 ` warning:`; ctest 3/3 (test-chat 57, test-tts OK, test-overlay 17). OBS no estaba abierto (`pgrep -x OBS` vacío): instalado con `rm -rf` + `ditto` en `~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin`, `codesign -v` OK.
+  - CI: `.github/workflows/build.yml` ejecuta `ctest --test-dir build_tests` genérico, así que `test-overlay` corre en Linux sin cambios.
 
 ## Progress
 - Rama creada desde `feat/dock-ux` (63c01d1). Bloque 3 probado por el usuario en OBS: funciona.
 
 ## Next step
-T1–T5 con un writer delegado.
+Prueba manual en OBS (checklist del informe del writer); luego decidir PR (bloque 4 suma ~1.500 líneas: valorar `chained-pr`).
