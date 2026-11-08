@@ -18,7 +18,9 @@ bool FeaturedState::hide(qint64 now)
 
 void FeaturedState::stashLast()
 {
-	stashedLast_ = last_;
+	// A second clear with nothing featured since keeps the one from before the first.
+	if (!last_.isEmpty())
+		stashedLast_ = last_;
 	last_ = QJsonObject();
 }
 

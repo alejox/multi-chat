@@ -357,6 +357,25 @@ private slots:
 		QVERIFY(!m.undoClear());
 	}
 
+	// Clearing twice before undoing keeps both clears: undo brings back everything, in order,
+	// and the last featured message from before the first clear.
+	void clearTwiceThenUndoBringsBothBack()
+	{
+		ChatManager &m = makeConnected();
+		deliver("twitch:a", chatMessage("1", "ana", "a"));
+		deliver("twitch:a", chatMessage("2", "bob", "b"));
+		QVERIFY(m.feature(QString("2")));
+		m.clear();
+		deliver("twitch:a", chatMessage("3", "ana", "c"));
+		m.clear();
+		deliver("twitch:a", chatMessage("4", "bob", "d"));
+		QVERIFY(m.undoClear());
+		QCOMPARE(ids(m.history()), QStringList({"1", "2", "3", "4"}));
+		m.reshowLast();
+		QCOMPARE(m.featured().value("id").toString(), QString("2"));
+		QVERIFY(!m.undoClear());
+	}
+
 	void undoSkipsModeratedMessages()
 	{
 		ChatManager &m = makeConnected();

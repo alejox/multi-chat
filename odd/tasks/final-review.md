@@ -28,6 +28,10 @@ Corregir los defectos confirmados por la revisión final (dos revisores independ
   - libobs: `obs-module.c:1122-1129` registra `<id>_v<N>` y guarda `unversioned_id`; `obs.c:2264-2293` carga con `versioned_id` guardado (o `id` si falta) vía `obs_source_create_set_last_ver`; `obs-source.c:52-60` `get_source_info` busca por id exacto, así que `obs_source_create("multichat_voice")` crea la versión 0: la nueva se crea con `obs_get_latest_input_type_id` (`obs.c:1745`). `obs.c:2457,2485` guarda `id` sin versión y `versioned_id`.
   - Cambio: `voice-source.hpp` (`kVoiceSourceId`, `kVoiceSourceVersion = 2`, `voiceEnabledByDefault`), registro doble en `voice-source.cpp` (v0 `DEPRECATED|CAP_OBSOLETE`, `enabled=false`; v2 `enabled=true`), `ui-common.cpp` compara por id sin versión (no duplica una voz vieja en la escena) y crea la última versión; el asistente usa la constante.
   - RED: `test-tts` no compila (`voiceEnabledByDefault`/`kVoiceSourceVersion` no declarados). GREEN: test-tts 57/57, 6/6 suites; compilación macOS BUILD SUCCEEDED sin warnings.
-- [ ] T2 Historial/deshacer y cola de voz (hallazgos 3, 4, 5). Route: delegated (writer).
+- [x] T2 Historial/deshacer y cola de voz (hallazgos 3, 4, 5). Route: delegated (writer). Base: 6e41a24.
+  - 3: `ChatHistory::clear` acumula lo vaciado (viejo antes, tope `kHistoryLimit`); `FeaturedState::stashLast` no pisa lo guardado si no hubo destacado nuevo.
+  - 4: la cola de voz guarda la identidad del mensaje (source, platform, id, authorId, author) y `VoiceEngine::cancel(deletion)` usa `chat::deletionMatches`; `onDeleted` ya no junta ids sueltos de otros canales.
+  - 5: el sonido es `std::shared_ptr<const PcmBuffer>` (cola y búferes de audio por referencia); en "sonido y voz" sonido y texto son un único elemento.
+  - RED: test-manager `clearTwiceThenUndoBringsBothBack` falla (listas de distinto tamaño); test-tts no compila con la nueva API (`cancel(QJsonObject)`, `enqueue(..., sound)`). GREEN: test-manager 31/31, test-tts 59/59 (5 ejecuciones seguidas), 6/6 suites; macOS BUILD SUCCEEDED sin warnings.
 - [ ] T3 Diálogo de configuración y entrada de canal (hallazgos 2, 6, 7) + timeout del instalador (8). Route: delegated (writer).
 - [ ] T4 Compilación, pruebas, instalación, README (nota de la fuente de voz versionada y del pendiente de Windows). Route: delegated (writer).

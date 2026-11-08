@@ -15,7 +15,7 @@ public:
 	// The newest message with that id, or an empty object.
 	QJsonObject find(const QString &id) const;
 
-	// Empties the history, keeping it for restore().
+	// Empties the history, keeping it for restore() after what earlier clears kept (within the limit).
 	void clear();
 	// True while restore() has something to bring back.
 	bool canRestore() const { return !cleared_.isEmpty(); }
