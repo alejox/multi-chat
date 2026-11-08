@@ -5,6 +5,7 @@
 
 #include "overlay-source.hpp"
 #include "chat-manager.hpp"
+#include "overlay-presets.hpp"
 
 #include <obs-module.h>
 #include <plugin-support.h>
@@ -13,6 +14,7 @@
 #include <QDateTime>
 #include <QFileInfo>
 #include <QFont>
+#include <QFontDatabase>
 #include <QFontMetricsF>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -185,6 +187,24 @@ QString formatViewers(int n)
 	return QString::number(n / 1000000.0, 'f', 1).remove(QRegularExpression("\\.0$")) + 'M';
 }
 
+// Font used to measure a box: the chosen family (if any) before the default stack, with the
+// chosen weight. The page then scales the box, so an approximation is enough.
+QFont measureFont(const QJsonObject &config, double em, int defaultWeight)
+{
+	QFont font;
+	QStringList families{"Segoe UI", ".AppleSystemUIFont", "Helvetica Neue", "Roboto"};
+	const QString face = config.value("fontFace").toString().trimmed();
+	if (!face.isEmpty())
+		families.prepend(face);
+	font.setFamilies(families);
+	font.setPixelSize(std::max(1, int(em)));
+	font.setWeight(QFont::Weight(std::clamp(config.value("textWeight").toInt(defaultWeight), 100, 900)));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+	font.setFeature(QFont::Tag("tnum"), 1); // cifras de ancho fijo, como font-variant-numeric
+#endif
+	return font;
+}
+
 // Lo que suma el borde del recuadro a cada dimensión (los estilos con borde propio usan hasta 2 px).
 double boxBorder(const QJsonObject &config)
 {
@@ -198,13 +218,7 @@ double boxBorder(const QJsonObject &config)
 QSize viewerBoxSize(const QJsonObject &config, const QList<ViewerItem> &items, int total)
 {
 	const double em = std::max(1, config.value("size").toInt(28));
-	QFont font;
-	font.setFamilies({"Segoe UI", ".AppleSystemUIFont", "Helvetica Neue", "Roboto"});
-	font.setPixelSize(int(em));
-	font.setWeight(QFont::Bold);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-	font.setFeature(QFont::Tag("tnum"), 1); // cifras de ancho fijo, como font-variant-numeric
-#endif
+	const QFont font = measureFont(config, em, 700);
 	QFont small = font;
 	small.setPixelSize(std::max(1, int(em * 0.6)));
 	small.setWeight(QFont::DemiBold);
@@ -299,13 +313,7 @@ void refreshViewers(OverlaySource *s)
 QSize clockBoxSize(const QJsonObject &c)
 {
 	const double em = std::max(1, c.value("size").toInt(32));
-	QFont font;
-	font.setFamilies({"Segoe UI", ".AppleSystemUIFont", "Helvetica Neue", "Roboto"});
-	font.setPixelSize(int(em));
-	font.setWeight(QFont::ExtraBold);
-#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
-	font.setFeature(QFont::Tag("tnum"), 1);
-#endif
+	const QFont font = measureFont(c, em, 800);
 	const QDateTime sample(QDate(2026, 12, 28), QTime(23, 58, 58));
 	QStringList parts;
 	if (c.value("date").toBool())
@@ -350,7 +358,7 @@ void sendConfig(OverlaySource *s)
 }
 
 // Tamaño de la cinta horizontal: el ancho del lienzo y el alto justo de una línea. La línea
-// mide 1,35 × la letra (+10 px de relleno con fondo) y se deja un margen pequeño arriba y abajo.
+// mide el interlineado (1,35 por defecto) × la letra (+10 px de relleno con fondo) y se deja un margen pequeño arriba y abajo.
 uint32_t canvasWidth()
 {
 	obs_video_info ovi;
@@ -362,7 +370,7 @@ uint32_t tickerHeight(const QJsonObject &config)
 	const double size = config.value("size").toInt(22);
 	// Con fondo: el relleno del mensaje y el borde (los estilos con borde propio usan hasta 2 px).
 	const double border = std::max(2, config.value("bgBorderWidth").toInt());
-	const double line = size * 1.35 + (config.value("background").toBool()
+	const double line = size * config.value("lineHeight").toInt(135) / 100.0 + (config.value("background").toBool()
 						   ? 2.0 * config.value("msgPadY").toInt() + 2 * border
 						   : 0);
 	return uint32_t(std::max(10.0, std::ceil(line + 2.0 * config.value("padY").toInt())));
@@ -557,11 +565,129 @@ void showBoxStyle(obs_properties_t *props, obs_data_t *settings, const std::stri
 	show(prefix + "border_color", style == "solid");
 }
 
+// ---- Typography (text group of every source) ----
+
+// Chat and featured show names and wrap lines; viewers and clock are a single line of numbers.
+bool hasNamesAndLines(Kind kind)
+{
+	return kind == Kind::Chat || kind == Kind::Featured;
+}
+
+// The defaults reproduce the previous look: system font, white text and the usual shadow.
+void textDefaults(obs_data_t *settings, Kind kind, int weight, int lineHeight)
+{
+	obs_data_set_default_string(settings, "font_family", "");
+	obs_data_set_default_int(settings, "font_weight", weight);
+	obs_data_set_default_int(settings, "text_color", 0xFFFFFFFF);
+	obs_data_set_default_int(settings, "outline_width", 0);
+	obs_data_set_default_int(settings, "outline_color", 0xFF000000);
+	obs_data_set_default_string(settings, "text_shadow", "auto");
+	obs_data_set_default_int(settings, "shadow_color", 0xFF000000);
+	obs_data_set_default_int(settings, "shadow_blur", 6);
+	if (hasNamesAndLines(kind)) {
+		obs_data_set_default_string(settings, "name_mode", "user");
+		obs_data_set_default_int(settings, "name_color", 0xFFFFFFFF);
+		obs_data_set_default_int(settings, "line_height", lineHeight);
+	}
+}
+
+QString cssColorOf(obs_data_t *settings, const char *key, bool withAlpha)
+{
+	return QString::fromStdString(overlay::cssColor(uint32_t(obs_data_get_int(settings, key)), withAlpha));
+}
+
+void readTextStyle(QJsonObject &config, obs_data_t *settings, Kind kind)
+{
+	const std::string face = obs_data_get_string(settings, "font_family");
+	config.insert("fontFace", QString::fromStdString(face));
+	config.insert("font", QString::fromStdString(overlay::cssFontFamily(face)));
+	config.insert("textWeight", (int)obs_data_get_int(settings, "font_weight"));
+	config.insert("textColor", cssColorOf(settings, "text_color", false));
+	config.insert("outlineWidth", (int)obs_data_get_int(settings, "outline_width"));
+	config.insert("outlineColor", cssColorOf(settings, "outline_color", false));
+	config.insert("shadowMode", obs_data_get_string(settings, "text_shadow"));
+	config.insert("shadowColor", cssColorOf(settings, "shadow_color", true));
+	config.insert("shadowBlur", (int)obs_data_get_int(settings, "shadow_blur"));
+	if (hasNamesAndLines(kind)) {
+		config.insert("nameMode", obs_data_get_string(settings, "name_mode"));
+		config.insert("nameColor", cssColorOf(settings, "name_color", false));
+		config.insert("lineHeight", (int)obs_data_get_int(settings, "line_height"));
+	}
+}
+
+void addTextStyle(obs_properties_t *props, Kind kind, obs_property_modified_t changed)
+{
+	obs_property_t *family = obs_properties_add_list(props, "font_family", obs_module_text("Text.Font"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(family, obs_module_text("Text.Font.Default"), "");
+	for (const QString &name : QFontDatabase::families()) {
+		if (name.startsWith('.') || QFontDatabase::isPrivateFamily(name))
+			continue;
+		const QByteArray utf8 = name.toUtf8();
+		obs_property_list_add_string(family, utf8.constData(), utf8.constData());
+	}
+	obs_property_set_long_description(family, obs_module_text("Text.Font.Help"));
+
+	obs_property_t *weight = obs_properties_add_list(props, "font_weight", obs_module_text("Text.Weight"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	for (int w : {300, 400, 500, 600, 700, 800, 900})
+		obs_property_list_add_int(weight, obs_module_text(("Text.Weight." + std::to_string(w)).c_str()), w);
+	obs_property_set_long_description(
+		weight, obs_module_text(hasNamesAndLines(kind) ? "Text.Weight.Help" : "Text.Weight.HelpBox"));
+
+	obs_properties_add_color(props, "text_color", obs_module_text("Text.Color"));
+	if (hasNamesAndLines(kind)) {
+		obs_property_t *mode = obs_properties_add_list(props, "name_mode", obs_module_text("Text.NameMode"),
+							       OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+		for (const char *id : {"user", "platform", "fixed"})
+			obs_property_list_add_string(mode, obs_module_text(("Text.NameMode." + std::string(id)).c_str()), id);
+		obs_property_set_modified_callback(mode, changed);
+		obs_properties_add_color(props, "name_color", obs_module_text("Text.NameColor"));
+	}
+
+	obs_property_t *outline =
+		obs_properties_add_int_slider(props, "outline_width", obs_module_text("Text.Outline"), 0, 10, 1);
+	obs_property_int_set_suffix(outline, " px");
+	obs_property_set_modified_callback(outline, changed);
+	obs_properties_add_color(props, "outline_color", obs_module_text("Text.OutlineColor"));
+
+	obs_property_t *shadow = obs_properties_add_list(props, "text_shadow", obs_module_text("Text.Shadow"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	for (const char *id : {"auto", "on", "off"})
+		obs_property_list_add_string(shadow, obs_module_text(("Text.Shadow." + std::string(id)).c_str()), id);
+	obs_property_set_long_description(shadow, obs_module_text("Text.Shadow.Help"));
+	obs_property_set_modified_callback(shadow, changed);
+	obs_properties_add_color_alpha(props, "shadow_color", obs_module_text("Text.ShadowColor"));
+	obs_property_t *blur =
+		obs_properties_add_int_slider(props, "shadow_blur", obs_module_text("Text.ShadowBlur"), 0, 30, 1);
+	obs_property_int_set_suffix(blur, " px");
+
+	if (hasNamesAndLines(kind)) {
+		obs_property_t *lines =
+			obs_properties_add_int_slider(props, "line_height", obs_module_text("Text.LineHeight"), 80, 250, 5);
+		obs_property_int_set_suffix(lines, " %");
+	}
+}
+
+// Controls that only matter with another option: the fixed name color, the outline color and
+// the shadow color and blur.
+void showTextStyle(obs_properties_t *props, obs_data_t *settings)
+{
+	obs_property_set_visible(obs_properties_get(props, "name_color"),
+				 strcmp(obs_data_get_string(settings, "name_mode"), "fixed") == 0);
+	obs_property_set_visible(obs_properties_get(props, "outline_color"),
+				 obs_data_get_int(settings, "outline_width") > 0);
+	const bool shadow = strcmp(obs_data_get_string(settings, "text_shadow"), "off") != 0;
+	obs_property_set_visible(obs_properties_get(props, "shadow_color"), shadow);
+	obs_property_set_visible(obs_properties_get(props, "shadow_blur"), shadow);
+}
+
 // Los controles del fondo solo se ven con su casilla activada.
 bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
 	obs_property_set_visible(obs_properties_get(props, "style"), obs_data_get_bool(settings, "background"));
+	showTextStyle(props, settings);
 	return true;
 }
 
@@ -587,6 +713,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 			{"preview", obs_data_get_bool(settings, "preview")},
 		};
 		readBoxStyle(config, settings, "", "bg");
+		readTextStyle(config, settings, kind);
 		return config;
 	}
 	QJsonArray platforms;
@@ -607,6 +734,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 			{"style", obs_data_get_string(settings, "style")},
 		};
 		readBoxStyle(config, settings, "", "bg");
+		readTextStyle(config, settings, kind);
 		return config;
 	}
 	if (kind == Kind::Viewers) {
@@ -623,6 +751,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 			{"preview", obs_data_get_bool(settings, "preview")},
 		};
 		readBoxStyle(config, settings, "", "bg");
+		readTextStyle(config, settings, kind);
 		return config;
 	}
 	config = QJsonObject{
@@ -657,6 +786,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 	};
 	readBoxStyle(config, settings, "", "bg");
 	readBoxStyle(config, settings, "panel_", "panel");
+	readTextStyle(config, settings, kind);
 	return config;
 }
 
@@ -788,6 +918,7 @@ void ov_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "msg_pad_y", 5);
 	obs_data_set_default_int(settings, "msg_pad_x", 11);
 	obs_data_set_default_bool(settings, "preview", true);
+	textDefaults(settings, Kind::Chat, 500, 135);
 }
 
 void vw_defaults(obs_data_t *settings)
@@ -804,6 +935,7 @@ void vw_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "style", "solid");
 	boxStyleDefaults(settings, "", 60, 12);
 	obs_data_set_default_bool(settings, "preview", true);
+	textDefaults(settings, Kind::Viewers, 700, 120);
 }
 
 // En horizontal no se usan "apilar", "ocultar después de", el máximo ni el tamaño (es automático);
@@ -840,6 +972,7 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 				 obs_data_get_bool(settings, "background") || obs_data_get_bool(settings, "panel"));
 	for (const char *key : {"msg_pad_y", "msg_pad_x"})
 		obs_property_set_visible(obs_properties_get(props, key), obs_data_get_bool(settings, "background"));
+	showTextStyle(props, settings);
 	return true;
 }
 
@@ -911,6 +1044,7 @@ obs_properties_t *ov_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
 	obs_property_int_set_suffix(size, " px");
+	addTextStyle(text, Kind::Chat, ov_layout_changed);
 
 	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
 	addPlatforms(platforms);
@@ -968,6 +1102,7 @@ obs_properties_t *vw_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 120, 1);
 	obs_property_int_set_suffix(size, " px");
+	addTextStyle(text, Kind::Viewers, box_changed);
 
 	addPlatforms(addGroup(props, "group_platforms", "Group.PlatformsOnly"));
 
@@ -1001,6 +1136,7 @@ void ck_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "background", true);
 	obs_data_set_default_string(settings, "style", "solid");
 	boxStyleDefaults(settings, "", 60, 12);
+	textDefaults(settings, Kind::Clock, 800, 120);
 }
 
 obs_properties_t *ck_properties(void *)
@@ -1017,6 +1153,7 @@ obs_properties_t *ck_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 160, 1);
 	obs_property_int_set_suffix(size, " px");
+	addTextStyle(text, Kind::Clock, box_changed);
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
@@ -1055,6 +1192,7 @@ void fe_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "style", "solid");
 	boxStyleDefaults(settings, "", 75, 16);
 	obs_data_set_default_bool(settings, "preview", true);
+	textDefaults(settings, Kind::Featured, 500, 130);
 }
 
 // Los tiempos de "ocultar solo" se ven con la casilla activada; el fondo, con la suya.
@@ -1086,6 +1224,7 @@ obs_properties_t *fe_properties(void *)
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 12, 120, 1);
 	obs_property_int_set_suffix(size, " px");
+	addTextStyle(text, Kind::Featured, fe_changed);
 
 	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
 	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));

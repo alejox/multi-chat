@@ -34,6 +34,8 @@ target_sources(
     src/plugin-main.cpp
     src/chat-manager.cpp
     src/chat-manager.hpp
+    src/overlay-presets.cpp
+    src/overlay-presets.hpp
     src/overlay-source.cpp
     src/overlay-source.hpp
     src/updater.cpp

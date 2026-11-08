@@ -110,3 +110,14 @@ body.bg .msg, body.bg #clock, body.bg #box { --s-rgb: var(--bg-rgb); --s-alpha: 
   94% { translate: 3px 0; clip-path: inset(60% 0 8% 0); }
   96% { translate: -1px 0; }
 }
+
+/* Typography from the source properties (see applyTextStyle in icons.js).
+   --ts reproduces the previous shadow with the chosen color and blur; "Always" also puts it
+   over backgrounds and styles that remove it, "Never" removes every text shadow. */
+:root { --ts: 0 0 calc(var(--sb, 6px) / 3) var(--sc, #000), 0 1px calc(var(--sb, 6px) / 2) color-mix(in srgb, var(--sc, #000) 80%, transparent),
+  0 0 var(--sb, 6px) color-mix(in srgb, var(--sc, #000) 53%, transparent); }
+body.ts-on, body.ts-on :not(.badge, .amount) { text-shadow: var(--ts) !important; }
+body.ts-off, body.ts-off * { text-shadow: none !important; }
+/* The stroke is drawn under the fill (paint-order), so it is doubled to show the chosen width. */
+body.outline { -webkit-text-stroke: calc(var(--ow) * 2) var(--oc); paint-order: stroke fill; }
+body.outline :is(.badge, .amount) { -webkit-text-stroke: 0; }
