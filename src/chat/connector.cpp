@@ -68,7 +68,7 @@ std::shared_ptr<net::WebSocket> Connector::openSocket(const std::string &url, co
 	std::string error;
 	auto ws = net::connectWebSocket(url, headers, error);
 	if (!ws)
-		throw ChatError("no se pudo conectar: " + error);
+		throw ChatError(Text{"Error.Connect", {QString::fromStdString(error)}});
 	setSocket(ws);
 	return ws;
 }
@@ -79,12 +79,16 @@ void Connector::run()
 	while (!stopped()) {
 		auto started = std::chrono::steady_clock::now();
 		try {
-			report_("connecting", QString());
+			report_("connecting", Text());
 			session();
+		} catch (const ChatError &e) {
+			if (stopped())
+				break;
+			report_("error", e.text());
 		} catch (const std::exception &e) {
 			if (stopped())
 				break;
-			report_("error", QString::fromUtf8(e.what()).left(200));
+			report_("error", Text::raw(QString::fromUtf8(e.what()).left(200)));
 		}
 		std::shared_ptr<net::WebSocket> ws;
 		{

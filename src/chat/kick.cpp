@@ -193,10 +193,8 @@ protected:
 			if (id.isDouble())
 				chatroom_ = QString::number(id.toInteger());
 			if (chatroom_.isEmpty())
-				throw ChatError(QStringLiteral("no se pudo consultar el canal de Kick (%1). "
-							       "Indica el chat a mano: kick:%2#ID")
-							.arg(error.isEmpty() ? QStringLiteral("sin chat") : error,
-							     source_.channel));
+				throw ChatError(error.isEmpty() ? Text{"Error.KickNoChat", {source_.channel}}
+								: Text{"Error.KickChannel", {error, source_.channel}});
 		}
 
 		if (url_.isEmpty())
@@ -213,23 +211,22 @@ protected:
 				if (stopped())
 					return;
 				url_.clear();
-				throw ChatError("Kick cerró la conexión");
+				throw ChatError(Text{"Error.Closed", {"Kick"}});
 			}
 			const QJsonObject evt = QJsonDocument::fromJson(QByteArray::fromStdString(raw)).object();
 			const QString name = evt.value("event").toString();
 			if (name == "pusher:ping") {
 				ws->send(R"({"event":"pusher:pong","data":{}})");
 			} else if (name == "pusher_internal:subscription_succeeded") {
-				report_("connected", QString());
+				report_("connected", Text());
 			} else if (name == "pusher:error") {
 				url_.clear(); // quizá cambió la clave: se vuelve a pedir al reconectar
 				QJsonValue data = evt.value("data");
 				const QJsonObject err = data.isString()
 								? QJsonDocument::fromJson(data.toString().toUtf8()).object()
 								: data.toObject();
-				throw ChatError(QStringLiteral("Pusher %1: %2")
-							.arg(err.value("code").toInt())
-							.arg(err.value("message").toString()));
+				throw ChatError(Text{"Error.Pusher", {QString::number(err.value("code").toInt()),
+								      err.value("message").toString()}});
 			} else if (name == "App\\Events\\ChatMessageEvent") {
 				post_(toMessage(eventData(evt), source_.channel));
 			} else {

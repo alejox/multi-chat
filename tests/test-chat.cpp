@@ -166,9 +166,9 @@ struct StarviosRig {
 				std::lock_guard<std::mutex> lock(mutex);
 				posted << m;
 			},
-			[this](const QString &status, const QString &detail) {
+			[this](const QString &status, const Text &detail) {
 				std::lock_guard<std::mutex> lock(mutex);
-				statuses << status + ':' + detail;
+				statuses << status + ':' + translate(detail);
 			},
 			timing);
 		connector->start();
@@ -545,12 +545,14 @@ private slots:
 		tricky.insert("kind", "raid");
 		tricky.insert("meta", QJsonObject{{"viewers", 2}});
 		tricky.insert("profiles", QJsonObject{{"username", "a%2b%3"}});
-		QVERIFY(starvios::toMessage(tricky, "c")["system"].toString().startsWith("a%2b%3 está"));
+		QVERIFY(starvios::toMessage(tricky, "c")["system"].toString().startsWith("a%2b%3 is raiding"));
 
 		QJsonObject raid = withKind("raid", {{"viewers", 12}});
 		QCOMPARE(raid["kind"].toString(), QString("highlight"));
-		QVERIFY(raid["system"].toString().contains("12"));
-		QVERIFY(raid["system"].toString().contains("Ana"));
+		QCOMPARE(raid["system"].toString(), QString("Ana is raiding with 12 viewers"));
+		QCOMPARE(raid["systemKey"].toString(), QString("Event.Raid"));
+		QCOMPARE(raid["systemArgs"].toArray(), QJsonArray({"Ana", "12"}));
+		QCOMPARE(withKind("raid", {{"viewers", 1}})["systemKey"].toString(), QString("Event.RaidOne"));
 		QVERIFY(raid["parts"].toArray().isEmpty());
 
 		const QJsonObject reward{{"reward_title", "Lluvia"}, {"cost", 70}, {"emoji", "X"}, {"has_input", false}};
@@ -564,10 +566,12 @@ private slots:
 
 		QVERIFY(withKind("sub", {{"months", 3}})["system"].toString().contains("3"));
 		QJsonObject gift = withKind("gift_sub", {{"recipient", "beto"}, {"anonymous", true}});
-		QVERIFY(gift["system"].toString().contains("beto"));
-		QVERIFY(!gift["system"].toString().contains("Ana"));
+		QCOMPARE(gift["system"].toString(), QString("Anonymous gifted a sub to beto"));
+		QCOMPARE(gift["author"].toString(), QString("Anonymous"));
+		QCOMPARE(gift["authorKey"].toString(), QString("Author.Anonymous"));
 		QCOMPARE(withKind("starfall", {}, "cae una estrella")["system"].toString(), QString("cae una estrella"));
-		QVERIFY(withKind("pumpkin_win", {})["system"].toString().contains("Ana"));
+		QCOMPARE(withKind("pumpkin_win", {})["systemKey"].toString(), QString("Event.PumpkinWin"));
+		QVERIFY(withKind("starfall", {}, "x")["systemKey"].toString().isEmpty()); // platform text, as is
 		// Otro tipo cualquiera con texto se muestra como chat, igual que en la página.
 		QCOMPARE(firstText(withKind("algo_nuevo", {}, "hola")), QString("hola"));
 	}
@@ -748,7 +752,7 @@ private slots:
 			ws->push(textBroadcast("de_otro_canal", {}, "realtime:stream:otro"));
 			ws->push(starviosMsg(chatRow("m1", "marca")));
 			QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 1; }));
-			QVERIFY(!log.contains("evento"));
+			QVERIFY(!log.contains("unknown event"));
 			// Un evento nuevo deja rastro con su nombre, nunca con el contenido.
 			ws->push(textBroadcast("evento_nuevo", QJsonObject{{"secreto", "contenido"}}));
 			QVERIFY(StarviosRig::until([&] { return log.contains("evento_nuevo"); }));
@@ -846,7 +850,7 @@ private slots:
 			QVERIFY(!rig.hasStatus("error"));
 			ws->push(QJsonDocument(QJsonArray{QJsonValue::Null, QJsonValue::Null, "realtime:stream:s1", event, QJsonObject{}})
 					 .toJson(QJsonDocument::Compact));
-			QVERIFY(StarviosRig::until([&] { return rig.hasStatus("error:Starvios cerró el canal"); }));
+			QVERIFY(StarviosRig::until([&] { return rig.hasStatus("error:Starvios closed the chat channel"); }));
 			QVERIFY(StarviosRig::until([&] { return ws->closed(); }));
 			QVERIFY(rig.waitSocket(1));
 		}
@@ -861,7 +865,7 @@ private slots:
 		auto ws = rig.waitSocket(0);
 		QVERIFY(ws);
 		QVERIFY(StarviosRig::until([&] { return ws->closed(); }));
-		QVERIFY(StarviosRig::until([&] { return rig.hasStatus("error:Starvios no aceptó la conexión"); }));
+		QVERIFY(StarviosRig::until([&] { return rig.hasStatus("error:Starvios didn't accept the connection"); }));
 		QVERIFY(!rig.hasStatus("connected"));
 		QVERIFY(rig.waitSocket(1));
 	}
@@ -920,7 +924,8 @@ private slots:
 		stranger.insert("user_id", "u2");
 		ws->push(starviosMsg(stranger));
 		QVERIFY(StarviosRig::until([&] { return rig.postedCount() == 3; }));
-		QCOMPARE(rig.postedAt(2)["author"].toString(), QString("Espectador"));
+		QCOMPARE(rig.postedAt(2)["author"].toString(), QString("Viewer"));
+		QCOMPARE(rig.postedAt(2)["authorKey"].toString(), QString("Author.Viewer"));
 		QCOMPARE(firstText(rig.postedAt(2)), QString("tres"));
 		QVERIFY(!rig.socket(1));
 	}
@@ -965,7 +970,7 @@ private slots:
 		for (int i = 0; i < 16; ++i) {
 			const QJsonObject message = rig.postedAt(2 + i);
 			QCOMPARE(firstText(message), QStringLiteral("en cola %1").arg(i));
-			QCOMPARE(message["author"].toString(), QString("Espectador"));
+			QCOMPARE(message["author"].toString(), QString("Viewer"));
 			QVERIFY(!message["recovered"].toBool());
 		}
 		QCOMPARE(rig.requestCount("id=eq."), 0);
@@ -1766,7 +1771,8 @@ private slots:
 		QVERIFY(tiktok::toMessage(r.events[1], "@canal").isEmpty()); // regalo en racha
 		QJsonObject g = tiktok::toMessage(r.events[2], "@canal");
 		QCOMPARE(g["kind"].toString(), QString("highlight"));
-		QVERIFY(g["system"].toString().contains(QString::fromUtf8("5× Rosa")));
+		QCOMPARE(g["system"].toString(), QString::fromUtf8("Ana 🌸 sent 5× Rosa"));
+		QCOMPARE(g["systemKey"].toString(), QString("Event.Gift"));
 		QCOMPARE(g["amount"].toString(), QString::fromUtf8("5 💎"));
 		QVERIFY(tiktok::toMessage(r.events[3], "@canal").isEmpty());
 
@@ -1852,6 +1858,87 @@ private slots:
 		QJsonObject draft = json;
 		draft.insert("prerelease", true);
 		QVERIFY(parseLatestRelease(draft, "-macos.zip").version.isEmpty());
+	}
+
+	void textsFillArgumentsInOnePass()
+	{
+		QCOMPARE(fillArgs("%1 sent %2%3", {"a%2b", QString::fromUtf8("5× "), "Rose"}),
+			 QString::fromUtf8("a%2b sent 5× Rose"));
+		QCOMPARE(fillArgs("%2 then %1, %3 stays, 100%", {"x", "y"}), QString("y then x, %3 stays, 100%"));
+		QCOMPARE(fillArgs("%10 %1", {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"}), QString("j a"));
+	}
+
+	void textsTranslateWithEnglishFallback()
+	{
+		const Text raid{"Event.Raid", {"Ana", "12"}};
+		QCOMPARE(translate(raid), QString("Ana is raiding with 12 viewers"));
+		const Translator spanish = [](const QString &key) {
+			return key == "Event.Raid" ? QString::fromUtf8("%1 está haciendo una raid con %2 espectadores")
+						   : key; // obs_module_text returns the key when it is missing
+		};
+		QCOMPARE(translate(raid, spanish), QString::fromUtf8("Ana está haciendo una raid con 12 espectadores"));
+		const Text closed{"Error.Closed", {"Kick"}};
+		QCOMPARE(translate(closed, spanish), QString("Kick closed the connection"));
+		QCOMPARE(translate(Text::raw("as is %1"), spanish), QString("as is %1"));
+		const Text missing{"Missing.Key", {}};
+		QCOMPARE(translate(missing), QString("Missing.Key"));
+		QVERIFY(Text::raw("").isEmpty());
+		const Text ended{"Error.LiveEnded", {}};
+		QVERIFY(!ended.isEmpty());
+	}
+
+	void messagesCarryTranslatableSystemAndAuthor()
+	{
+		MessageOptions o;
+		o.systemText = Text{"Event.GiftSubAnonymousTo", {"beto"}};
+		o.authorKey = "Author.Anonymous";
+		QJsonObject m = makeMessage("starvios", "c", "Anonymous", QJsonArray{}, o);
+		QCOMPARE(m["systemKey"].toString(), QString("Event.GiftSubAnonymousTo"));
+		QCOMPARE(m["systemArgs"].toArray(), QJsonArray({"beto"}));
+		QCOMPARE(m["system"].toString(), QString("Anonymous gifted a sub to beto"));
+		const Translator spanish = [](const QString &key) -> QString {
+			if (key == "Event.GiftSubAnonymousTo")
+				return QString::fromUtf8("Anónimo regaló una suscripción a %1");
+			if (key == "Author.Anonymous")
+				return QString::fromUtf8("Anónimo");
+			return {};
+		};
+		localizeMessage(m, spanish);
+		QCOMPARE(m["author"].toString(), QString::fromUtf8("Anónimo"));
+		QCOMPARE(m["system"].toString(), QString::fromUtf8("Anónimo regaló una suscripción a beto"));
+
+		QJsonObject plain = makeMessage("twitch", "c", "Fan", QJsonArray{}, MessageOptions{});
+		const QJsonObject before = plain;
+		localizeMessage(plain, spanish);
+		QCOMPARE(plain, before);
+	}
+
+	void localeFilesHaveEveryText()
+	{
+		const auto readIni = [](const QString &name) {
+			QHash<QString, QString> values;
+			QFile file(QStringLiteral(MULTICHAT_LOCALE_DIR "/") + name);
+			if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+				return values;
+			for (const QString &line : QString::fromUtf8(file.readAll()).split('\n')) {
+				const qsizetype eq = line.indexOf('=');
+				if (eq <= 0)
+					continue;
+				QString value = line.mid(eq + 1).trimmed();
+				if (value.startsWith('"') && value.endsWith('"') && value.size() >= 2)
+					value = value.mid(1, value.size() - 2);
+				values.insert(line.left(eq).trimmed(), value.replace("\\\"", "\""));
+			}
+			return values;
+		};
+		const QHash<QString, QString> en = readIni("en-US.ini");
+		const QHash<QString, QString> es = readIni("es-ES.ini");
+		QVERIFY(!en.isEmpty());
+		QVERIFY(!englishTexts().isEmpty());
+		for (auto it = englishTexts().cbegin(); it != englishTexts().cend(); ++it) {
+			QVERIFY2(en.value(it.key()) == it.value(), qPrintable("en-US.ini differs: " + it.key()));
+			QVERIFY2(!es.value(it.key()).isEmpty(), qPrintable("es-ES.ini lacks: " + it.key()));
+		}
 	}
 };
 

@@ -442,7 +442,7 @@ protected:
 			"vamos que se puede 💪",
 		};
 		auto *rng = QRandomGenerator::global();
-		report_("connected", QString());
+		report_("connected", Text());
 		while (!wait(rng->bounded(400, 1800))) {
 			const User &u = users[rng->bounded(int(std::size(users)))];
 			MessageOptions o;
@@ -463,7 +463,7 @@ protected:
 					QList<const char *>{"$5.00", "$20.00", "500 bits"}[rng->bounded(3)]);
 			} else if (roll < 8) {
 				o.kind = "highlight";
-				o.system = name + " se suscribió por 6 meses";
+				o.systemText = Text{"Event.SubMonths", {name, QStringLiteral("6")}};
 				parts = QJsonArray();
 			}
 			post_(makeMessage(QString::fromLatin1(u.platform), source_.channel, name, parts, o));

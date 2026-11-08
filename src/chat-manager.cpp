@@ -18,6 +18,13 @@ constexpr int kHistory = 200;
 // Servicios de OBS que ya indican multistream (transmiten a varias plataformas a la vez).
 const char *const kMultiServices[] = {"restream", "castr", "streamyard", "multistream", "prism"};
 
+// Locale lookup for chat::translate(): obs_module_text returns the key when it is missing, and
+// translate() then falls back to English.
+QString moduleText(const QString &key)
+{
+	return QString::fromUtf8(obs_module_text(key.toUtf8().constData()));
+}
+
 qint64 nowMs()
 {
 	return QDateTime::currentMSecsSinceEpoch();
@@ -77,7 +84,7 @@ void ChatManager::save() const
 	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
 		file.write(QJsonDocument(cfg).toJson());
 	else
-		obs_log(LOG_WARNING, "no se pudo guardar %s", path.toUtf8().constData());
+		obs_log(LOG_WARNING, "could not save %s", path.toUtf8().constData());
 }
 
 void ChatManager::setWizardShown()
@@ -259,12 +266,13 @@ void ChatManager::reshowLast()
 		feature(QJsonObject(lastFeatured_));
 }
 
-void ChatManager::receive(const QJsonObject &object)
+void ChatManager::receive(QJsonObject object)
 {
 	if (chat::isDeletion(object)) {
 		applyDeletion(object);
 		return;
 	}
+	chat::localizeMessage(object, moduleText);
 	if (chat::isFiltered(object, filters_))
 		return;
 	history_.append(object);
@@ -329,7 +337,7 @@ void ChatManager::connectSource(Source &s)
 			},
 			Qt::QueuedConnection);
 	};
-	auto report = [self, key, gen](const QString &status, const QString &detail) {
+	auto report = [self, key, gen](const QString &status, const chat::Text &detail) {
 		QMetaObject::invokeMethod(
 			self,
 			[self, key, gen, status, detail] {
@@ -337,10 +345,10 @@ void ChatManager::connectSource(Source &s)
 					return;
 				if (Source *src = self->find(key, gen)) {
 					src->status = status;
-					src->detail = detail;
+					src->detail = chat::translate(detail, moduleText).left(200);
 					if (status == "error")
 						obs_log(LOG_INFO, "[%s] %s", key.toUtf8().constData(),
-							detail.toUtf8().constData());
+							chat::translate(detail).toUtf8().constData());
 					self->publishState();
 				}
 			},

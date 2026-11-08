@@ -131,7 +131,7 @@ void saveHotkeys()
 	const QString path = hotkeysPath();
 	QDir().mkpath(QFileInfo(path).absolutePath());
 	if (!obs_data_save_json_safe(data, path.toUtf8().constData(), "tmp", "bak"))
-		obs_log(LOG_WARNING, "no se pudo guardar %s", path.toUtf8().constData());
+		obs_log(LOG_WARNING, "could not save %s", path.toUtf8().constData());
 	obs_data_release(data);
 }
 

@@ -105,7 +105,11 @@ function authorColor(c, m) {
   return nameColor(m.color, m.author);
 }
 
-const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MIEMBRO', verified: '✓', staff: 'STAFF' };
+const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MEMBER', verified: '✓', staff: 'STAFF' };
+// The plugin sends the member label in OBS's language.
+function badgeLabel(b) {
+  return b === 'member' && typeof config.memberBadge === 'string' && config.memberBadge ? config.memberBadge : BADGES[b];
+}
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok', 'starvios'], icons: true, badges: true,
@@ -147,7 +151,7 @@ function render(m) {
   const icon = el('span', 'pf');
   icon.innerHTML = ICONS[m.platform] || '';
   row.appendChild(icon);
-  for (const b of m.badges || []) if (BADGES[b]) row.appendChild(el('span', 'badge b-' + b, BADGES[b]));
+  for (const b of m.badges || []) if (BADGES[b]) row.appendChild(el('span', 'badge b-' + b, badgeLabel(b)));
   if (m.amount) row.appendChild(el('span', 'amount', m.amount));
   const author = el('span', 'author', m.author);
   author.style.color = authorColor(config, m);
@@ -337,20 +341,24 @@ window.addEventListener('multichat', e => {
   else if (data.type === 'restore') restore(data.messages);
 });
 
-// Mensajes de ejemplo para colocar el overlay mientras no llega chat de verdad.
+// Mensajes de ejemplo para colocar el overlay mientras no llega chat de verdad. El texto llega
+// traducido en config.samples; estos son los de reserva.
 const SAMPLES = [
-  ['twitch', 'LunaGamer', '#FF7F50', ['subscriber'], '¡Holaaa desde Buenos Aires!'],
-  ['youtube', 'María Fernández', '', ['member'], 'qué buen stream hoy'],
-  ['kick', 'kicker_mx', '#53FC18', [], 'saludos a todos los del chat de Kick'],
-  ['tiktok', 'vale.tok', '', [], 'holaa desde TikTok 💖'],
-  ['starvios', 'nova_estelar', '#A78BFA', [], 'hola desde Starvios ✨'],
+  ['twitch', 'LunaGamer', '#FF7F50', ['subscriber'], 'Hiii from Buenos Aires!'],
+  ['youtube', 'María Fernández', '', ['member'], 'great stream today'],
+  ['kick', 'kicker_mx', '#53FC18', [], 'hello to everyone in the Kick chat'],
+  ['tiktok', 'vale.tok', '', [], 'hiii from TikTok 💖'],
+  ['starvios', 'nova_estelar', '#A78BFA', [], 'hi from Starvios ✨'],
   ['twitch', 'pixel_pancho', '#1E90FF', ['moderator'], 'GG'],
-  ['youtube', 'Carlos R.', '', [], 'vamos que se puede 💪'],
+  ['youtube', 'Carlos R.', '', [], "let's gooo 💪"],
 ];
 let sample = 0;
 setInterval(() => {
   if (!config.preview || config.streaming || Date.now() - lastReal < 30000) return;
-  const [platform, author, color, badges, text] = SAMPLES[sample++ % SAMPLES.length];
+  const index = sample++ % SAMPLES.length;
+  const [platform, author, color, badges, fallback] = SAMPLES[index];
+  const texts = Array.isArray(config.samples) ? config.samples : [];
+  const text = typeof texts[index] === 'string' && texts[index] ? texts[index] : fallback;
   add({ id: 'sample-' + sample, platform, author, color, badges, parts: [{ type: 'text', text }], kind: 'chat' });
 }, 2500);
 

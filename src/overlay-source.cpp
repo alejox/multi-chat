@@ -699,6 +699,25 @@ bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings
 	return true;
 }
 
+QString moduleString(const char *key)
+{
+	return QString::fromUtf8(obs_module_text(key));
+}
+
+// Texts the pages show on their own (badge label and sample messages), in OBS's language.
+void addPageTexts(QJsonObject &config, Kind kind)
+{
+	config.insert("memberBadge", moduleString("Badge.Member"));
+	if (kind == Kind::Featured) {
+		config.insert("sampleText", moduleString("Featured.SampleText"));
+		return;
+	}
+	QJsonArray samples;
+	for (int i = 1; i <= 7; ++i)
+		samples.append(moduleString(("Overlay.Sample" + std::to_string(i)).c_str()));
+	config.insert("samples", samples);
+}
+
 QJsonObject readConfig(Kind kind, obs_data_t *settings)
 {
 	QJsonObject config;
@@ -722,6 +741,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 		};
 		readBoxStyle(config, settings, "", "bg");
 		readTextStyle(config, settings, kind);
+		addPageTexts(config, kind);
 		return config;
 	}
 	QJsonArray platforms;
@@ -795,6 +815,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 	readBoxStyle(config, settings, "", "bg");
 	readBoxStyle(config, settings, "panel_", "panel");
 	readTextStyle(config, settings, kind);
+	addPageTexts(config, kind);
 	return config;
 }
 
@@ -835,7 +856,7 @@ void *create(obs_data_t *settings, obs_source_t *source, Kind kind)
 	s->browser = obs_source_create_private("browser_source", "multichat-overlay", bs);
 	obs_data_release(bs);
 	if (!s->browser)
-		obs_log(LOG_WARNING, "no se pudo crear la fuente de navegador (¿falta obs-browser?)");
+		obs_log(LOG_WARNING, "could not create the browser source (is obs-browser missing?)");
 	{
 		std::lock_guard<std::mutex> lock(sourcesMutex);
 		sources.insert(s);
