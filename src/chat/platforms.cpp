@@ -405,6 +405,15 @@ SourcePlan planSources(const QList<ChatEntry> &entries, bool demo)
 	return plan;
 }
 
+QString platformForService(const QString &service)
+{
+	const QString folded = service.toLower();
+	for (const char *platform : {"youtube", "kick", "tiktok", "starvios", "twitch"})
+		if (folded.contains(QLatin1String(platform)))
+			return QString::fromLatin1(platform);
+	return QStringLiteral("twitch");
+}
+
 bool testMessagesEnabled(const QJsonObject &config)
 {
 	return config.value(QLatin1String("testMessages")).toBool(false);

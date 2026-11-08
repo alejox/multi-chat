@@ -1,6 +1,8 @@
 #pragma once
 
-// First-run assistant: welcome, first chat, the overlay sources in the current scene, and tips.
+// First-run assistant: welcome, first channel (platform preselected from the streaming service),
+// the chat, featured and voice sources in the current scene with one click, and tips. Finishing
+// shows the dock.
 
 class QWidget;
 

@@ -108,7 +108,7 @@ Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 
 ## 🎛️ Usarlo
 
-La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: añade tu canal y pone las fuentes **Multichat** en la escena que estás editando (sin duplicarlas si ya están). Se puede saltar y volver a abrir con **Asistente de inicio**, en **Herramientas → Multichat…** o en la rueda del dock.
+La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: la plataforma viene elegida según tu servicio de emisión, añades tu canal, un botón pone el chat, el destacado y la voz en la escena que estás editando (sin duplicarlos si ya están) y al terminar se abre el dock. Se puede saltar y volver a abrir con **Asistente de inicio**, en **Herramientas → Multichat…** o en la rueda del dock.
 
 1. **Herramientas → Multichat…**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube. Mientras busca el canal se ve una barra de carga; si el nombre tiene un formato que la plataforma no admite, lo dice debajo, y si el canal no existe, el botón pasa a **Añadir igualmente** (Intro nunca añade un canal no encontrado).
    - **Pausar**: desmarca la casilla de un chat para desconectarlo sin perderlo; vuelve a marcarla para reconectarlo.

@@ -31,6 +31,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "ui/first-run-wizard.hpp"
 #include "ui/image-cache.hpp"
 #include "ui/profile-cache.hpp"
+#include "ui/ui-common.hpp"
 #include "updater.hpp"
 #include "tts/voice-source.hpp"
 
@@ -38,20 +39,6 @@ OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 namespace {
-
-// Nombre del servicio de Ajustes → Emisión (Twitch, YouTube, Restream...).
-QString streamingService()
-{
-	obs_service_t *service = obs_frontend_get_streaming_service();
-	if (!service)
-		return {};
-	obs_data_t *settings = obs_service_get_settings(service);
-	QString name = QString::fromUtf8(obs_data_get_string(settings, "service"));
-	if (name.isEmpty())
-		name = QString::fromUtf8(obs_service_get_display_name(obs_service_get_type(service)));
-	obs_data_release(settings);
-	return name;
-}
 
 // ---- Atajos de teclado (Ajustes → Atajos) ----
 
@@ -168,7 +155,7 @@ void on_frontend_event(enum obs_frontend_event event, void *)
 {
 	switch (event) {
 	case OBS_FRONTEND_EVENT_STREAMING_STARTED:
-		ChatManager::instance().setStreaming(true, streamingService());
+		ChatManager::instance().setStreaming(true, ui::streamingServiceName());
 		overlay_set_streaming(true);
 		break;
 	case OBS_FRONTEND_EVENT_STREAMING_STOPPED:
@@ -177,7 +164,7 @@ void on_frontend_event(enum obs_frontend_event event, void *)
 		break;
 	case OBS_FRONTEND_EVENT_FINISHED_LOADING:
 		if (obs_frontend_streaming_active()) {
-			ChatManager::instance().setStreaming(true, streamingService());
+			ChatManager::instance().setStreaming(true, ui::streamingServiceName());
 			overlay_set_streaming(true);
 		}
 		// First run: guide the user once OBS's window is ready.

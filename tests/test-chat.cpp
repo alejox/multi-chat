@@ -1309,6 +1309,21 @@ private slots:
 		QVERIFY(text.contains("facebook"));
 	}
 
+	// The assistant preselects the platform from OBS's streaming service (Settings → Stream).
+	void platformFromStreamingService()
+	{
+		QCOMPARE(platformForService("Twitch"), QString("twitch"));
+		QCOMPARE(platformForService("YouTube - RTMPS"), QString("youtube"));
+		QCOMPARE(platformForService("YouTube - HLS"), QString("youtube"));
+		QCOMPARE(platformForService("Kick"), QString("kick"));
+		QCOMPARE(platformForService("TikTok LIVE"), QString("tiktok"));
+		QCOMPARE(platformForService("Starvios"), QString("starvios"));
+		QCOMPARE(platformForService("kick.com"), QString("kick")); // case and extra words do not matter
+		QCOMPARE(platformForService("Restream.io"), QString("twitch")); // multistream services: the default
+		QCOMPARE(platformForService("Custom"), QString("twitch"));
+		QCOMPARE(platformForService(""), QString("twitch"));
+	}
+
 	// What the user typed in the settings dialog: a platform prefix or URL is kept, anything else
 	// belongs to the platform picked in the list. Only known platform names count as a prefix.
 	void entryFromInputText()

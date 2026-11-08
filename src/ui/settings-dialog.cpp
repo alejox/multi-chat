@@ -58,6 +58,13 @@ QPixmap chatAvatar(const chat::SourceInfo &info, int size, qreal dpr)
 
 } // namespace ui
 
+void ChannelInput::setPlatform(const QString &platform)
+{
+	const int index = platform_->findData(platform);
+	if (index >= 0)
+		platform_->setCurrentIndex(index);
+}
+
 ChannelInput::ChannelInput(QWidget *parent) : QWidget(parent)
 {
 	auto *layout = new QVBoxLayout(this);

@@ -15,6 +15,7 @@
 #include <QContextMenuEvent>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDockWidget>
 #include <QEvent>
 #include <QFile>
 #include <QFileInfo>
@@ -29,6 +30,7 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QScrollBar>
@@ -580,8 +582,13 @@ void ChatView::rebuild()
 // ---------------------------------------------------------------------------------------
 // ChatDock
 
+namespace {
+QPointer<ChatDock> theDock; // the one OBS shows (plugin-main creates it once)
+} // namespace
+
 ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 {
+	theDock = this;
 	const QJsonObject prefs = loadPrefs();
 	fontSize_ = prefs.value("fontSize").toInt(11);
 	timestamps_ = prefs.value("timestamps").toBool(false);
@@ -841,6 +848,22 @@ void ChatDock::applyTheme()
 				       .arg(tint(QColor(62, 207, 110), 0.25f)));
 	errors_->setStyleSheet(QStringLiteral("color: %1;").arg(ui::alertColor(window).name()));
 	updateState(ChatManager::instance().state());
+}
+
+// OBS wraps the widget in its own QDockWidget (obs_frontend_add_dock_by_id); the frontend API
+// has no call to show a dock, so the wrapper is found walking up from the widget.
+void show_multichat_dock()
+{
+	if (!theDock)
+		return;
+	for (QWidget *w = theDock->parentWidget(); w; w = w->parentWidget()) {
+		if (auto *dock = qobject_cast<QDockWidget *>(w)) {
+			dock->setVisible(true);
+			dock->raise();
+			return;
+		}
+	}
+	theDock->show();
 }
 
 void ChatDock::fillGearMenu(QMenu *menu)

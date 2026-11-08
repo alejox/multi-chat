@@ -83,7 +83,14 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - Checks: sin lógica pura nueva (excepción RED/GREEN: solo UI/menús); `localeFilesHaveTheSameKeysAndNoOrphans` PASS tras quitar las 3 claves; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
   - Manual pendiente: Herramientas muestra solo "Multichat…"; los tres botones de Configurar funcionan; la rueda muestra las 7 entradas con las marcas correctas.
   - Commit anterior (T5): 2e8734c.
-- [ ] T7 Asistente: plataforma detectada, un botón, muestra el dock. Route: delegated (writer).
+- [x] T7 Asistente: plataforma detectada, un botón, muestra el dock. Route: delegated (writer).
+  - Lógica pura `chat::platformForService(service)` (`platforms.{hpp,cpp}`): busca youtube/kick/tiktok/starvios/twitch en el nombre del servicio sin mayúsculas; lo demás (Restream, Custom, vacío) → twitch. `streamingService()` sale de `plugin-main` a `ui::streamingServiceName()` (ui-common) para que el asistente lo use.
+  - `ChannelInput::setPlatform(id)`; el asistente preselecciona con el servicio de OBS. Paso de fuentes: un botón principal "Añadir a la escena «X»" que pone chat + destacado + voz (casillas marcadas por defecto para quitar alguna; ayuda de la voz menciona el modo de T7b). Al terminar (`Accepted`) `show_multichat_dock()`: la API frontend de OBS 33 no tiene "mostrar dock" (solo `add_dock_by_id`/`remove_dock`), así que se sube por los padres del widget hasta el `QDockWidget` de OBS y se hace `setVisible(true)` + `raise()`.
+  - Decisiones antes (12): Siguiente en bienvenida, elegir plataforma, escribir canal, Añadir, casilla mensajes de prueba, Siguiente, casilla chat, casilla destacado, Añadir a la escena, Siguiente, Terminar, buscar el dock en Docks. Después (5): Siguiente, escribir canal + Añadir, Añadir a la escena, Siguiente, Terminar (la plataforma viene elegida, las fuentes vienen marcadas, el dock se abre solo; mensajes de prueba y desmarcar fuentes son opcionales y no obligan a decidir).
+  - Locales: `Wizard.Chat.Text`, `Wizard.Sources.Text`, `Wizard.Done.TipDock` reescritas; nueva `Wizard.Sources.VoiceHelp`. README: párrafo del asistente.
+  - Checks: RED observado (`use of undeclared identifier 'platformForService'`), GREEN `platformFromStreamingService` PASS; `test-chat` 71; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
+  - Manual pendiente: con el servicio de OBS en YouTube, el asistente arranca en YouTube; el botón añade las tres fuentes; al Terminar aparece el dock aunque estuviera cerrado.
+  - Commit anterior (T6): 5f4a9a0.
 - [ ] T7b Voz: modo de aviso sonoro (`read` | `sound` | `both`), WAV propio y antiinundación. Route: delegated (writer).
 - [ ] T8 README, compilación e instalación local. Route: delegated (writer).
 
