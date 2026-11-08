@@ -13,6 +13,7 @@
 #include "speech-text.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
+#include "../overlay/overlay-source.hpp"
 #include "../platforms-registry.hpp"
 
 #include <obs-frontend-api.h>
@@ -37,44 +38,40 @@
 
 namespace {
 
-constexpr int kDefaultMaxLength = 200;
-constexpr int kDefaultRatePercent = 50;
-constexpr int kDefaultCooldownMs = 1500;
 constexpr double kMaxSoundSeconds = 10.0;
+// Setting that marks the plugin's own voice output; any other voice source is an old one.
+constexpr const char *kOutputKey = "multichat_output";
+// Output channels: 0 is the transition and 1–6 the desktop and microphone audio of OBS's
+// settings. The voice takes the highest free one (libobs has MAX_CHANNELS), so plugins that
+// count up from 7 do not meet it.
+constexpr uint32_t kFirstFreeChannel = 7;
 
-// What the source does with each message that passes the filters.
-enum class Mode { Read, Sound, Both };
-
-Mode modeFromString(const char *mode)
-{
-	if (mode && std::strcmp(mode, "sound") == 0)
-		return Mode::Sound;
-	if (mode && std::strcmp(mode, "both") == 0)
-		return Mode::Both;
-	return Mode::Read;
-}
+using tts::VoiceMode;
 
 struct VoiceSource {
 	obs_source_t *self = nullptr;
+	bool output = false; // the plugin's voice output; an old source saved in a scene never speaks
 	tts::SpeechOptions options;
 	std::unique_ptr<tts::VoiceEngine> engine; // solo existe activada
-	Mode mode = Mode::Read;
+	VoiceMode mode = VoiceMode::Read;
 	std::shared_ptr<const tts::PcmBuffer> sound; // the chime or the user's WAV, at kChimeSampleRate; shared with the queue
 	QString soundPath;    // file the sound came from (empty: built-in)
-	int cooldownMs = kDefaultCooldownMs;
+	int cooldownMs = 0;
 	uint64_t lastChimeNs = 0;
 };
 
 std::mutex sourcesMutex;
-std::set<VoiceSource *> sources;
+std::set<VoiceSource *> sources; // voice outputs only
 bool shuttingDown = false;
 QMetaObject::Connection messageConnection;
 QMetaObject::Connection deletedConnection;
+QMetaObject::Connection settingsConnection;
 
-std::string platformKey(const char *platform)
-{
-	return std::string("read_") + platform;
-}
+// The plugin's voice output, owned on the Qt main thread (frontend events and settings changes
+// arrive there): a strong reference and the output channel it is bound to (0 = none).
+obs_source_t *outputSource = nullptr;
+uint32_t outputChannel = 0;
+bool collectionReady = false; // a scene collection is loaded (between CHANGED and CHANGING)
 
 std::unique_ptr<tts::VoiceEngine> makeEngine(obs_source_t *self)
 {
@@ -112,37 +109,34 @@ tts::PcmBuffer loadSound(const QString &path)
 	return tts::notificationChime(tts::kChimeSampleRate);
 }
 
-tts::SpeechOptions readOptions(obs_data_t *settings)
+// The speech filters of the global settings. Blocked words are not here: they live only in the
+// Filters, and ChatManager never emits a message they hide.
+tts::SpeechOptions speechOptions(const tts::VoiceSettings &settings)
 {
 	tts::SpeechOptions options;
-	options.includeAuthor = obs_data_get_bool(settings, "read_author");
+	options.includeAuthor = settings.readAuthor;
 	const QString format = QString::fromUtf8(obs_module_text("Voice.AuthorFormat"));
 	if (format.contains(QStringLiteral("%1")) && format.contains(QStringLiteral("%2")))
 		options.authorFormat = format;
 	for (const platforms::Platform &platform : platforms::kAll)
-		if (obs_data_get_bool(settings, platformKey(platform.id).c_str()))
+		if (settings.readsPlatform(QString::fromUtf8(platform.id)))
 			options.allowedPlatforms.insert(QString::fromUtf8(platform.id));
 	// Los mensajes de prueba solo se reciben si se activan en la ventana de chats, y sirven para
 	// escuchar la voz sin estar en directo. Mientras se transmite se descartan en onMessage.
 	options.allowedPlatforms.insert(QStringLiteral("demo"));
-	options.maxLength = int(obs_data_get_int(settings, "max_length"));
-	// Blocked words live only in the Filters: ChatManager never emits a message they hide.
+	options.maxLength = settings.maxLength;
 	return options;
 }
 
-void applySettings(VoiceSource *s, obs_data_t *settings)
+// Puts the global settings on the plugin's voice output: the engine runs while the voice is on.
+void applySettings(VoiceSource *s, const tts::VoiceSettings &settings)
 {
-	tts::SpeechOptions options = readOptions(settings);
-	const bool enabled = obs_data_get_bool(settings, "enabled");
-	const QString voice = QString::fromUtf8(obs_data_get_string(settings, "voice"));
-	const double rate = double(obs_data_get_int(settings, "rate")) / 100.0;
-	const Mode mode = modeFromString(obs_data_get_string(settings, "mode"));
-	const QString soundPath = QString::fromUtf8(obs_data_get_string(settings, "sound_file"));
-	const int cooldownMs = int(obs_data_get_int(settings, "sound_cooldown"));
+	tts::SpeechOptions options = speechOptions(settings);
+	const QString soundPath = settings.soundFile;
 	// File reading happens outside the lock; only when the sound is used and the path changed.
 	std::shared_ptr<const tts::PcmBuffer> sound;
 	bool reloadSound = false;
-	if (mode != Mode::Read) {
+	if (settings.mode != tts::VoiceMode::Read) {
 		std::lock_guard<std::mutex> lock(sourcesMutex);
 		reloadSound = !s->sound || s->soundPath != soundPath;
 	}
@@ -152,16 +146,16 @@ void applySettings(VoiceSource *s, obs_data_t *settings)
 	std::unique_ptr<tts::VoiceEngine> stopped; // se destruye al salir, ya sin el candado
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	s->options = std::move(options);
-	s->mode = mode;
-	s->cooldownMs = std::max(0, cooldownMs);
+	s->mode = settings.mode;
+	s->cooldownMs = std::max(0, settings.soundCooldownMs);
 	if (reloadSound) {
 		s->sound = std::move(sound);
 		s->soundPath = soundPath;
 	}
-	if (enabled && !shuttingDown) {
+	if (settings.enabled && !shuttingDown) {
 		if (!s->engine)
 			s->engine = makeEngine(s->self);
-		s->engine->setVoice(voice, rate);
+		s->engine->setVoice(settings.voice, double(settings.ratePercent) / 100.0);
 	} else {
 		stopped = std::move(s->engine);
 	}
@@ -193,7 +187,7 @@ void onMessage(const QJsonObject &message)
 		if (text.isEmpty())
 			continue;
 		std::shared_ptr<const tts::PcmBuffer> sound;
-		if (s->mode != Mode::Read) {
+		if (s->mode != VoiceMode::Read) {
 			const uint64_t now = os_gettime_ns();
 			if (tts::chimeAllowed(now, s->lastChimeNs, s->cooldownMs)) {
 				s->lastChimeNs = now;
@@ -201,7 +195,7 @@ void onMessage(const QJsonObject &message)
 			}
 		}
 		// Sound and text are one queue item: a full queue or a deletion drops both together.
-		if (s->mode == Mode::Sound)
+		if (s->mode == VoiceMode::Sound)
 			s->engine->enqueueSound(std::move(sound), identity);
 		else
 			s->engine->enqueue(text, identity, std::move(sound));
@@ -227,9 +221,13 @@ void *voice_create(obs_data_t *settings, obs_source_t *source)
 {
 	auto *s = new VoiceSource();
 	s->self = source;
-	applySettings(s, settings);
-	std::lock_guard<std::mutex> lock(sourcesMutex);
-	sources.insert(s);
+	s->output = obs_data_get_bool(settings, kOutputKey);
+	// The output gets its settings from ChatManager (applySettings) once the plugin adopts it;
+	// an old source never gets an engine.
+	if (s->output) {
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		sources.insert(s);
+	}
 	return s;
 }
 
@@ -246,12 +244,7 @@ void voice_destroy(void *data)
 	delete s;
 }
 
-void voice_update(void *data, obs_data_t *settings)
-{
-	applySettings(static_cast<VoiceSource *>(data), settings);
-}
-
-// Al salir de la escena en emisión no tiene sentido seguir leyendo ni dejar textos viejos para luego.
+// Al dejar de oírse no tiene sentido seguir leyendo ni dejar textos viejos para luego.
 void voice_deactivate(void *data)
 {
 	auto *s = static_cast<VoiceSource *>(data);
@@ -260,97 +253,211 @@ void voice_deactivate(void *data)
 		s->engine->clear();
 }
 
-void voice_defaults(obs_data_t *settings, uint32_t version)
+bool voice_open_settings(obs_properties_t *, obs_property_t *, void *)
 {
-	obs_data_set_default_bool(settings, "enabled", tts::voiceEnabledByDefault(version));
-	obs_data_set_default_string(settings, "mode", "read");
-	obs_data_set_default_string(settings, "sound_file", "");
-	obs_data_set_default_int(settings, "sound_cooldown", kDefaultCooldownMs);
-	obs_data_set_default_string(settings, "voice", "");
-	obs_data_set_default_int(settings, "rate", kDefaultRatePercent);
-	obs_data_set_default_bool(settings, "read_author", true);
-	for (const platforms::Platform &platform : platforms::kAll)
-		obs_data_set_default_bool(settings, platformKey(platform.id).c_str(), true);
-	obs_data_set_default_int(settings, "max_length", kDefaultMaxLength);
-}
-
-void voice_defaults_v0(obs_data_t *settings)
-{
-	voice_defaults(settings, 0);
-}
-
-void voice_defaults_latest(obs_data_t *settings)
-{
-	voice_defaults(settings, tts::kVoiceSourceVersion);
-}
-
-// OBS pasa aquí los datos de la fuente (que sigue viva mientras la ventana esté abierta), o
-// nada si son las propiedades sin fuente.
-bool voice_skip_clicked(obs_properties_t *, obs_property_t *, void *data)
-{
-	auto *s = static_cast<VoiceSource *>(data);
-	if (!s)
-		return false;
-	std::lock_guard<std::mutex> lock(sourcesMutex);
-	if (s->engine)
-		s->engine->skipCurrent();
+	open_multichat_settings_from_source();
 	return false;
 }
 
-// The sound options only show when a sound is used; the voice ones, when the chat is read.
-bool voice_mode_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
-{
-	const Mode mode = modeFromString(obs_data_get_string(settings, "mode"));
-	for (const char *key : {"sound_file", "sound_cooldown"})
-		obs_property_set_visible(obs_properties_get(props, key), mode != Mode::Read);
-	for (const char *key : {"voice", "rate", "read_author", "max_length", "skip"})
-		obs_property_set_visible(obs_properties_get(props, key), mode != Mode::Sound);
-	return true;
-}
-
+// The voice is configured in Multichat's settings: the properties only say so. OBS passes the
+// source's data here (or nothing for the properties of the type).
 obs_properties_t *voice_properties(void *data)
 {
+	const auto *s = static_cast<const VoiceSource *>(data);
 	obs_properties_t *props = obs_properties_create();
-	obs_property_t *enabled = obs_properties_add_bool(props, "enabled", obs_module_text("Voice.Enabled"));
-	obs_property_set_long_description(enabled, obs_module_text("Voice.Enabled.Help"));
-
-	obs_property_t *mode = obs_properties_add_list(props, "mode", obs_module_text("Voice.Mode"), OBS_COMBO_TYPE_LIST,
-						       OBS_COMBO_FORMAT_STRING);
-	for (const char *id : {"read", "sound", "both"})
-		obs_property_list_add_string(mode, obs_module_text(("Voice.Mode." + std::string(id)).c_str()), id);
-	obs_property_set_long_description(mode, obs_module_text("Voice.Mode.Help"));
-	obs_property_set_modified_callback(mode, voice_mode_changed);
-	obs_property_t *soundFile = obs_properties_add_path(props, "sound_file", obs_module_text("Voice.SoundFile"),
-							    OBS_PATH_FILE, obs_module_text("Voice.SoundFilter"), nullptr);
-	obs_property_set_long_description(soundFile, obs_module_text("Voice.SoundFile.Help"));
-	obs_property_t *cooldown =
-		obs_properties_add_int(props, "sound_cooldown", obs_module_text("Voice.SoundCooldown"), 0, 60000, 100);
-	obs_property_int_set_suffix(cooldown, " ms");
-	obs_property_set_long_description(cooldown, obs_module_text("Voice.SoundCooldown.Help"));
-
-	obs_property_t *voice = obs_properties_add_list(props, "voice", obs_module_text("Voice.Voice"),
-							OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(voice, obs_module_text("Voice.DefaultVoice"), "");
-	for (const tts::VoiceInfo &info : tts::availableVoices())
-		obs_property_list_add_string(voice, info.name.toUtf8().constData(), info.id.toUtf8().constData());
-
-	obs_property_t *rate = obs_properties_add_int_slider(props, "rate", obs_module_text("Voice.Rate"), 0, 100, 1);
-	obs_property_int_set_suffix(rate, " %");
-	obs_property_set_long_description(rate, obs_module_text("Voice.Rate.Help"));
-
-	obs_properties_add_bool(props, "read_author", obs_module_text("Voice.ReadAuthor"));
-	const QString readPlatform = QString::fromUtf8(obs_module_text("Voice.ReadPlatform"));
-	for (const platforms::Platform &platform : platforms::kAll) {
-		const QString label = readPlatform.arg(chat::platformName(QString::fromUtf8(platform.id)));
-		obs_properties_add_bool(props, platformKey(platform.id).c_str(), label.toUtf8().constData());
-	}
-
-	obs_property_t *maxLength =
-		obs_properties_add_int(props, "max_length", obs_module_text("Voice.MaxLength"), 20, 1000, 10);
-	obs_property_set_long_description(maxLength, obs_module_text("Voice.MaxLength.Help"));
-
-	obs_properties_add_button2(props, "skip", obs_module_text("Voice.Skip"), voice_skip_clicked, data);
+	const char *note = s && s->output ? "Voice.OutputNote" : "Voice.LegacyNote";
+	obs_property_t *text = obs_properties_add_text(props, "note", obs_module_text(note), OBS_TEXT_INFO);
+	obs_property_text_set_info_word_wrap(text, true);
+	obs_properties_add_button2(props, "open_settings", obs_module_text("Voice.OpenSettings"), voice_open_settings,
+				   nullptr);
 	return props;
+}
+
+// ---- The plugin's voice output (Qt main thread) ----
+
+VoiceSource *outputData()
+{
+	return outputSource ? static_cast<VoiceSource *>(obs_obj_get_data(outputSource)) : nullptr;
+}
+
+bool isVoiceOutput(obs_source_t *source)
+{
+	const char *id = obs_source_get_unversioned_id(source);
+	if (!id || std::strcmp(id, tts::kVoiceSourceId) != 0)
+		return false;
+	obs_data_t *settings = obs_source_get_settings(source);
+	const bool output = obs_data_get_bool(settings, kOutputKey);
+	obs_data_release(settings);
+	return output;
+}
+
+// Every voice output among the public sources (normally none or the one saved in the scene
+// collection), with a reference each.
+std::vector<obs_source_t *> voiceOutputs()
+{
+	std::vector<obs_source_t *> found;
+	obs_enum_sources(
+		[](void *param, obs_source_t *source) {
+			if (isVoiceOutput(source))
+				if (obs_source_t *ref = obs_source_get_ref(source))
+					static_cast<std::vector<obs_source_t *> *>(param)->push_back(ref);
+			return true;
+		},
+		&found);
+	return found;
+}
+
+// "Multichat (voice)", or with a number when another source already has that name.
+std::string uniqueOutputName()
+{
+	const std::string base = obs_module_text("Voice.Name");
+	std::string name = base;
+	for (int n = 2; n < 100; ++n) {
+		obs_source_t *existing = obs_get_source_by_name(name.c_str());
+		if (!existing)
+			break;
+		obs_source_release(existing);
+		name = base + " " + std::to_string(n);
+	}
+	return name;
+}
+
+void saveOutputState()
+{
+	if (!outputSource)
+		return;
+	obs_data_t *data = obs_save_source(outputSource);
+	const char *json = data ? obs_data_get_json(data) : nullptr;
+	if (json)
+		ChatManager::instance().setVoiceOutputState(QJsonDocument::fromJson(QByteArray(json)).object());
+	obs_data_release(data);
+}
+
+// A new voice output with the volume, mute, monitoring, balance, tracks and filters saved last
+// time; the first time, heard by the streamer too (Monitor and Output).
+obs_source_t *createOutput()
+{
+	const char *typeId = obs_get_latest_input_type_id(tts::kVoiceSourceId);
+	if (!typeId)
+		return nullptr;
+	const std::string name = uniqueOutputName();
+	QJsonObject state = ChatManager::instance().voiceOutputState();
+	if (!state.isEmpty()) {
+		state.remove(QStringLiteral("uuid")); // a fresh one: the old source may still exist elsewhere
+		state.insert(QStringLiteral("name"), QString::fromStdString(name));
+		state.insert(QStringLiteral("id"), QString::fromUtf8(tts::kVoiceSourceId));
+		state.insert(QStringLiteral("versioned_id"), QString::fromUtf8(typeId));
+		QJsonObject settings = state.value(QStringLiteral("settings")).toObject();
+		settings.insert(QString::fromUtf8(kOutputKey), true);
+		state.insert(QStringLiteral("settings"), settings);
+		obs_data_t *data =
+			obs_data_create_from_json(QJsonDocument(state).toJson(QJsonDocument::Compact).constData());
+		obs_source_t *source = data ? obs_load_source(data) : nullptr;
+		obs_data_release(data);
+		if (source) {
+			obs_source_load2(source);
+			return source;
+		}
+		obs_log(LOG_WARNING, "the saved voice output could not be restored; creating a new one");
+	}
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_bool(settings, kOutputKey, true);
+	obs_source_t *source = obs_source_create(typeId, name.c_str(), settings, nullptr);
+	obs_data_release(settings);
+	if (source)
+		obs_source_set_monitoring_enabled(source, true);
+	return source;
+}
+
+// The voice output on a free output channel, so it sounds in every scene and shows in the mixer.
+// A channel taken by something else is never touched.
+void bindOutput()
+{
+	if (outputChannel) {
+		obs_source_t *current = obs_get_output_source(outputChannel);
+		const bool ours = current == outputSource;
+		obs_source_release(current);
+		if (ours)
+			return;
+		outputChannel = 0;
+	}
+	for (uint32_t channel = MAX_CHANNELS - 1; channel >= kFirstFreeChannel; --channel) {
+		obs_source_t *current = obs_get_output_source(channel);
+		if (current) {
+			obs_log(LOG_INFO, "output channel %u is in use by \"%s\"; trying the next one", channel,
+				obs_source_get_name(current));
+			obs_source_release(current);
+			continue;
+		}
+		obs_set_output_source(channel, outputSource);
+		outputChannel = channel;
+		obs_log(LOG_INFO, "voice output \"%s\" on output channel %u", obs_source_get_name(outputSource), channel);
+		return;
+	}
+	obs_log(LOG_WARNING, "no free output channel for the voice: it will not be heard");
+}
+
+// Frees the channel and the reference. remove = also take it out of the scene collection (the
+// voice was turned off); otherwise OBS is about to clear the collection itself.
+void releaseOutput(bool remove)
+{
+	if (!outputSource)
+		return;
+	saveOutputState();
+	if (outputChannel) {
+		obs_source_t *current = obs_get_output_source(outputChannel);
+		if (current == outputSource)
+			obs_set_output_source(outputChannel, nullptr);
+		obs_source_release(current);
+		outputChannel = 0;
+	}
+	std::unique_ptr<tts::VoiceEngine> stopped; // destroyed outside the lock
+	if (VoiceSource *s = outputData()) {
+		std::lock_guard<std::mutex> lock(sourcesMutex);
+		stopped = std::move(s->engine);
+	}
+	stopped.reset();
+	if (remove)
+		obs_source_remove(outputSource);
+	obs_source_release(outputSource);
+	outputSource = nullptr;
+}
+
+// Brings the voice output in line with the settings: adopts the one saved in the collection or
+// creates it when the voice is on, removes it when off.
+void syncOutput()
+{
+	if (!collectionReady || shuttingDown)
+		return;
+	const tts::VoiceSettings settings = ChatManager::instance().voiceSettings();
+	if (!settings.enabled) {
+		releaseOutput(true);
+		for (obs_source_t *stray : voiceOutputs()) {
+			obs_source_remove(stray);
+			obs_source_release(stray);
+		}
+		return;
+	}
+	if (!outputSource) {
+		std::vector<obs_source_t *> saved = voiceOutputs();
+		for (std::size_t i = 0; i < saved.size(); ++i) {
+			if (i == 0) {
+				outputSource = saved[i];
+				continue;
+			}
+			obs_source_remove(saved[i]); // only one voice: a second one would read everything twice
+			obs_source_release(saved[i]);
+		}
+		if (!outputSource)
+			outputSource = createOutput();
+		if (!outputSource) {
+			obs_log(LOG_WARNING, "the voice output could not be created");
+			return;
+		}
+	}
+	bindOutput();
+	if (VoiceSource *s = outputData())
+		applySettings(s, settings);
 }
 
 } // namespace
@@ -361,29 +468,27 @@ void register_voice_source()
 	// Solo mensajes nuevos: el historial nunca se lee en voz alta.
 	messageConnection = QObject::connect(&manager, &ChatManager::message, &manager, onMessage);
 	deletedConnection = QObject::connect(&manager, &ChatManager::deleted, &manager, onDeleted);
+	settingsConnection = QObject::connect(&manager, &ChatManager::voiceSettingsChanged, &manager, syncOutput);
 
 	obs_source_info info = {};
 	info.id = tts::kVoiceSourceId;
 	info.type = OBS_SOURCE_TYPE_INPUT;
-	// Sin duplicar: dos copias independientes leerían cada mensaje dos veces.
-	info.output_flags = OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
+	// Never in "Add Source": the plugin creates its own voice output. Without duplicating: two
+	// copies would read each message twice.
+	info.output_flags = OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE | OBS_SOURCE_CAP_OBSOLETE;
 	info.icon_type = OBS_ICON_TYPE_AUDIO_OUTPUT;
 	info.get_name = voice_get_name;
 	info.create = voice_create;
 	info.destroy = voice_destroy;
-	info.update = voice_update;
 	info.deactivate = voice_deactivate;
 	info.get_properties = voice_properties;
 
-	// Version 0: the scenes saved before keep loading it (OBS stores the versioned id) with
-	// "enabled" off by default; it no longer appears in "Add Source".
+	// Version 0: scenes saved before version 2 keep loading it (OBS stores the versioned id).
 	obs_source_info legacy = info;
-	legacy.output_flags |= OBS_SOURCE_DEPRECATED | OBS_SOURCE_CAP_OBSOLETE;
-	legacy.get_defaults = voice_defaults_v0;
+	legacy.output_flags |= OBS_SOURCE_DEPRECATED;
 	obs_register_source(&legacy);
 
 	info.version = tts::kVoiceSourceVersion;
-	info.get_defaults = voice_defaults_latest;
 	obs_register_source(&info);
 }
 
@@ -393,7 +498,7 @@ void voice_migrate_legacy_sources()
 	obs_enum_sources(
 		[](void *param, obs_source_t *source) {
 			const char *id = obs_source_get_unversioned_id(source);
-			if (!id || std::strcmp(id, tts::kVoiceSourceId) != 0)
+			if (!id || std::strcmp(id, tts::kVoiceSourceId) != 0 || isVoiceOutput(source))
 				return true;
 			obs_data_t *settings = obs_source_get_settings(source);
 			// Only the values the user changed: the defaults depend on the version.
@@ -409,10 +514,38 @@ void voice_migrate_legacy_sources()
 	ChatManager::instance().migrateLegacyVoice(legacy);
 }
 
+void voice_collection_loaded()
+{
+	collectionReady = true;
+	voice_migrate_legacy_sources(); // may turn the voice on, which syncs through the signal
+	syncOutput();
+}
+
+void voice_collection_unloading()
+{
+	collectionReady = false;
+	releaseOutput(false);
+}
+
+void voice_save_state()
+{
+	saveOutputState();
+}
+
+void voice_skip_current()
+{
+	std::lock_guard<std::mutex> lock(sourcesMutex);
+	for (VoiceSource *s : sources)
+		if (s->engine)
+			s->engine->skipCurrent();
+}
+
 void voice_source_shutdown()
 {
+	releaseOutput(false); // normally already done when OBS cleared the scene collection
 	QObject::disconnect(messageConnection);
 	QObject::disconnect(deletedConnection);
+	QObject::disconnect(settingsConnection);
 	std::vector<std::unique_ptr<tts::VoiceEngine>> stopped;
 	{
 		std::lock_guard<std::mutex> lock(sourcesMutex);

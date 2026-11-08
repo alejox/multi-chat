@@ -155,8 +155,10 @@ void unregisterHotkeys()
 // aprovechamos para guardar las teclas.
 void on_frontend_save(obs_data_t *, bool saving, void *)
 {
-	if (saving)
+	if (saving) {
 		saveHotkeys();
+		voice_save_state();
+	}
 }
 
 void shutdown()
@@ -180,11 +182,17 @@ void on_frontend_event(enum obs_frontend_event event, void *)
 		ChatManager::instance().setStreaming(false);
 		overlay_set_streaming(false);
 		break;
+	// The voice output lives in the scene collection: released before OBS clears it (switching
+	// collections or exiting) and adopted or created again once the next one is loaded.
+	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGING:
+	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CLEANUP:
+		voice_collection_unloading();
+		break;
 	case OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED:
-		voice_migrate_legacy_sources();
+		voice_collection_loaded();
 		break;
 	case OBS_FRONTEND_EVENT_FINISHED_LOADING:
-		voice_migrate_legacy_sources();
+		voice_collection_loaded();
 		if (obs_frontend_streaming_active()) {
 			ChatManager::instance().setStreaming(true, ui::streamingServiceName());
 			overlay_set_streaming(true);
