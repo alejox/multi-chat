@@ -26,7 +26,8 @@ add_executable(
   ${src}/chat/updates.cpp
 )
 target_link_libraries(test-chat PRIVATE Qt6::Core Qt6::Test)
-target_compile_definitions(test-chat PRIVATE MULTICHAT_LOCALE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data/locale")
+target_compile_definitions(test-chat PRIVATE MULTICHAT_LOCALE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data/locale"
+                                            MULTICHAT_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
 add_executable(test-tts test-tts.cpp ${src}/chat/message.cpp ${src}/tts/speech-text.cpp ${src}/tts/voice-engine.cpp)
 target_link_libraries(test-tts PRIVATE Qt6::Core Qt6::Test)

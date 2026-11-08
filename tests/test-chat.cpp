@@ -327,6 +327,25 @@ QString firstText(const QJsonObject &message)
 	return message["parts"].toArray()[0].toObject()["text"].toString();
 }
 
+// data/locale/<name> as key → value (quotes removed, \" unescaped).
+QHash<QString, QString> readLocale(const QString &name)
+{
+	QHash<QString, QString> values;
+	QFile file(QStringLiteral(MULTICHAT_LOCALE_DIR "/") + name);
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+		return values;
+	for (const QString &line : QString::fromUtf8(file.readAll()).split('\n')) {
+		const qsizetype eq = line.indexOf('=');
+		if (eq <= 0)
+			continue;
+		QString value = line.mid(eq + 1).trimmed();
+		if (value.startsWith('"') && value.endsWith('"') && value.size() >= 2)
+			value = value.mid(1, value.size() - 2);
+		values.insert(line.left(eq).trimmed(), value.replace("\\\"", "\""));
+	}
+	return values;
+}
+
 } // namespace
 
 class ChatTest : public QObject {
@@ -1939,30 +1958,55 @@ private slots:
 
 	void localeFilesHaveEveryText()
 	{
-		const auto readIni = [](const QString &name) {
-			QHash<QString, QString> values;
-			QFile file(QStringLiteral(MULTICHAT_LOCALE_DIR "/") + name);
-			if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
-				return values;
-			for (const QString &line : QString::fromUtf8(file.readAll()).split('\n')) {
-				const qsizetype eq = line.indexOf('=');
-				if (eq <= 0)
-					continue;
-				QString value = line.mid(eq + 1).trimmed();
-				if (value.startsWith('"') && value.endsWith('"') && value.size() >= 2)
-					value = value.mid(1, value.size() - 2);
-				values.insert(line.left(eq).trimmed(), value.replace("\\\"", "\""));
-			}
-			return values;
-		};
-		const QHash<QString, QString> en = readIni("en-US.ini");
-		const QHash<QString, QString> es = readIni("es-ES.ini");
+		const QHash<QString, QString> en = readLocale("en-US.ini");
+		const QHash<QString, QString> es = readLocale("es-ES.ini");
 		QVERIFY(!en.isEmpty());
 		QVERIFY(!englishTexts().isEmpty());
 		for (auto it = englishTexts().cbegin(); it != englishTexts().cend(); ++it) {
 			QVERIFY2(en.value(it.key()) == it.value(), qPrintable("en-US.ini differs: " + it.key()));
 			QVERIFY2(!es.value(it.key()).isEmpty(), qPrintable("es-ES.ini lacks: " + it.key()));
 		}
+	}
+
+	// Both locales carry the same keys (nothing untranslated) and every key is used by the
+	// plugin: by its full name, through a prefix built at run time ("Status." + status) or
+	// with a trailing number ("Overlay.Sample" + i).
+	void localeFilesHaveTheSameKeysAndNoOrphans()
+	{
+		const QHash<QString, QString> en = readLocale("en-US.ini");
+		const QHash<QString, QString> es = readLocale("es-ES.ini");
+		QVERIFY(!en.isEmpty());
+		QVERIFY(!es.isEmpty());
+		for (auto it = en.cbegin(); it != en.cend(); ++it) {
+			QVERIFY2(es.contains(it.key()), qPrintable("es-ES.ini lacks: " + it.key()));
+			QVERIFY2(!es.value(it.key()).trimmed().isEmpty(), qPrintable("es-ES.ini is empty: " + it.key()));
+			QVERIFY2(!it.value().trimmed().isEmpty(), qPrintable("en-US.ini is empty: " + it.key()));
+		}
+		for (auto it = es.cbegin(); it != es.cend(); ++it)
+			QVERIFY2(en.contains(it.key()), qPrintable("en-US.ini lacks: " + it.key()));
+
+		QString code;
+		QDirIterator files(QStringLiteral(MULTICHAT_SRC_DIR), {"*.cpp", "*.hpp", "*.mm", "*.c", "*.c.in"},
+				   QDir::Files, QDirIterator::Subdirectories);
+		while (files.hasNext()) {
+			QFile file(files.next());
+			if (file.open(QIODevice::ReadOnly))
+				code += QString::fromUtf8(file.readAll());
+		}
+		QVERIFY(!code.isEmpty());
+		const auto used = [&code](const QString &key) {
+			if (code.contains('"' + key + '"'))
+				return true;
+			for (qsizetype dot = key.indexOf('.'); dot > 0; dot = key.indexOf('.', dot + 1))
+				if (code.contains('"' + key.left(dot + 1) + '"'))
+					return true;
+			QString stem = key;
+			while (!stem.isEmpty() && stem.back().isDigit())
+				stem.chop(1);
+			return stem != key && code.contains('"' + stem + '"');
+		};
+		for (auto it = en.cbegin(); it != en.cend(); ++it)
+			QVERIFY2(used(it.key()), qPrintable("locale key is not used by the plugin: " + it.key()));
 	}
 
 	void releaseChecksums()
