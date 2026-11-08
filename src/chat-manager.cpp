@@ -233,7 +233,7 @@ void ChatManager::hideUser(const QJsonObject &message)
 	if (!known) {
 		filters_.hiddenUsers.append(author);
 		save();
-		emit filtersChanged();
+		emit filtersChanged(author);
 	}
 	const QJsonObject deletion = chat::hideAuthor(message);
 	if (!deletion.isEmpty())

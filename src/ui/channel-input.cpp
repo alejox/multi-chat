@@ -117,15 +117,17 @@ ChannelInput::ChannelInput(QWidget *parent) : QWidget(parent)
 	previewTimer_.setSingleShot(true);
 	previewTimer_.setInterval(500);
 	connect(&previewTimer_, &QTimer::timeout, this, [this] { updatePreview(); });
-	connect(channel_, &QLineEdit::textChanged, this, [this] {
-		// A new text needs a new check: no stale "add anyway" nor pending add.
+	// A new text or platform needs a new check: no stale "add anyway" nor pending add (which
+	// would leave the button stuck on "Checking...").
+	const auto restartCheck = [this] {
 		pendingAdd_.clear();
 		notFound_.clear();
 		add_->setText(i18n::tr("Settings.Add"));
 		add_->setEnabled(true);
 		check_->hide();
 		previewTimer_.start();
-	});
+	};
+	connect(channel_, &QLineEdit::textChanged, this, restartCheck);
 	// The lookup answers in the background: check again when it does.
 	refreshTimer_.setSingleShot(true);
 	refreshTimer_.setInterval(200);
@@ -139,9 +141,9 @@ ChannelInput::ChannelInput(QWidget *parent) : QWidget(parent)
 	hint_->setForegroundRole(QPalette::PlaceholderText);
 	hintRow->addWidget(hint_, 1);
 	layout->addLayout(hintRow);
-	connect(platform_, &QComboBox::currentIndexChanged, this, [this] {
+	connect(platform_, &QComboBox::currentIndexChanged, this, [this, restartCheck] {
 		updateHint();
-		previewTimer_.start();
+		restartCheck();
 	});
 	// The button confirms a channel that was not found; Enter alone never adds it silently.
 	connect(add_, &QPushButton::clicked, this,

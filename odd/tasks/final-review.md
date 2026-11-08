@@ -33,5 +33,10 @@ Corregir los defectos confirmados por la revisión final (dos revisores independ
   - 4: la cola de voz guarda la identidad del mensaje (source, platform, id, authorId, author) y `VoiceEngine::cancel(deletion)` usa `chat::deletionMatches`; `onDeleted` ya no junta ids sueltos de otros canales.
   - 5: el sonido es `std::shared_ptr<const PcmBuffer>` (cola y búferes de audio por referencia); en "sonido y voz" sonido y texto son un único elemento.
   - RED: test-manager `clearTwiceThenUndoBringsBothBack` falla (listas de distinto tamaño); test-tts no compila con la nueva API (`cancel(QJsonObject)`, `enqueue(..., sound)`). GREEN: test-manager 31/31, test-tts 59/59 (5 ejecuciones seguidas), 6/6 suites; macOS BUILD SUCCEEDED sin warnings.
-- [ ] T3 Diálogo de configuración y entrada de canal (hallazgos 2, 6, 7) + timeout del instalador (8). Route: delegated (writer).
+- [x] T3 Diálogo de configuración y entrada de canal (hallazgos 2, 6, 7) + timeout del instalador (8). Route: delegated (writer). Base: 6d0bcc4.
+  - 2: `SettingsDialog::syncEntries()` copia `ChatManager::chats()` al recibir `stateChanged` y antes de cada cambio (añadir, quitar, activar, mover, arrastrar, modo); `ChannelInput::existing` lee el gestor. Así lo que añadió el asistente no se pisa. Sin prueba automática (diálogo con OBS).
+  - 6: `ChatManager::filtersChanged(const QString &hiddenUser)` lleva solo el autor nuevo; el diálogo lo añade si falta y no toca el resto del texto. RED: test-manager `hidesMessagesAndUsersLocally` falla (señal sin argumentos, `size() == 0`); GREEN: 31/31.
+  - 7: el cambio de plataforma hace el mismo reinicio que el cambio de texto (`restartCheck`). Sin prueba automática.
+  - 8: `WAIT_TIMEOUT` devuelve -1 con `Update.Problem.Timeout` (en-US y es-ES) en vez de "no se pudo copiar (código 259)". Sin verificar: no compila en macOS; la prueba de claves de test-chat confirma que la clave existe en ambos idiomas.
+  - Checks: 6/6 suites (test-chat 71, test-manager 31, test-tts 59); macOS BUILD SUCCEEDED sin warnings.
 - [ ] T4 Compilación, pruebas, instalación, README (nota de la fuente de voz versionada y del pendiente de Windows). Route: delegated (writer).

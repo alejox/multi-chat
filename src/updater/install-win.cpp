@@ -50,7 +50,7 @@ Location location()
 }
 
 // Pide permiso de administrador y ejecuta el programa. Devuelve el código de salida, o -1 si no
-// se pudo pedir el permiso (o se canceló).
+// se pudo pedir el permiso (o se canceló) o si el programa sigue corriendo pasado el tiempo.
 int runElevated(const QString &program, const QString &params, QString *problem)
 {
 	const std::wstring file = program.toStdWString();
@@ -68,7 +68,13 @@ int runElevated(const QString &program, const QString &params, QString *problem)
 						    : i18n::tr("Update.Problem.Elevate").arg(QString::number(error));
 		return -1;
 	}
-	WaitForSingleObject(info.hProcess, 180000);
+	if (WaitForSingleObject(info.hProcess, 180000) == WAIT_TIMEOUT) {
+		// Still running (a slow antivirus scan, for example): it may still finish fine, so this is
+		// not reported as a failed copy with the STILL_ACTIVE exit code.
+		CloseHandle(info.hProcess);
+		*problem = i18n::tr("Update.Problem.Timeout");
+		return -1;
+	}
 	DWORD code = 1;
 	GetExitCodeProcess(info.hProcess, &code);
 	CloseHandle(info.hProcess);
