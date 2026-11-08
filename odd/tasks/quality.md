@@ -48,10 +48,12 @@ Cerrar los pendientes de calidad de la auditoría y de los bloques 1–5 para qu
   - Dock: `data/icons/live.svg` y `eye.svg` teñidos con `ui::themedIcon` (punto en vivo con el color de alerta, ojo con el color del texto). Los chips son `QToolButton` con etiquetas en su propio layout; la línea de estado tiene el ojo y el total en etiquetas aparte. Emoji solo como reserva si falta el SVG.
   - Perfiles: `Profile::failed` + `chat::isLookupFailure(status)` (0, 403, 408, 429, 5xx = fallo; 404/410 = no existe). `ProfileCache` no guarda los fallos: los devuelve 15 s y vuelve a preguntar. El diálogo muestra `Settings.Validate.Unknown` ("No se pudo comprobar…") y el botón sigue siendo "Añadir", sin el aviso de "Añadir igualmente".
   - T3 en 9a0c115. RED observado: test-chat no compilaba (`isLookupFailure` sin declarar). GREEN: test-chat 67, test-tts 50, test-overlay 17; build macOS BUILD SUCCEEDED sin errores ni warnings. UI: pendiente de prueba manual (lista en T5).
-- [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
+- [x] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
+  - README: verificación SHA-256 del actualizador, "No se pudo comprobar" al añadir canales, la voz no lee mensajes borrados, fila de idioma.
+  - T4 en 382a78d. Checks: `cmake --preset macos && cmake --build --preset macos` → BUILD SUCCEEDED, 0 errores, 0 warnings; ctest 3/3 (test-chat 67, test-tts 50, test-overlay 17); OBS cerrado → instalado con `ditto` en `~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin`, `codesign -v` OK.
 
 ## Progress
 - Rama creada desde `feat/settings-dialog` (e8f5328). Bloque 5 probado por el usuario en OBS: funciona.
 
 ## Next step
-T1–T5 con un writer delegado.
+Prueba manual en OBS (idioma inglés y español, chips, comprobar canal sin red, voz con mensajes borrados). Push/PR: decisión del usuario.
