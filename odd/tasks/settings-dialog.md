@@ -45,7 +45,11 @@ Auditoría (snapshot de `main`, líneas pueden haber cambiado con los bloques 2�
   - T1 = commit `4b867b5`.
   - Estados de la entrada escrita: vacía, inválida (mensaje por plataforma), repetida, buscando (barra indeterminada), encontrada, no encontrada. "No encontrada" muestra el aviso y el botón pasa a «Añadir igualmente»; Intro nunca añade en silencio. Pulsar Añadir mientras se busca deja la entrada pendiente y se añade al confirmarse.
   - Nuevas validaciones de Twitch y Kick (`EntryError::TwitchUser`/`KickUser`). RED: test-chat no compilaba (`TwitchUser` no existe). GREEN: test-chat 61 (con los casos nuevos), test-tts 48, test-overlay 17. UI: solo compilación (BUILD SUCCEEDED, 0 errores, 0 warnings); prueba manual pendiente del usuario.
-- [ ] T3 Filas nuevas: interruptor, estado separado, arrastrar para ordenar; orden en los chips del dock. Route: delegated (writer).
+- [x] T3 Filas nuevas: interruptor, estado separado, arrastrar para ordenar; orden en los chips del dock. Route: delegated (writer).
+  - T2 = commit `5a59cc4`.
+  - Fila: casilla «Conectar <canal>», avatar, nombre (perfil o canal), plataforma · canal, estado (icono + texto, «en pausa», en vivo y espectadores) y detalle del error en líneas separadas; botón quitar con icono `close.svg` y nombre accesible «Quitar <canal>». Las filas se actualizan en sitio y solo se reconstruyen si cambia la lista.
+  - Orden: arrastrar (InternalMove; tras soltar se lee el orden y se reconstruyen las filas) o Alt+↑/↓. ChatManager ordena `sources_` según la lista (T1), y el dock ya recoloca los chips cuando cambia el orden del estado.
+  - Checks: macOS BUILD SUCCEEDED, 0 errores, 0 warnings; pruebas 61/48/17 sin cambios (lógica de orden cubierta por `sourcePlan`). UI: prueba manual pendiente del usuario.
 - [ ] T4 Asistente de primera ejecución con inserción de fuentes en la escena. Route: delegated (writer).
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
 

@@ -7,7 +7,10 @@
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
 
+#include <QApplication>
 #include <QButtonGroup>
+#include <QDropEvent>
+#include <QHash>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -30,7 +33,24 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include <functional>
+
 namespace {
+
+// The chat list: tells the dialog when a drag finished so the new order is saved.
+class ChatList : public QListWidget {
+public:
+	using QListWidget::QListWidget;
+	std::function<void()> onDropped;
+
+protected:
+	void dropEvent(QDropEvent *event) override
+	{
+		QListWidget::dropEvent(event);
+		if (onDropped)
+			onDropped();
+	}
+};
 
 class SettingsDialog : public QDialog {
 public:
@@ -50,10 +70,20 @@ public:
 		// Lista de chats.
 		auto *chatsBox = new QGroupBox(ui::T("Settings.Chats"), chatsPage);
 		auto *chatsLayout = new QVBoxLayout(chatsBox);
-		list_ = new QListWidget(chatsBox);
-		list_->setIconSize(QSize(18, 18));
-		list_->setMinimumHeight(140);
+		list_ = new ChatList(chatsBox);
+		list_->setMinimumHeight(160);
+		list_->setDragDropMode(QAbstractItemView::InternalMove);
+		list_->setDefaultDropAction(Qt::MoveAction);
+		list_->setSelectionMode(QAbstractItemView::SingleSelection);
+		list_->setAccessibleName(ui::T("Settings.Chats"));
+		list_->onDropped = [this] {
+			QMetaObject::invokeMethod(this, [this] { syncOrderFromList(); }, Qt::QueuedConnection);
+		};
 		chatsLayout->addWidget(list_);
+		auto *listHelp = new QLabel(ui::T("Settings.ListHelp"), chatsBox);
+		listHelp->setWordWrap(true);
+		listHelp->setForegroundRole(QPalette::PlaceholderText);
+		chatsLayout->addWidget(listHelp);
 
 		auto *addRow = new QHBoxLayout();
 		platform_ = new QComboBox(chatsBox);
@@ -177,11 +207,17 @@ public:
 		// The button confirms a channel that was not found; Enter alone never adds it silently.
 		connect(add_, &QPushButton::clicked, this, [this] { addEntry(!notFound_.isEmpty() && notFound_ == entryFromInput()); });
 		connect(channel_, &QLineEdit::returnPressed, this, [this] { addEntry(false); });
-		auto *removeKey = new QShortcut(QKeySequence::Delete, list_);
+		auto *removeKey = new QShortcut(QKeySequence::Delete, list_, nullptr, nullptr, Qt::WidgetWithChildrenShortcut);
 		connect(removeKey, &QShortcut::activated, this, [this] {
 			if (QListWidgetItem *item = list_->currentItem())
 				removeEntry(item->data(Qt::UserRole).toString());
 		});
+		auto *upKey = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_Up), list_, nullptr, nullptr,
+					    Qt::WidgetWithChildrenShortcut);
+		connect(upKey, &QShortcut::activated, this, [this] { moveCurrent(-1); });
+		auto *downKey = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_Down), list_, nullptr, nullptr,
+					      Qt::WidgetWithChildrenShortcut);
+		connect(downKey, &QShortcut::activated, this, [this] { moveCurrent(1); });
 		connect(auto_, &QRadioButton::toggled, this, [this] { apply(); });
 		connect(demo_, &QCheckBox::toggled, this, [this] { apply(); });
 		connect(&m, &ChatManager::stateChanged, this, [this] { refreshList(); });
@@ -488,80 +524,252 @@ private:
 		}
 	}
 
-	void refreshList()
+	// One row per configured chat, updated in place (focus and drags survive the frequent state
+	// updates); rebuilt only when the list itself changes.
+	struct Row {
+		QListWidgetItem *item = nullptr;
+		QWidget *widget = nullptr;
+		QCheckBox *enabled = nullptr;
+		QLabel *avatar = nullptr;
+		QLabel *name = nullptr;
+		QLabel *where = nullptr;
+		QLabel *statusIcon = nullptr;
+		QLabel *status = nullptr;
+		QLabel *live = nullptr;
+		QLabel *detail = nullptr;
+		QToolButton *remove = nullptr;
+	};
+
+	static QLabel *plainLabel(QWidget *parent)
 	{
-		const QJsonArray sources = ChatManager::instance().state().value("sources").toArray();
-		const QString selected = list_->currentItem() ? list_->currentItem()->data(Qt::UserRole).toString()
-							      : QString();
-		list_->clear();
-		for (const chat::ChatEntry &chatEntry : entries_) {
-			const QString &entry = chatEntry.entry;
-			chat::SourceInfo info;
-			QString error;
-			if (!chat::parseEntry(entry, info, error))
-				continue;
-			QString status = "idle";
-			int live = -1, viewers = -1;
-			QString detail;
-			for (const QJsonValue v : sources) {
-				const QJsonObject s = v.toObject();
-				if (s.value("key").toString() == info.key) {
-					status = s.value("status").toString();
-					live = s.value("live").toInt();
-					viewers = s.value("viewers").toInt(-1);
-					detail = s.value("detail").toString();
-				}
+		auto *label = new QLabel(parent);
+		label->setTextFormat(Qt::PlainText);
+		return label;
+	}
+
+	Row buildRow(const QString &entry)
+	{
+		Row r;
+		r.item = new QListWidgetItem(list_);
+		r.item->setData(Qt::UserRole, entry);
+		r.item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsDragEnabled);
+		r.widget = new QWidget(list_);
+		auto *layout = new QHBoxLayout(r.widget);
+		layout->setContentsMargins(4, 3, 2, 3);
+		r.enabled = new QCheckBox(r.widget);
+		r.avatar = new QLabel(r.widget);
+		r.avatar->setFixedSize(28, 28);
+		auto *text = new QVBoxLayout();
+		text->setSpacing(0);
+		r.name = plainLabel(r.widget);
+		QFont bold = r.name->font();
+		bold.setBold(true);
+		r.name->setFont(bold);
+		r.where = plainLabel(r.widget);
+		r.where->setForegroundRole(QPalette::PlaceholderText);
+		auto *statusRow = new QHBoxLayout();
+		statusRow->setSpacing(4);
+		r.statusIcon = new QLabel(r.widget);
+		r.status = plainLabel(r.widget);
+		r.live = plainLabel(r.widget);
+		{
+			QPalette p = r.live->palette();
+			p.setColor(QPalette::WindowText, ui::alertColor(p.color(QPalette::Window)));
+			r.live->setPalette(p);
+		}
+		statusRow->addWidget(r.statusIcon);
+		statusRow->addWidget(r.status);
+		statusRow->addWidget(r.live);
+		statusRow->addStretch(1);
+		r.detail = plainLabel(r.widget);
+		r.detail->setWordWrap(true);
+		r.detail->setPalette(r.live->palette());
+		text->addWidget(r.name);
+		text->addWidget(r.where);
+		text->addLayout(statusRow);
+		text->addWidget(r.detail);
+		r.remove = new QToolButton(r.widget);
+		const QIcon removeIcon = ui::themedIcon("close", palette().color(QPalette::ButtonText), 16, devicePixelRatioF());
+		if (removeIcon.isNull())
+			r.remove->setText(QString::fromUtf8("✕"));
+		else
+			r.remove->setIcon(removeIcon);
+		r.remove->setAutoRaise(true);
+		r.remove->setCursor(Qt::PointingHandCursor);
+		layout->addWidget(r.enabled, 0, Qt::AlignVCenter);
+		layout->addWidget(r.avatar, 0, Qt::AlignVCenter);
+		layout->addLayout(text, 1);
+		layout->addWidget(r.remove, 0, Qt::AlignVCenter);
+		connect(r.enabled, &QCheckBox::toggled, this, [this, entry](bool on) { setChatEnabled(entry, on); });
+		// Deferred: removing the chat rebuilds the list and deletes this button.
+		connect(r.remove, &QToolButton::clicked, this, [this, entry] {
+			QMetaObject::invokeMethod(this, [this, entry] { removeEntry(entry); }, Qt::QueuedConnection);
+		});
+		list_->setItemWidget(r.item, r.widget);
+		return r;
+	}
+
+	void updateRow(Row &r, const chat::ChatEntry &chatEntry, const QJsonArray &sources)
+	{
+		chat::SourceInfo info;
+		chat::EntryError code = chat::EntryError::None;
+		QString arg;
+		const bool valid = chat::parseEntry(chatEntry.entry, info, code, arg);
+		QString status = "idle", detail;
+		int live = -1, viewers = -1;
+		for (const QJsonValue v : sources) {
+			const QJsonObject s = v.toObject();
+			if (valid && s.value("key").toString() == info.key) {
+				status = s.value("status").toString();
+				live = s.value("live").toInt();
+				viewers = s.value("viewers").toInt(-1);
+				detail = s.value("detail").toString();
 			}
-			QString text = chat::platformName(info.platform) + QStringLiteral(" · ") + info.channel +
-				       "   —   " + ui::T(("Status." + status).toUtf8().constData());
-			if (live == 1)
-				text += QString::fromUtf8("  🔴 ") + ui::T("Live.Yes");
-			if (viewers >= 0)
-				text += QString::fromUtf8("  👁 ") + ui::formatCount(viewers);
-			if (status == "error" && !detail.isEmpty())
-				text += "\n" + detail;
-			// Fila: logo con el estado, texto y una ✕ a la derecha para quitar el canal. Los
-			// clics en el texto llegan a la lista (QLabel no los usa), así que se puede seleccionar.
-			auto *item = new QListWidgetItem(list_);
-			item->setData(Qt::UserRole, entry);
-			auto *row = new QWidget(list_);
-			if (!detail.isEmpty())
-				row->setToolTip(detail);
-			auto *rowLayout = new QHBoxLayout(row);
-			rowLayout->setContentsMargins(4, 2, 2, 2);
-			auto *avatar = new QLabel(row);
-			avatar->setPixmap(avatarFor(info, 28));
-			auto *icon = new QLabel(row);
-			icon->setPixmap(ui::statusIcon(info.platform, status, 18, devicePixelRatioF()).pixmap(18, 18));
-			auto *label = new QLabel(text, row);
-			label->setTextFormat(Qt::PlainText);
-			label->setWordWrap(true);
-			auto *remove = new QToolButton(row);
-			remove->setText(QString::fromUtf8("✕"));
-			remove->setToolTip(ui::T("Settings.Remove"));
-			remove->setAutoRaise(true);
-			remove->setCursor(Qt::PointingHandCursor);
-			rowLayout->addWidget(avatar, 0, Qt::AlignTop);
-			rowLayout->addWidget(icon, 0, Qt::AlignTop);
-			rowLayout->addWidget(label, 1);
-			rowLayout->addWidget(remove, 0, Qt::AlignVCenter);
-			// Diferido: quitar el canal reconstruye la lista y borra este botón.
-			connect(remove, &QToolButton::clicked, this, [this, entry] {
-				QMetaObject::invokeMethod(this, [this, entry] { removeEntry(entry); }, Qt::QueuedConnection);
-			});
-			item->setSizeHint(row->sizeHint());
-			list_->setItemWidget(item, row);
-			if (entry == selected)
-				list_->setCurrentItem(item);
 		}
-		if (entries_.isEmpty()) {
-			auto *item = new QListWidgetItem(ui::T("Settings.NoChats"), list_);
-			item->setFlags(Qt::NoItemFlags);
+		chat::Profile profile;
+		if (valid && !chat::isDemo(info))
+			ProfileCache::instance().get(info, profile);
+		const QString name = !profile.name.isEmpty() ? profile.name : valid ? info.channel : chatEntry.entry;
+
+		{
+			const QSignalBlocker block(r.enabled);
+			r.enabled->setChecked(chatEntry.enabled);
 		}
+		r.enabled->setAccessibleName(ui::T("Settings.Row.Enabled").arg(name));
+		r.enabled->setToolTip(ui::T("Settings.Row.EnabledTip"));
+		r.avatar->setPixmap(valid ? avatarFor(info, 28) : QPixmap());
+		r.name->setText(name);
+		r.where->setText(valid ? chat::platformName(info.platform) + QStringLiteral(" · ") + info.channel
+				       : chatEntry.entry);
+		r.widget->setEnabled(true);
+
+		QString statusText;
+		if (!valid) {
+			status = "error";
+			statusText = ui::T("Status.error");
+			detail = errorText(code, arg);
+		} else if (!chatEntry.enabled) {
+			status = "idle";
+			statusText = ui::T("Settings.Row.Paused");
+			detail.clear();
+			live = -1;
+			viewers = -1;
+		} else {
+			statusText = ui::T(("Status." + status).toUtf8().constData());
+		}
+		r.statusIcon->setPixmap(
+			ui::statusIcon(valid ? info.platform : QString(), status, 14, devicePixelRatioF()).pixmap(14, 14));
+		r.status->setText(statusText);
+		QString liveText;
+		if (live == 1)
+			liveText = QString::fromUtf8("· ● ") + ui::T("Live.Yes");
+		if (viewers >= 0)
+			liveText += (liveText.isEmpty() ? QStringLiteral("· ") : QStringLiteral("  ")) +
+				    ui::T("Dock.Viewers").arg(ui::formatCount(viewers));
+		r.live->setText(liveText);
+		r.live->setVisible(!liveText.isEmpty());
+		r.detail->setText(status == "error" ? detail : QString());
+		r.detail->setVisible(status == "error" && !detail.isEmpty());
+		r.widget->setToolTip(detail);
+		// Paused rows look dimmed, but the switch and the remove button keep working.
+		const QPalette::ColorRole nameRole = chatEntry.enabled ? QPalette::WindowText : QPalette::PlaceholderText;
+		r.name->setForegroundRole(nameRole);
+		r.status->setForegroundRole(nameRole);
+		r.remove->setToolTip(ui::T("Settings.Row.Remove").arg(name));
+		r.remove->setAccessibleName(ui::T("Settings.Row.Remove").arg(name));
+		r.item->setSizeHint(r.widget->sizeHint());
+		const QString accessible = name + ", " + r.where->text() + ", " + statusText;
+		r.item->setData(Qt::AccessibleTextRole, accessible);
+	}
+
+	void refreshList(bool rebuild = false)
+	{
+		QStringList order;
+		for (const chat::ChatEntry &e : entries_)
+			order << e.entry;
+		if (rebuild || !built_ || order != rowOrder_) {
+			const QString selected = list_->currentItem() ? list_->currentItem()->data(Qt::UserRole).toString()
+								      : QString();
+			const bool hadFocus = list_->hasFocus() || list_->isAncestorOf(QApplication::focusWidget());
+			rows_.clear();
+			list_->clear();
+			for (const QString &entry : order) {
+				if (rows_.contains(entry))
+					continue; // the same text twice (hand-edited config): one row
+				rows_.insert(entry, buildRow(entry));
+				if (entry == selected)
+					list_->setCurrentItem(rows_[entry].item);
+			}
+			if (order.isEmpty()) {
+				auto *item = new QListWidgetItem(ui::T("Settings.NoChats"), list_);
+				item->setFlags(Qt::NoItemFlags);
+			}
+			rowOrder_ = order;
+			built_ = true;
+			if (hadFocus)
+				list_->setFocus();
+		}
+		const QJsonArray sources = ChatManager::instance().state().value("sources").toArray();
+		for (const chat::ChatEntry &e : entries_)
+			updateRow(rows_[e.entry], e, sources);
+	}
+
+	void setChatEnabled(const QString &entry, bool on)
+	{
+		for (chat::ChatEntry &e : entries_)
+			if (e.entry == entry)
+				e.enabled = on;
+		apply();
+	}
+
+	// Alt+Up / Alt+Down: the keyboard alternative to dragging.
+	void moveCurrent(int delta)
+	{
+		QListWidgetItem *item = list_->currentItem();
+		if (!item)
+			return;
+		const QString entry = item->data(Qt::UserRole).toString();
+		qsizetype from = -1;
+		for (qsizetype i = 0; i < entries_.size(); ++i)
+			if (entries_[i].entry == entry)
+				from = i;
+		const qsizetype to = from + delta;
+		if (from < 0 || to < 0 || to >= entries_.size())
+			return;
+		entries_.move(from, to);
+		apply();
+		if (rows_.contains(entry))
+			list_->setCurrentItem(rows_[entry].item);
+		list_->setFocus();
+	}
+
+	// After a drag: the list's order becomes the chats' order.
+	void syncOrderFromList()
+	{
+		QList<chat::ChatEntry> ordered;
+		for (int i = 0; i < list_->count(); ++i) {
+			const QString entry = list_->item(i)->data(Qt::UserRole).toString();
+			for (const chat::ChatEntry &e : entries_)
+				if (e.entry == entry)
+					ordered << e;
+		}
+		if (ordered.size() != entries_.size())
+			return;
+		const QString current = list_->currentItem() ? list_->currentItem()->data(Qt::UserRole).toString()
+							     : QString();
+		entries_ = ordered;
+		apply();
+		// Item widgets do not always follow a moved item: rebuild them.
+		refreshList(true);
+		if (rows_.contains(current))
+			list_->setCurrentItem(rows_[current].item);
 	}
 
 	QList<chat::ChatEntry> entries_;
-	QListWidget *list_ = nullptr;
+	ChatList *list_ = nullptr;
+	QHash<QString, Row> rows_; // by entry
+	QStringList rowOrder_;
+	bool built_ = false;
 	QComboBox *platform_ = nullptr;
 	QLineEdit *channel_ = nullptr;
 	QLabel *hint_ = nullptr;
