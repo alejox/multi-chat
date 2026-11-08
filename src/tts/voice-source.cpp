@@ -58,7 +58,7 @@ struct VoiceSource {
 	tts::SpeechOptions options;
 	std::unique_ptr<tts::VoiceEngine> engine; // solo existe activada
 	Mode mode = Mode::Read;
-	tts::PcmBuffer sound; // the chime or the user's WAV, at kChimeSampleRate
+	std::shared_ptr<const tts::PcmBuffer> sound; // the chime or the user's WAV, at kChimeSampleRate; shared with the queue
 	QString soundPath;    // file the sound came from (empty: built-in)
 	int cooldownMs = kDefaultCooldownMs;
 	uint64_t lastChimeNs = 0;
@@ -139,14 +139,14 @@ void applySettings(VoiceSource *s, obs_data_t *settings)
 	const QString soundPath = QString::fromUtf8(obs_data_get_string(settings, "sound_file"));
 	const int cooldownMs = int(obs_data_get_int(settings, "sound_cooldown"));
 	// File reading happens outside the lock; only when the sound is used and the path changed.
-	tts::PcmBuffer sound;
+	std::shared_ptr<const tts::PcmBuffer> sound;
 	bool reloadSound = false;
 	if (mode != Mode::Read) {
 		std::lock_guard<std::mutex> lock(sourcesMutex);
-		reloadSound = s->sound.samples.empty() || s->soundPath != soundPath;
+		reloadSound = !s->sound || s->soundPath != soundPath;
 	}
 	if (reloadSound)
-		sound = loadSound(soundPath);
+		sound = std::make_shared<const tts::PcmBuffer>(loadSound(soundPath));
 
 	std::unique_ptr<tts::VoiceEngine> stopped; // se destruye al salir, ya sin el candado
 	std::lock_guard<std::mutex> lock(sourcesMutex);
@@ -166,11 +166,21 @@ void applySettings(VoiceSource *s, obs_data_t *settings)
 	}
 }
 
+// What a deletion event needs to recognize a queued message (see chat::deletionMatches).
+QJsonObject messageIdentity(const QJsonObject &message)
+{
+	QJsonObject identity;
+	for (const char *key : {"source", "platform", "id", "authorId", "author"})
+		identity.insert(QLatin1String(key), message.value(QLatin1String(key)));
+	return identity;
+}
+
 void onMessage(const QJsonObject &message)
 {
 	if (message.value(QStringLiteral("platform")).toString() == QStringLiteral("demo") &&
 	    obs_frontend_streaming_active())
 		return;
+	const QJsonObject identity = messageIdentity(message);
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	for (VoiceSource *s : sources) {
 		// Una fuente que no está en la escena en emisión no se oye: no se gasta nada en ella.
@@ -181,35 +191,30 @@ void onMessage(const QJsonObject &message)
 		const QString text = tts::speechTextForMessage(message, s->options);
 		if (text.isEmpty())
 			continue;
-		const QString id = message.value(QStringLiteral("id")).toString();
+		std::shared_ptr<const tts::PcmBuffer> sound;
 		if (s->mode != Mode::Read) {
 			const uint64_t now = os_gettime_ns();
 			if (tts::chimeAllowed(now, s->lastChimeNs, s->cooldownMs)) {
 				s->lastChimeNs = now;
-				s->engine->enqueueSound(s->sound, id);
+				sound = s->sound;
 			}
 		}
-		if (s->mode != Mode::Sound)
-			s->engine->enqueue(text, id);
+		// Sound and text are one queue item: a full queue or a deletion drops both together.
+		if (s->mode == Mode::Sound)
+			s->engine->enqueueSound(std::move(sound), identity);
+		else
+			s->engine->enqueue(text, identity, std::move(sound));
 	}
 }
 
-// A message deleted by moderators (or hidden from the dock) is not read if it is still waiting.
+// A message deleted by moderators (or hidden from the dock), or every message of a banned or
+// timed-out user, is not read if it is still waiting: same matching as the history.
 void onDeleted(const QJsonObject &deletion)
 {
-	QSet<QString> ids;
-	for (const QJsonValue id : deletion.value(QStringLiteral("ids")).toArray())
-		ids.insert(id.toString());
-	const QString id = deletion.value(QStringLiteral("id")).toString();
-	if (!id.isEmpty())
-		ids.insert(id);
-	ids.remove(QString());
-	if (ids.isEmpty())
-		return;
 	std::lock_guard<std::mutex> lock(sourcesMutex);
 	for (VoiceSource *s : sources)
 		if (s->engine)
-			s->engine->cancel(ids);
+			s->engine->cancel(deletion);
 }
 
 const char *voice_get_name(void *)

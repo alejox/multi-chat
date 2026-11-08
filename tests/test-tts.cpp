@@ -158,6 +158,25 @@ template<typename Pred> bool waitFor(Pred pred, int timeoutMs = 5000)
 	return true;
 }
 
+// The identity of a chat message, as the voice source queues it.
+QJsonObject identity(const QString &source, const QString &id, const QString &authorId = QString(),
+		     const QString &author = QString())
+{
+	return QJsonObject{{"source", source}, {"platform", "twitch"}, {"id", id}, {"authorId", authorId},
+			   {"author", author}};
+}
+
+QJsonObject scoped(QJsonObject deletion, const QString &source)
+{
+	deletion.insert("source", source);
+	return deletion;
+}
+
+std::shared_ptr<const PcmBuffer> sharedSilence(int ms)
+{
+	return std::make_shared<const PcmBuffer>(silence(ms));
+}
+
 VoiceEngineConfig fastConfig()
 {
 	VoiceEngineConfig config;
@@ -503,12 +522,12 @@ private slots:
 	void deletedMessagesAreNotSpoken()
 	{
 		Rig rig(fastConfig());
-		rig.engine->enqueue("actual", "m1");
-		rig.engine->enqueue("borrado", "m2");
-		rig.engine->enqueue("sigue", "m3");
+		rig.engine->enqueue("actual", identity("twitch:a", "m1"));
+		rig.engine->enqueue("borrado", identity("twitch:a", "m2"));
+		rig.engine->enqueue("sigue", identity("twitch:a", "m3"));
 		rig.engine->enqueue("sin id");
 		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
-		QCOMPARE(rig.engine->cancel({"m2", "otro"}), std::size_t(1));
+		QCOMPARE(rig.engine->cancel(scoped(chat::deleteMessage("twitch", "m2"), "twitch:a")), std::size_t(1));
 		rig.speech->job(0).onDone();
 		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
 		QCOMPARE(rig.speech->job(1).request.text, QString("sigue"));
@@ -516,11 +535,60 @@ private slots:
 		// The one being spoken is cut too.
 		rig.speech->job(1).onPcm(silence(5000));
 		QVERIFY(waitFor([&] { return rig.frames() >= 20; }));
-		QCOMPARE(rig.engine->cancel({"m3"}), std::size_t(1));
+		QCOMPARE(rig.engine->cancel(scoped(chat::deleteMessage("twitch", "m3"), "twitch:a")), std::size_t(1));
 		QVERIFY(waitFor([&] { return rig.speech->stops.load() == 1; }));
 		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 3; }));
 		QCOMPARE(rig.speech->job(2).request.text, QString("sin id"));
-		QCOMPARE(rig.engine->cancel({}), std::size_t(0));
+		QCOMPARE(rig.engine->cancel(QJsonObject()), std::size_t(0));
+	}
+
+	// A deletion only cancels what it matches: same chat and platform, and a ban or timeout
+	// (author) cancels every queued message of that user, whatever its id.
+	void cancelFollowsTheDeletionScope()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("actual", identity("twitch:a", "m0"));
+		rig.engine->enqueue("otro canal", identity("twitch:b", "m1", "u1", "ana"));
+		rig.engine->enqueue("de ana", identity("twitch:a", "m2", "u1", "ana"));
+		rig.engine->enqueue("de ana otra vez", identity("twitch:a", "m3", "u1", "ana"));
+		rig.engine->enqueue("de bob", identity("twitch:a", "m4", "u2", "bob"));
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		// Same id in another chat: not touched.
+		QCOMPARE(rig.engine->cancel(scoped(chat::deleteMessage("twitch", "m1"), "twitch:a")), std::size_t(0));
+		QCOMPARE(rig.engine->cancel(scoped(chat::deleteAuthor("twitch", "u1", "ana"), "twitch:a")), std::size_t(2));
+		rig.speech->job(0).onDone();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		QCOMPARE(rig.speech->job(1).request.text, QString("otro canal"));
+		rig.speech->job(1).onDone();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 3; }));
+		QCOMPARE(rig.speech->job(2).request.text, QString("de bob"));
+	}
+
+	// "Sound and voice": the sound and the text are one queue item, so a full queue drops both
+	// together and a deletion cancels both; the sound plays first, then the voice.
+	void soundAndTextShareOneQueueItem()
+	{
+		VoiceEngineConfig config = fastConfig();
+		config.queueLimit = 2;
+		Rig rig(config);
+		const auto sound = sharedSilence(60);
+		rig.engine->enqueue("actual", identity("twitch:a", "m0"));
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		QCOMPARE(rig.engine->enqueue("a", identity("twitch:a", "m1"), sound), std::size_t(0));
+		QCOMPARE(rig.engine->enqueue("b", identity("twitch:a", "m2"), sound), std::size_t(0));
+		QCOMPARE(rig.engine->enqueue("c", identity("twitch:a", "m3"), sound), std::size_t(1)); // "a" and its sound
+		QCOMPARE(rig.engine->cancel(scoped(chat::deleteMessage("twitch", "m3"), "twitch:a")), std::size_t(1));
+		QCOMPARE(sound.use_count(), long(2)); // queued by reference, not copied
+
+		rig.speech->job(0).onDone();
+		QVERIFY(waitFor([&] { return rig.frames() == 60; })); // b's sound...
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		QCOMPARE(rig.speech->job(1).request.text, QString("b")); // ...then b's text
+		rig.speech->job(1).onPcm(silence(40));
+		rig.speech->job(1).onDone();
+		QVERIFY(waitFor([&] { return rig.frames() == 100; }));
+		QThread::msleep(40);
+		QCOMPARE(rig.speech->jobCount(), 2); // nothing of "a" nor "c"
 	}
 
 	void queueCapacityChangesAndClear()
@@ -695,20 +763,21 @@ private slots:
 	void soundsPlayWithoutTheSynthesizerAndCanBeCancelled()
 	{
 		Rig rig(fastConfig());
-		rig.engine->enqueueSound(silence(60), "m1");
+		rig.engine->enqueueSound(sharedSilence(60), identity("twitch:a", "m1"));
 		QVERIFY(waitFor([&] { return rig.frames() == 60; }));
 		QCOMPARE(rig.speech->created.load(), 0);
 
-		rig.engine->enqueue("texto", "m2");
+		rig.engine->enqueue("texto", identity("twitch:a", "m2"));
 		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
-		rig.engine->enqueueSound(silence(60), "m3");
-		rig.engine->enqueueSound(silence(60), "m4");
-		QCOMPARE(rig.engine->cancel({"m3"}), std::size_t(1));
+		rig.engine->enqueueSound(sharedSilence(60), identity("twitch:a", "m3"));
+		rig.engine->enqueueSound(sharedSilence(60), identity("twitch:a", "m4"));
+		QCOMPARE(rig.engine->cancel(scoped(chat::deleteMessage("twitch", "m3"), "twitch:a")), std::size_t(1));
 		rig.speech->job(0).onDone();
 		QVERIFY(waitFor([&] { return rig.frames() == 120; }));
 		QThread::msleep(40);
 		QCOMPARE(rig.frames(), uint64_t(120)); // m3 never played
-		QVERIFY(rig.engine->enqueueSound(PcmBuffer(), "empty") == 0);
+		QVERIFY(rig.engine->enqueueSound(std::make_shared<const PcmBuffer>(), identity("twitch:a", "e")) == 0);
+		QVERIFY(rig.engine->enqueueSound(nullptr) == 0);
 	}
 
 	void backendIsCreatedOnFirstText()

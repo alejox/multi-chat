@@ -6,7 +6,7 @@
 
 #include "speech-backend.hpp"
 
-#include <QSet>
+#include <QJsonObject>
 #include <QString>
 
 #include <cstddef>
@@ -50,16 +50,19 @@ public:
 	VoiceEngine(const VoiceEngine &) = delete;
 	VoiceEngine &operator=(const VoiceEngine &) = delete;
 
-	// Devuelve cuántos textos antiguos se descartaron para hacer sitio. `id` (the chat message
-	// id) lets cancel() drop the text if the message is deleted before it is read.
-	std::size_t enqueue(const QString &text, const QString &id = QString());
-	// Queues ready-made audio (the notification sound) in the same order as the texts: no
-	// synthesizer involved, same real-time pacing, and cancel() drops it like a text. An empty
-	// buffer is ignored (returns 0).
-	std::size_t enqueueSound(const PcmBuffer &sound, const QString &id = QString());
-	// Drops the queued texts with these ids and cuts the current one if it is among them.
-	// Returns how many texts it dropped or cut.
-	std::size_t cancel(const QSet<QString> &ids);
+	// Devuelve cuántos elementos antiguos se descartaron para hacer sitio. `message` is the
+	// identity of the chat message (source, platform, id, authorId, author) so cancel() can drop
+	// it if a deletion matches it before it is read. `sound`, when given, plays right before the
+	// text as part of the same item: a full queue or a deletion drops both together.
+	std::size_t enqueue(const QString &text, const QJsonObject &message = QJsonObject(),
+			    std::shared_ptr<const PcmBuffer> sound = nullptr);
+	// Queues ready-made audio (the notification sound) alone, in the same order as the texts: no
+	// synthesizer involved, same real-time pacing, and cancel() drops it like a text. The buffer
+	// is shared, not copied. A null or empty buffer is ignored (returns 0).
+	std::size_t enqueueSound(std::shared_ptr<const PcmBuffer> sound, const QJsonObject &message = QJsonObject());
+	// Drops the queued items a deletion event matches (chat::deletionMatches) and cuts the
+	// current one if it matches. Returns how many items it dropped or cut.
+	std::size_t cancel(const QJsonObject &deletion);
 	void setVoice(const QString &voiceId, double rate);
 	// Corta el texto actual y descarta el audio que le quedaba; sigue con el siguiente.
 	void skipCurrent();

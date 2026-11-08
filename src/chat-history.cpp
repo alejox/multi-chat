@@ -23,7 +23,11 @@ QJsonObject ChatHistory::find(const QString &id) const
 
 void ChatHistory::clear()
 {
-	cleared_ = messages_;
+	// A second clear before undoing adds to what undo brings back instead of losing the first.
+	for (const QJsonValue v : messages_)
+		cleared_.append(v);
+	while (cleared_.size() > chat::kHistoryLimit)
+		cleared_.removeFirst();
 	messages_ = QJsonArray();
 }
 

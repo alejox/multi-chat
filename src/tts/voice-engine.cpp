@@ -1,5 +1,6 @@
 #include "voice-engine.hpp"
 #include "bounded-queue.hpp"
+#include "../chat/message.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -15,10 +16,15 @@ namespace {
 using SteadyClock = std::chrono::steady_clock;
 
 struct QueuedText {
-	QString text;
-	QString id;      // chat message id, empty if unknown
-	PcmBuffer sound; // ready-made audio instead of a text (text is empty then)
+	QString text;                           // empty: only the sound
+	QJsonObject message;                    // identity of the chat message, empty if unknown
+	std::shared_ptr<const PcmBuffer> sound; // ready-made audio played before the text, if any
 };
+
+bool playable(const std::shared_ptr<const PcmBuffer> &sound)
+{
+	return sound && !sound->samples.empty() && sound->channels && sound->sampleRate;
+}
 
 constexpr uint64_t kNsPerSecond = 1000000000ULL;
 constexpr uint64_t kNsPerMs = 1000000ULL;
@@ -33,8 +39,8 @@ struct VoiceEngine::Shared {
 	std::mutex mutex;
 	std::condition_variable wake;
 	BoundedQueue<QueuedText> queue;
-	QString currentId; // id of the text being spoken
-	std::deque<PcmBuffer> pcm;
+	QJsonObject currentMessage; // identity of the item being played
+	std::deque<std::shared_ptr<const PcmBuffer>> pcm;
 	std::size_t pcmOffset = 0; // muestras ya entregadas del primer búfer
 	uint64_t generation = 0;
 	bool renderDone = false;
@@ -62,41 +68,39 @@ VoiceEngine::~VoiceEngine()
 	thread_.join();
 }
 
-std::size_t VoiceEngine::enqueue(const QString &text, const QString &id)
+std::size_t VoiceEngine::enqueue(const QString &text, const QJsonObject &message, std::shared_ptr<const PcmBuffer> sound)
 {
+	if (!playable(sound))
+		sound.reset();
 	std::size_t dropped;
 	{
 		std::lock_guard<std::mutex> lock(shared_->mutex);
-		dropped = shared_->queue.push(QueuedText{text, id, {}});
+		dropped = shared_->queue.push(QueuedText{text, message, std::move(sound)});
 	}
 	shared_->wake.notify_all();
 	return dropped;
 }
 
-std::size_t VoiceEngine::enqueueSound(const PcmBuffer &sound, const QString &id)
+std::size_t VoiceEngine::enqueueSound(std::shared_ptr<const PcmBuffer> sound, const QJsonObject &message)
 {
-	if (sound.samples.empty() || !sound.channels || !sound.sampleRate)
+	if (!playable(sound))
 		return 0;
-	std::size_t dropped;
-	{
-		std::lock_guard<std::mutex> lock(shared_->mutex);
-		dropped = shared_->queue.push(QueuedText{QString(), id, sound});
-	}
-	shared_->wake.notify_all();
-	return dropped;
+	return enqueue(QString(), message, std::move(sound));
 }
 
-std::size_t VoiceEngine::cancel(const QSet<QString> &ids)
+std::size_t VoiceEngine::cancel(const QJsonObject &deletion)
 {
-	if (ids.isEmpty())
+	if (!chat::isDeletion(deletion))
 		return 0;
+	const auto matches = [&deletion](const QJsonObject &message) {
+		return !message.isEmpty() && chat::deletionMatches(deletion, message);
+	};
 	std::size_t cancelled;
 	{
 		std::lock_guard<std::mutex> lock(shared_->mutex);
-		cancelled = shared_->queue.removeIf(
-			[&ids](const QueuedText &item) { return !item.id.isEmpty() && ids.contains(item.id); });
-		if (!shared_->currentId.isEmpty() && ids.contains(shared_->currentId)) {
-			shared_->currentId.clear();
+		cancelled = shared_->queue.removeIf([&matches](const QueuedText &item) { return matches(item.message); });
+		if (matches(shared_->currentMessage)) {
+			shared_->currentMessage = QJsonObject();
 			shared_->skip = true;
 			++cancelled;
 		}
@@ -157,7 +161,7 @@ void VoiceEngine::run()
 		s.pcmOffset = 0;
 		s.renderDone = false;
 		speaking = false;
-		s.currentId.clear();
+		s.currentMessage = QJsonObject();
 		lock.unlock();
 		if (backend)
 			backend->stop();
@@ -179,13 +183,15 @@ void VoiceEngine::run()
 				continue;
 			}
 			const uint64_t generation = ++s.generation;
-			s.currentId = next.id;
+			s.currentMessage = next.message;
 			speaking = true;
 			firstChunkOfText = true;
 			s.lastActivity = SteadyClock::now();
-			if (!next.sound.samples.empty()) {
-				// A sound is already rendered: it only needs the real-time delivery below.
+			// A sound is already rendered: it only needs the real-time delivery below, and the
+			// text's audio (if any) is appended after it.
+			if (next.sound)
 				s.pcm.push_back(std::move(next.sound));
+			if (next.text.isEmpty()) {
 				s.renderDone = true;
 				continue;
 			}
@@ -206,7 +212,7 @@ void VoiceEngine::run()
 							std::lock_guard<std::mutex> guard(shared->mutex);
 							if (generation != shared->generation)
 								return;
-							shared->pcm.push_back(std::move(buffer));
+							shared->pcm.push_back(std::make_shared<const PcmBuffer>(std::move(buffer)));
 							shared->lastActivity = SteadyClock::now();
 						}
 						shared->wake.notify_all();
@@ -224,8 +230,13 @@ void VoiceEngine::run()
 
 			lock.lock();
 			if (!backend) {
-				speaking = false; // este sistema no tiene voz: el texto se pierde
-				s.currentId.clear();
+				// este sistema no tiene voz: el texto se pierde (el sonido, si lo hay, suena)
+				if (s.pcm.empty()) {
+					speaking = false;
+					s.currentMessage = QJsonObject();
+				} else {
+					s.renderDone = true;
+				}
 			}
 			continue;
 		}
@@ -233,7 +244,7 @@ void VoiceEngine::run()
 		if (s.pcm.empty()) {
 			if (s.renderDone) {
 				speaking = false;
-				s.currentId.clear();
+				s.currentMessage = QJsonObject();
 				s.renderDone = false;
 				s.wake.wait_for(lock, std::chrono::milliseconds(config_.gapMs), interrupted);
 			} else if (SteadyClock::now() - s.lastActivity >= stallTimeout) {
@@ -249,7 +260,7 @@ void VoiceEngine::run()
 		}
 
 		// Un trozo del primer búfer, a ritmo real.
-		PcmBuffer &front = s.pcm.front();
+		const PcmBuffer &front = *s.pcm.front();
 		const uint32_t rate = front.sampleRate;
 		const uint32_t channels = front.channels;
 		const std::size_t chunkFrames = std::max<std::size_t>(1, std::size_t(rate) * config_.chunkMs / 1000);
