@@ -37,7 +37,8 @@ public:
 	void focusInput();
 
 private:
-	enum class Check { Empty, Invalid, Duplicate, Loading, Found, NotFound };
+	// Unknown: the lookup failed (network, server), so it is not known whether the channel exists.
+	enum class Check { Empty, Invalid, Duplicate, Loading, Found, NotFound, Unknown };
 	struct Validation {
 		Check state = Check::Empty;
 		QString entry;

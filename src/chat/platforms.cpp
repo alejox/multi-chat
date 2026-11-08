@@ -30,6 +30,11 @@ LiveResult checkLive(const SourceInfo &s)
 	return {};
 }
 
+bool isLookupFailure(int status)
+{
+	return status == 0 || status == 403 || status == 408 || status == 429 || status >= 500;
+}
+
 Profile fetchProfile(const SourceInfo &s)
 {
 	if (s.platform == "twitch")

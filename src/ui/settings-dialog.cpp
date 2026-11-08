@@ -187,6 +187,8 @@ ChannelInput::Validation ChannelInput::validate()
 	}
 	if (!ProfileCache::instance().get(v.info, v.profile))
 		v.state = Check::Loading;
+	else if (v.profile.failed)
+		v.state = Check::Unknown;
 	else if (v.profile.name.isEmpty() && v.profile.avatar.isEmpty())
 		v.state = Check::NotFound;
 	else
@@ -213,7 +215,7 @@ void ChannelInput::updatePreview()
 
 	// A pending add finishes when the lookup answers.
 	const bool pending = !pendingAdd_.isEmpty() && pendingAdd_ == v.entry;
-	if (pending && v.state == Check::Found) {
+	if (pending && (v.state == Check::Found || v.state == Check::Unknown)) {
 		commit(v.entry);
 		return;
 	}
@@ -226,6 +228,8 @@ void ChannelInput::updatePreview()
 		notFound_ = v.entry;
 	} else {
 		notFound_.clear();
+		if (v.state == Check::Unknown)
+			message = ui::T("Settings.Validate.Unknown").arg(chat::platformName(v.info.platform));
 	}
 	check_->setText(message);
 	check_->setVisible(!message.isEmpty());
@@ -261,6 +265,7 @@ void ChannelInput::addEntry(bool confirmed)
 			updatePreview();
 		return;
 	case Check::Found:
+	case Check::Unknown: // could not check: added as typed, without the "not found" warning
 		commit(v.entry);
 		return;
 	}

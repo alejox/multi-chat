@@ -261,8 +261,11 @@ Profile fetchProfile(const SourceInfo &s)
 	const std::string url = s.videoFixed ? ("https://www.youtube.com/watch?v=" + s.extra).toStdString()
 					     : channelUrl(s.channel).toStdString();
 	net::Response res = net::get(url, kCookies);
-	if (!res.ok())
-		return {};
+	if (!res.ok()) {
+		Profile failed;
+		failed.failed = isLookupFailure(res.status);
+		return failed;
+	}
 	return profileFromPage(QString::fromUtf8(res.body));
 }
 

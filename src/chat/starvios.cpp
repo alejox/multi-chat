@@ -308,6 +308,8 @@ LiveResult fetchDiscovery(const QString &channel, QString &streamId, QString &ow
 			 {{"Accept", "application/json"}}, kRestTimeoutMs);
 	if (!res.ok()) {
 		error = res.status ? QStringLiteral("HTTP %1").arg(res.status) : QString::fromStdString(res.error);
+		if (profile)
+			profile->failed = isLookupFailure(res.status);
 		return {};
 	}
 	const QJsonObject json = QJsonDocument::fromJson(QByteArray::fromStdString(res.body)).object();
