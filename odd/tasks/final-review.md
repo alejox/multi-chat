@@ -39,4 +39,10 @@ Corregir los defectos confirmados por la revisión final (dos revisores independ
   - 7: el cambio de plataforma hace el mismo reinicio que el cambio de texto (`restartCheck`). Sin prueba automática.
   - 8: `WAIT_TIMEOUT` devuelve -1 con `Update.Problem.Timeout` (en-US y es-ES) en vez de "no se pudo copiar (código 259)". Sin verificar: no compila en macOS; la prueba de claves de test-chat confirma que la clave existe en ambos idiomas.
   - Checks: 6/6 suites (test-chat 71, test-manager 31, test-tts 59); macOS BUILD SUCCEEDED sin warnings.
-- [ ] T4 Compilación, pruebas, instalación, README (nota de la fuente de voz versionada y del pendiente de Windows). Route: delegated (writer).
+- [x] T4 Compilación, pruebas, instalación, README (nota de la fuente de voz versionada y del pendiente de Windows). Route: delegated (writer). Base: f0b7743.
+  - README: voces de versiones anteriores no empiezan a leer, deshacer tras dos vaciados, cancelación de cola por expulsión, aviso de instalación lenta en Windows, pendiente del `%TEMP%` y estructura de `src/tts/`.
+  - Checks: pruebas desde cero (sin `*_autogen`) 6/6 suites, sin warnings (test-chat 71, test-tts 59, test-overlay 20, test-box-measure 9, test-manager 31, overlay-js 6); `cmake --preset macos && cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings; OBS cerrado, plugin instalado con `ditto` y `codesign -v` correcto.
+  - Pendiente (manual): ver la lista de comprobación del informe; hallazgo 8 sin compilar en Windows.
+
+## Next step
+Comprobación manual en OBS (voz vieja/nueva, Configurar con asistente abierto, ocultar usuario, cambio de plataforma). Push/PR a criterio del usuario.
