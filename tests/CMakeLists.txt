@@ -70,3 +70,10 @@ add_test(NAME test-chat COMMAND test-chat)
 add_test(NAME test-tts COMMAND test-tts)
 add_test(NAME test-overlay COMMAND test-overlay)
 add_test(NAME test-manager COMMAND test-manager)
+
+# Helpers of the overlay pages (data/overlay/overlay.js) with Node's built-in runner, when Node is
+# installed.
+find_program(NODE node)
+if(NODE)
+  add_test(NAME overlay-js COMMAND ${NODE} --test ${CMAKE_CURRENT_SOURCE_DIR}/overlay-js.test.js)
+endif()

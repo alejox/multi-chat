@@ -57,7 +57,12 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
   - `src/platforms-registry.hpp`: id, nombre, color y orden. Lo usan `chat::platformName`, `ui::platformColor`, el orden de `ChatManager::state()`, las casillas de la voz y los `show_*` del overlay. `icons.js` conserva su tabla; `iconsJsMatchesTheRegistry` (test-overlay) compara ids, orden y colores.
   - Sin RED: el registro se escribió antes que sus pruebas; se comprobó que la prueba de `icons.js` falla cambiando un color del registro (mutación revertida).
   - Checks: test-chat 71, test-tts 56, test-overlay 19, test-manager 30; build macOS SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T5 `overlay.js` compartido + pruebas con node. Route: delegated (writer).
+- [x] T5 `overlay.js` compartido + pruebas con node. Route: delegated (writer). Previo: T4 `7e58a92`.
+  - `data/overlay/overlay.js` con `applyCustomCss`, `applyTextStyle`, `own`, `authorColor`, `BADGES`/`badgeLabel`, `FALLBACK`/`nameColor`, `safeUrl`, `el`, `platformIcon`; las 4 páginas lo cargan tras `icons.js`. `badgeLabel(b, config)` recibe la configuración en vez de leer la global.
+  - Unificación: se tomó la versión de `featured.html` (`nameColor` con `String(name || '')`, `el` con `String(text)`); `index.html` usa `platformIcon` en lugar de `ICONS[m.platform] || ''`. Igual para todas las plataformas reales; solo cambia ante datos raros (autor ausente, plataforma tipo `constructor`).
+  - `tests/overlay-js.test.js` (`node --test`, sin dependencias) registrado en ctest como `overlay-js` si hay `node`. RED observado: falló al no existir `overlay.js`; GREEN tras crearlo. Comprobado además con `node --check` que cada página (icons.js + overlay.js + su script) no redeclara nombres.
+  - El bundle de macOS toma `data/` con GLOB al configurar: hace falta `cmake --preset macos` para que entre `overlay.js` (comprobado en `Contents/Resources/overlay/overlay.js`).
+  - Checks: test-chat 71, test-tts 56, test-overlay 19, test-manager 30, overlay-js 6; build macOS SUCCEEDED, 0 errores, 0 warnings.
 - [ ] T6 Partir `overlay-source.cpp`. Route: delegated (writer).
 - [ ] T7 Partir `chat-dock.cpp` y `settings-dialog.cpp`. Route: delegated (writer).
 - [ ] T8 Compilación, pruebas, instalación y README. Route: delegated (writer).
@@ -67,6 +72,7 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
 
 ## Found bugs
 - Topes distintos (dock 300, manager 200): un mensaje que el dock mostraba más allá de los 200 últimos no se podía destacar (`feature(id)` no lo encontraba) y tras "Deshacer" el dock volvía con 200. Queda resuelto como efecto de T2 (alcance pedido), no por un arreglo aparte.
+- `nameColor` (páginas): para colores muy oscuros el factor de aclarado pasa de 1 y da componentes > 255 (`#000000` → `rgb(272,272,272)`); el navegador lo recorta a blanco, así que se ve blanco puro. Sin arreglar; la prueba describe el comportamiento actual.
 
 ## Next step
 T1–T8 con un writer delegado.
