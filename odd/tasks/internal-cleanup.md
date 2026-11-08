@@ -63,7 +63,11 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
   - `tests/overlay-js.test.js` (`node --test`, sin dependencias) registrado en ctest como `overlay-js` si hay `node`. RED observado: falló al no existir `overlay.js`; GREEN tras crearlo. Comprobado además con `node --check` que cada página (icons.js + overlay.js + su script) no redeclara nombres.
   - El bundle de macOS toma `data/` con GLOB al configurar: hace falta `cmake --preset macos` para que entre `overlay.js` (comprobado en `Contents/Resources/overlay/overlay.js`).
   - Checks: test-chat 71, test-tts 56, test-overlay 19, test-manager 30, overlay-js 6; build macOS SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T6 Partir `overlay-source.cpp`. Route: delegated (writer).
+- [x] T6 Partir `overlay-source.cpp`. Route: delegated (writer). Previo: T5 `d855c44`.
+  - `src/overlay-source.cpp` (1541 líneas) → `src/overlay/`: `source.cpp` 234 (callbacks y registro), `properties.cpp` 527, `config.cpp` 247, `viewers-layout.cpp` 330 (cajas y ajuste a escenas), `wiring.cpp` 160 (estado compartido y `connectManager()`, antes dentro de `register_overlay_source`) y `source-internal.hpp` 191 (namespace `overlay_source`, antes anónimo). `overlay-source.hpp` pasa a `src/overlay/`.
+  - Movimiento puro comprobado línea a línea (multiconjunto de líneas: solo cambian includes, namespaces, declaraciones y comentarios de cabecera).
+  - `hexColor` se queda: no es idéntica a `overlay::cssColor` (da `#rrggbb` y `cssColor` da `rgba(r, g, b, a)`, y las páginas lo pasan por `rgbTriplet`, que espera hexadecimal).
+  - Checks: ctest 5/5 (sin cambios de expectativas); `cmake --preset macos` + build SUCCEEDED, 0 errores, 0 warnings.
 - [ ] T7 Partir `chat-dock.cpp` y `settings-dialog.cpp`. Route: delegated (writer).
 - [ ] T8 Compilación, pruebas, instalación y README. Route: delegated (writer).
 
