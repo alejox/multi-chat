@@ -35,6 +35,21 @@ const char *fixture(int index)
 		R"js(<link rel="modulepreload" href="/assets/index-AAA.js"/><script type="module" src="/assets/client-D8x_9-q.js" async></script>)js",
 		// 14: fragmento del bundle con las constantes de Supabase. La clave es inventada.
 		R"js(TSS_SERVER_FN_BASE:`/_serverFn/`,VITE_SUPABASE_PROJECT_ID:`abc`,VITE_SUPABASE_PUBLISHABLE_KEY:`sb_publishable_Nueva-Clave_123`,VITE_SUPABASE_URL:`https://abcdefgh.supabase.co`})js",
+		// 15: Kick chat message with a numeric sender id (made-up data).
+		R"js({"id":"k-msg-1","content":"hola","sender":{"id":777,"username":"Pepe","slug":"pepe","identity":{"badges":[]}}})js",
+		// 16: Kick moderation events from chatrooms.<id>.v2 (made-up data): MessageDeletedEvent,
+		// UserBannedEvent (with "data" as a JSON string, as Pusher sends it) and ChatroomClearEvent.
+		R"js({"event":"App\\Events\\MessageDeletedEvent","data":{"id":"evt-1","message":{"id":"k-msg-1"},"aiModerated":false}})js",
+		R"js({"event":"App\\Events\\UserBannedEvent","data":"{\"id\":\"evt-2\",\"user\":{\"id\":777,\"username\":\"Pepe\",\"slug\":\"pepe\"},\"banned_by\":{\"id\":1,\"username\":\"mod\"},\"permanent\":false,\"duration\":5}"})js",
+		// 18: YouTube text message with its author channel id (made-up data).
+		R"js({"addChatItemAction":{"item":{"liveChatTextMessageRenderer":{"id":"yt-msg-1","authorName":{"simpleText":"Ana"},
+			"authorExternalChannelId":"UCabc","message":{"runs":[{"text":"hola"}]}}}}})js",
+		// 19: YouTube moderation actions (made-up data).
+		R"js([{"markChatItemAsDeletedAction":{"deletedStateMessage":{"runs":[{"text":"[mensaje eliminado]"}]},"targetItemId":"yt-msg-1"}},
+			{"markChatItemsByAuthorAsDeletedAction":{"deletedStateMessage":{"runs":[]},"externalChannelId":"UCabc"}},
+			{"removeChatItemAction":{"targetItemId":"yt-msg-1"}},
+			{"removeChatItemByAuthorAction":{"externalChannelId":"UCabc"}},
+			{"addChatItemAction":{"item":{}}}])js",
 	};
 	return fixtures[index];
 }

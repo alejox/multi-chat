@@ -172,11 +172,30 @@ QJsonObject toMessage(const QJsonObject &action, const QString &channel)
 		o.badges = badges(r);
 		o.amount = simpleText(r.value("purchaseAmountText").toObject());
 		o.id = r.value("id").toString();
+		o.authorId = r.value("authorExternalChannelId").toString();
 		if (QString::fromLatin1(key) == "liveChatMembershipItemRenderer")
 			o.system = simpleText(r.value("headerSubtext").toObject());
 		QString author = simpleText(r.value("authorName").toObject());
 		return makeMessage("youtube", channel, author.isEmpty() ? QStringLiteral("?") : author,
 				   runsToParts(r.value("message").toObject().value("runs").toArray()), o);
+	}
+	return {};
+}
+
+QJsonObject toDeletion(const QJsonObject &action)
+{
+	// A moderator deleted one message (targetItemId) or hid / banned a user (externalChannelId, the
+	// same value as authorExternalChannelId on their messages).
+	for (const char *key : {"markChatItemAsDeletedAction", "removeChatItemAction"}) {
+		const QString id = action.value(QLatin1String(key)).toObject().value("targetItemId").toString();
+		if (!id.isEmpty())
+			return deleteMessage("youtube", id);
+	}
+	for (const char *key : {"markChatItemsByAuthorAsDeletedAction", "removeChatItemByAuthorAction"}) {
+		const QString channelId =
+			action.value(QLatin1String(key)).toObject().value("externalChannelId").toString();
+		if (!channelId.isEmpty())
+			return deleteAuthor("youtube", channelId, QString());
 	}
 	return {};
 }
@@ -306,6 +325,8 @@ protected:
 			if (!first) {
 				for (const QJsonValue a : lc.value("actions").toArray()) {
 					QJsonObject m = toMessage(a.toObject(), source_.channel);
+					if (m.isEmpty())
+						m = toDeletion(a.toObject());
 					if (!m.isEmpty())
 						post_(m);
 				}

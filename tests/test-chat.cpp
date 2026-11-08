@@ -1338,6 +1338,75 @@ private slots:
 		QVERIFY(!deletionMatches(QJsonObject{{"source", "kick:canal"}, {"platform", "kick"}}, m));
 	}
 
+	void kickModeration()
+	{
+		QJsonObject msg = kick::toMessage(QJsonDocument::fromJson(fixture(15)).object(), "canal");
+		QCOMPARE(msg["id"].toString(), QString("k-msg-1"));
+		QCOMPARE(msg["authorId"].toString(), QString("777"));
+		msg.insert("source", "kick:canal");
+
+		const QJsonObject deleted = QJsonDocument::fromJson(fixture(16)).object();
+		QJsonObject d = kick::toDeletion(deleted["event"].toString(), deleted["data"].toObject());
+		QCOMPARE(d["id"].toString(), QString("k-msg-1"));
+		d.insert("source", "kick:canal");
+		QVERIFY(deletionMatches(d, msg));
+
+		const QJsonObject banned = QJsonDocument::fromJson(fixture(17)).object();
+		QJsonObject ban = kick::toDeletion(banned["event"].toString(),
+						   QJsonDocument::fromJson(banned["data"].toString().toUtf8()).object());
+		QCOMPARE(ban["authorId"].toString(), QString("777"));
+		QCOMPARE(ban["author"].toString(), QString("Pepe"));
+		ban.insert("source", "kick:canal");
+		QVERIFY(deletionMatches(ban, msg));
+
+		QJsonObject clear = kick::toDeletion("App\\Events\\ChatroomClearEvent", QJsonObject{{"id", "evt-3"}});
+		QVERIFY(clear["all"].toBool());
+		clear.insert("source", "kick:otro");
+		QVERIFY(!deletionMatches(clear, msg));
+
+		QVERIFY(kick::toDeletion("App\\Events\\ChatMessageEvent", QJsonObject()).isEmpty());
+		QVERIFY(kick::toDeletion("App\\Events\\MessageDeletedEvent", QJsonObject()).isEmpty());
+	}
+
+	void youtubeModeration()
+	{
+		QJsonObject msg = youtube::toMessage(QJsonDocument::fromJson(fixture(18)).object(), "@canal");
+		QCOMPARE(msg["authorId"].toString(), QString("UCabc"));
+		msg.insert("source", "youtube:@canal");
+
+		const QJsonArray actions = QJsonDocument::fromJson(fixture(19)).array();
+		QCOMPARE(actions.size(), 5);
+		for (int i = 0; i < 4; ++i) {
+			QJsonObject d = youtube::toDeletion(actions[i].toObject());
+			QCOMPARE(d["platform"].toString(), QString("youtube"));
+			d.insert("source", "youtube:@canal");
+			QVERIFY2(deletionMatches(d, msg), qPrintable(QString::number(i)));
+			d.insert("source", "youtube:@otro");
+			QVERIFY(!deletionMatches(d, msg));
+		}
+		QCOMPARE(youtube::toDeletion(actions[0].toObject())["id"].toString(), QString("yt-msg-1"));
+		QCOMPARE(youtube::toDeletion(actions[1].toObject())["authorId"].toString(), QString("UCabc"));
+		QVERIFY(youtube::toDeletion(actions[4].toObject()).isEmpty());
+		QVERIFY(youtube::toMessage(actions[0].toObject(), "@canal").isEmpty());
+	}
+
+	void starviosModeration()
+	{
+		const QJsonObject row{{"id", "m1"}, {"user_id", "u1"}, {"body", "hola"}, {"is_deleted", true}};
+		QJsonObject d = starvios::toDeletion(QJsonObject{{"op", "UPDATE"}, {"msg", row}});
+		QCOMPARE(d["platform"].toString(), QString("starvios"));
+		QCOMPARE(d["id"].toString(), QString("m1"));
+		QCOMPARE(starvios::toDeletion(QJsonObject{{"op", "DELETE"}, {"msg", QJsonObject{{"id", "m1"}}}})["id"]
+				 .toString(),
+			 QString("m1"));
+		// An edit that does not delete, a new row or a row without id is not a deletion.
+		QJsonObject edited = row;
+		edited.insert("is_deleted", false);
+		QVERIFY(starvios::toDeletion(QJsonObject{{"op", "UPDATE"}, {"msg", edited}}).isEmpty());
+		QVERIFY(starvios::toDeletion(QJsonObject{{"op", "INSERT"}, {"msg", row}}).isEmpty());
+		QVERIFY(starvios::toDeletion(QJsonObject{{"op", "DELETE"}, {"msg", QJsonObject()}}).isEmpty());
+	}
+
 	void kickMessage()
 	{
 		QJsonArray parts = kick::splitContent("hola [emote:37226:KEKW] que tal");
