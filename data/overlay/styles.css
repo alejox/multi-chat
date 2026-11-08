@@ -111,7 +111,7 @@ body.bg .msg, body.bg #clock, body.bg #box { --s-rgb: var(--bg-rgb); --s-alpha: 
   96% { translate: -1px 0; }
 }
 
-/* Typography from the source properties (see applyTextStyle in icons.js).
+/* Typography from the source properties (see applyTextStyle in each page).
    --ts reproduces the previous shadow with the chosen color and blur; "Always" also puts it
    over backgrounds and styles that remove it, "Never" removes every text shadow. */
 :root { --ts: 0 0 calc(var(--sb, 6px) / 3) var(--sc, #000), 0 1px calc(var(--sb, 6px) / 2) color-mix(in srgb, var(--sc, #000) 80%, transparent),
