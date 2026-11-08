@@ -102,6 +102,22 @@ QString foldText(const QString &text);
 // hidden by the command rule.
 bool isFiltered(const QJsonObject &message, const FilterRules &rules);
 
+// Auto-hide rule of one "Multichat (featured)" source: the message stays baseSeconds plus
+// perCharMs per character, at most maxSeconds. Disabled = it stays until removed by hand.
+struct FeaturedHidePolicy {
+	bool enabled = true;
+	int baseSeconds = 8;
+	int perCharMs = 60;
+	int maxSeconds = 30;
+};
+// Characters that count for the time on screen: the system line and the text parts; an
+// emote counts as two.
+int featuredTextLength(const QJsonObject &message);
+// Milliseconds the message stays, or -1 when the policy never hides it.
+int featuredDurationMs(int textLength, const FeaturedHidePolicy &policy);
+// With several featured sources the shortest enabled policy decides; -1 if none hides.
+int featuredDurationMs(int textLength, const QList<FeaturedHidePolicy> &policies);
+
 // Nombre visible de la plataforma.
 QString platformName(const QString &platform);
 

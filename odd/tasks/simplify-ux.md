@@ -44,7 +44,14 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - Cambio: `src/tts/voice-source.cpp` `obs_data_set_default_bool("enabled", true)`; `Voice.Enabled.Help` (es/en) explica que se silencia desde el mezclador; README paso 2 de la voz.
   - Compatibilidad: solo cambia el valor por defecto; una fuente guardada con `enabled=false` conserva su valor (OBS guarda el valor de usuario, no el default).
   - Checks: sin lógica pura (API `obs_data`): excepción RED/GREEN, lectura estructural del diff. Pruebas base: ver T2.
-- [ ] T2 Destacado: auto-ocultar en C++ y dock sincronizado. Route: delegated (writer).
+  - Commit: b152488.
+- [x] T2 Destacado: auto-ocultar en C++ y dock sincronizado. Route: delegated (writer).
+  - Lógica pura en `src/chat/message.{hpp,cpp}`: `FeaturedHidePolicy`, `featuredTextLength()` (emote = 2, cuenta `system`), `featuredDurationMs(len, policy)` (−1 = nunca) y `featuredDurationMs(len, policies)` (la más corta activada).
+  - `ChatManager`: `featuredTimer_` (single shot) → `clearFeatured()` al vencer; `setFeaturedAutoHide(sourceId, policy)` / `removeFeaturedAutoHide(sourceId)` (encolados al hilo principal); `armFeaturedTimer()` cuenta desde `featuredAt_`, así cambiar la política acorta o alarga lo que queda. `reshowLast()` sigue con `lastFeatured_`.
+  - `overlay-source.cpp`: cada fuente de destacado informa su política en create/update (`readSettings`) y la retira en `ov_destroy`; el payload ya no manda `now`.
+  - `featured.html`: sin temporizador propio; oculta al recibir `message: null`. Regla documentada en README (la más corta de las activadas; ninguna activada = no se oculta).
+  - Checks: RED observado (`error: use of undeclared identifier 'featuredTextLength'`), GREEN `test-chat featuredDurationFollowsTheLength` PASS; `ctest` 3/3 (test-chat 68, test-tts 50, test-overlay 17); `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
+  - Manual pendiente: destacar, esperar el vencimiento y ver que el dock deja de resaltar; atajo "volver a mostrar" tras vencer.
 - [ ] T3 Vocabulario unificado. Route: delegated (writer).
 - [ ] T4 Mensajes de prueba globales con migración. Route: delegated (writer).
 - [ ] T5 Propiedades con "Mostrar opciones avanzadas". Route: delegated (writer).

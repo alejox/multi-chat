@@ -7,6 +7,7 @@
 #include "chat/message.hpp"
 #include "chat/platforms.hpp"
 
+#include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QObject>
@@ -82,6 +83,11 @@ public:
 	void clearFeatured();
 	// Vuelve a destacar el último mensaje destacado (aunque ya se haya quitado).
 	void reshowLast();
+	// Auto-hide: each featured source reports its policy (on create/update) and withdraws it
+	// when destroyed; the manager hides the message after the shortest enabled duration, so the
+	// dock, the hotkeys and every page stay in sync. Callable from any thread.
+	void setFeaturedAutoHide(const QString &sourceId, const chat::FeaturedHidePolicy &policy);
+	void removeFeaturedAutoHide(const QString &sourceId);
 
 signals:
 	void message(const QJsonObject &message);
@@ -107,6 +113,7 @@ private:
 	void publishState();
 	void receive(QJsonObject object);
 	void applyDeletion(QJsonObject deletion);
+	void armFeaturedTimer();
 	Source *find(const QString &key, quint64 generation);
 
 	QList<chat::ChatEntry> chats_;
@@ -127,6 +134,8 @@ private:
 	QJsonObject featured_;
 	QJsonObject lastFeatured_;
 	qint64 featuredAt_ = 0;
+	QHash<QString, chat::FeaturedHidePolicy> featuredPolicies_; // by featured source id
+	QTimer featuredTimer_;
 	QJsonObject lastState_;
 	QTimer timer_;
 	QThreadPool pool_;

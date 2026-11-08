@@ -113,8 +113,8 @@ template<typename Fn> void forEachSource(Fn &&fn)
 std::mutex featuredMutex;
 QJsonObject featuredState{{"type", "featured"}, {"message", QJsonValue::Null}, {"at", 0}};
 
-// La página cuenta el tiempo para ocultarlo desde "at" (cuando se destacó), con "now" para
-// corregir la diferencia de reloj; así recargarla no vuelve a mostrar uno que ya se ocultó.
+// The manager decides when the message hides (it sends an empty one); "at" tells the page
+// apart two consecutive features of the same message.
 void sendFeatured(OverlaySource *s)
 {
 	QJsonObject payload;
@@ -122,7 +122,6 @@ void sendFeatured(OverlaySource *s)
 		std::lock_guard<std::mutex> lock(featuredMutex);
 		payload = featuredState;
 	}
-	payload.insert("now", QDateTime::currentMSecsSinceEpoch());
 	send(s, payload);
 }
 
@@ -819,8 +818,28 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 	return config;
 }
 
+// Id of a featured source in ChatManager's auto-hide registry (the pointer is unique while
+// the source lives and ov_destroy withdraws it).
+QString featuredSourceId(const OverlaySource *s)
+{
+	return QString::number(reinterpret_cast<quintptr>(s), 16);
+}
+
+// The manager owns the auto-hide timer: it needs the policy of every featured source.
+void reportFeaturedPolicy(const OverlaySource *s, obs_data_t *settings)
+{
+	chat::FeaturedHidePolicy policy;
+	policy.enabled = obs_data_get_bool(settings, "auto_hide");
+	policy.baseSeconds = int(obs_data_get_int(settings, "hide_base"));
+	policy.perCharMs = int(obs_data_get_int(settings, "hide_per_char"));
+	policy.maxSeconds = int(obs_data_get_int(settings, "hide_max"));
+	ChatManager::instance().setFeaturedAutoHide(featuredSourceId(s), policy);
+}
+
 void readSettings(OverlaySource *s, obs_data_t *settings)
 {
+	if (s->kind == Kind::Featured)
+		reportFeaturedPolicy(s, settings);
 	QJsonObject config = readConfig(s->kind, settings);
 	config.insert("customCss",
 		      QString::fromStdString(overlay::sanitizeCustomCss(obs_data_get_string(settings, "custom_css"))));
@@ -895,6 +914,8 @@ void ov_destroy(void *data)
 		std::lock_guard<std::mutex> lock(sourcesMutex);
 		sources.erase(s);
 	}
+	if (s->kind == Kind::Featured)
+		ChatManager::instance().removeFeaturedAutoHide(featuredSourceId(s));
 	obs_source_release(s->browser);
 	delete s;
 }
