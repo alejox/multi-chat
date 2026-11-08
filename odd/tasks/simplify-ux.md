@@ -99,12 +99,34 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - Checks: RED observado (CMake `Cannot find source file: notification-sound.cpp` y fallo de enlace), GREEN: 6 pruebas nuevas PASS (`test-tts` 56); `ctest` 3/3 (71/56/17); `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings (se corrigió un `-Wmissing-field-initializers` en `enqueue`).
   - Manual pendiente: ver lista al final del documento.
   - Commit anterior (T7): eb0805d.
-- [ ] T8 README, compilación e instalación local. Route: delegated (writer).
+- [x] T8 README, compilación e instalación local. Route: delegated (writer).
+  - README: tabla Funciones (voz con modo de aviso, propiedades con "Mostrar opciones avanzadas", Silenciar canal, Mensajes de prueba globales), Usarlo (menú único, botón "Añadir fuentes a la escena", el asistente abre el dock), dock (rueda), destacado (regla del tiempo), voz (modo). Sin texto de 3 entradas de menú ni de "mensajes de ejemplo" por fuente.
+  - `cmake --preset macos && cmake --build --preset macos`: BUILD SUCCEEDED, 0 errors, 0 warnings (log: scratchpad/build-simplify.log).
+  - Instalación: OBS no estaba abierto (`pgrep -x OBS` vacío) → `rm -rf` del bundle anterior, `ditto build_macos/RelWithDebInfo/obs-multichat.plugin "~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin"`, `codesign -v` OK.
+  - Commit anterior (T7b): 4740905.
 
 ## Progress
 - Rama creada desde `feat/quality` (2432905). Bloque 6 probado por el usuario: funciona.
-- Pruebas base antes de T1: `ctest` 3/3 passed (test-chat, test-tts, test-overlay).
-- T1 hecho (commit: ver T2, se registra en la tarea siguiente).
+- Pruebas base antes de T1: `ctest` 3/3 passed (test-chat 67, test-tts 50, test-overlay 17).
+- Commits: T1 b152488 · T2 62f4eaf · T3 740eb13 · T4 51f22b3 · T5 2e8734c · T6 5f4a9a0 · T7 eb0805d · T7b 4740905 · T8 (este).
+- Pruebas al cierre: test-chat 71, test-tts 56, test-overlay 17; `ctest` 3/3. Compilación macOS sin warnings; plugin instalado en local.
+
+## Migrations (compatibilidad)
+- Voz: solo cambia el default de `enabled`; fuentes guardadas conservan su valor. Nuevas claves `mode`/`sound_file`/`sound_cooldown` con default (`read`, "", 1500): una fuente antigua sigue leyendo igual.
+- Destacado: `auto_hide`/`hide_*` se leen igual; solo cambia quién lleva el tiempo (el plugin). La página ignora los campos antiguos de la config.
+- Mensajes de prueba: `config.json` gana `testMessages` (ausente = apagado). Una escena vieja con `preview` guardado a mano en `true` lo enciende una vez (solo si nadie decidió). La clave `preview` sigue en los defaults y en las escenas, sin UI.
+- Propiedades: nueva clave `advanced` (false). Ninguna clave renombrada; solo cambia en qué grupo se ve.
+- Locales: claves eliminadas `Source.Opacity`, `Settings.Validate.Found`, `Source.Preview`, `Viewers.Preview`, `Featured.Preview`, `Menu.Wizard`, `Update.MenuItem`, `Settings.OverlayHelp` (ninguna se usaba ya en código).
+
+## Manual checklist (usuario)
+1. Voz: añade "Multichat (voz)" nueva → lee sin tocar nada; baja el volumen en el mezclador y se silencia. Una fuente de voz antigua que estaba apagada sigue apagada.
+2. Destacado: destaca un mensaje corto, espera ~8 s → desaparece de pantalla y el dock deja de resaltarlo a la vez; el menú vuelve a ofrecer "Destacar". Atajo "volver a mostrar el último" tras vencer → vuelve. Con dos fuentes de destacado (una con "Se quita solo" apagado) manda la que lo tiene encendido.
+3. Vocabulario: chip del dock dice "silenciar este canal"; Propiedades del chat → "Desaparecen después de"; destacado → "Se quita solo"; Configurar → pestaña "Canales"; estado "en directo".
+4. Mensajes de prueba: rueda del dock → Mensajes de prueba ✓ → el dock se llena, el chat en pantalla y los espectadores muestran ejemplos; Configurar muestra la casilla marcada. Apágalo desde Configurar → la rueda lo refleja. Con OBS transmitiendo no salen en pantalla.
+5. Propiedades: las 4 fuentes muestran Preajuste/Diseño/Plataformas; "Mostrar opciones avanzadas" despliega Texto/Fondo/(Animación)/Avanzado; en el chat horizontal, "Desaparecen después de" y "Máximo" quedan ocultos dentro de Avanzado. Una escena guardada se ve igual que antes.
+6. Menú: Herramientas solo tiene "Multichat…"; en Configurar funcionan "Añadir fuentes a la escena" (añade chat, destacado y voz; repetir dice "ya está"), "Asistente de inicio" y "Buscar actualizaciones". Rueda del dock: 7 entradas, sin botón "Volver a detectar" en la cabecera.
+7. Asistente: con el servicio de OBS en YouTube arranca en YouTube; el botón grande añade las tres fuentes (desmarca una y no la añade); al Terminar aparece el dock aunque estuviera cerrado.
+8. Voz, modo de aviso: pon "Al llegar un mensaje" en "Avisar con un sonido" y activa Mensajes de prueba → suena un aviso por mensaje (respetando 1,5 s), nada se lee, el medidor del mezclador se mueve. Pon un .wav propio → suena ese; pon un archivo inválido → suena el integrado y el log de OBS lo anota. Mínimo entre avisos 0 vs 3000 → compara la frecuencia. "Sonido y luego leerlo" → aviso y después la lectura. Silenciar en el mezclador apaga ambos. "Ocultar mensaje" sobre uno aún en cola → no suena ni se lee.
 
 ## Next step
-T1–T8 con un writer delegado.
+Probar la lista manual en OBS; si todo va bien, decidir push/PR (apilada sobre `feat/quality`).
