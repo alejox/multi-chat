@@ -159,6 +159,50 @@ void ChatManager::clear()
 {
 	history_ = QJsonArray();
 	emit cleared();
+	// Al limpiar el chat tampoco se puede volver a mostrar el último destacado.
+	lastFeatured_ = QJsonObject();
+	clearFeatured();
+}
+
+bool ChatManager::feature(const QString &id)
+{
+	if (id.isEmpty())
+		return false;
+	for (qsizetype i = history_.size() - 1; i >= 0; --i) {
+		const QJsonObject m = history_.at(i).toObject();
+		if (m.value("id").toString() == id) {
+			feature(m);
+			return true;
+		}
+	}
+	return false;
+}
+
+void ChatManager::feature(const QJsonObject &message)
+{
+	if (message.isEmpty()) {
+		clearFeatured();
+		return;
+	}
+	featured_ = message;
+	lastFeatured_ = message;
+	featuredAt_ = nowMs();
+	emit featuredChanged(featured_);
+}
+
+void ChatManager::clearFeatured()
+{
+	if (featured_.isEmpty())
+		return;
+	featured_ = QJsonObject();
+	featuredAt_ = nowMs();
+	emit featuredChanged(featured_);
+}
+
+void ChatManager::reshowLast()
+{
+	if (!lastFeatured_.isEmpty())
+		feature(QJsonObject(lastFeatured_));
 }
 
 bool ChatManager::wants(const Source &s) const
