@@ -235,6 +235,9 @@ private slots:
 		m.hideUser(m.history().at(0).toObject());
 		QCOMPARE(m.history().size(), 0);
 		QCOMPARE(filters.count(), 1);
+		// Only the new user travels with the signal: the settings dialog adds just that one.
+		QCOMPARE(filters.at(0).size(), 1);
+		QCOMPARE(filters.at(0).at(0).toString(), QString("ana"));
 		const int defaults = int(chat::FilterRules::defaults().hiddenUsers.size());
 		QCOMPARE(m.filters().hiddenUsers.size(), defaults + 1); // appended after the default bots
 		QCOMPARE(m.filters().hiddenUsers.last(), QString("ana"));

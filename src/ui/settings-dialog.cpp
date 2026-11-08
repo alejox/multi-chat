@@ -77,9 +77,10 @@ public:
 		chatsLayout->addWidget(listHelp);
 
 		input_ = new ChannelInput(chatsBox);
-		input_->existing = [this] { return entries_; };
+		input_->existing = [] { return ChatManager::instance().chats(); };
 		input_->onAdd = [this](const QString &entry) {
 			error_->hide();
+			syncEntries();
 			entries_ << chat::ChatEntry{entry, true};
 			apply();
 		};
@@ -164,13 +165,21 @@ public:
 		auto *downKey = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_Down), list_, nullptr, nullptr,
 					      Qt::WidgetWithChildrenShortcut);
 		connect(downKey, &QShortcut::activated, this, [this] { moveCurrent(1); });
-		connect(auto_, &QRadioButton::toggled, this, [this] { apply(); });
+		connect(auto_, &QRadioButton::toggled, this, [this] {
+			syncEntries();
+			apply();
+		});
 		connect(demo_, &QCheckBox::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
 		connect(&m, &ChatManager::testMessagesChanged, this, [this](bool on) {
 			if (demo_->isChecked() != on)
 				demo_->setChecked(on);
 		});
-		connect(&m, &ChatManager::stateChanged, this, [this] { refreshList(); });
+		// Chats added elsewhere (the assistant) while this is open: keep them, or the next change
+		// made here would write the old list back.
+		connect(&m, &ChatManager::stateChanged, this, [this] {
+			syncEntries();
+			refreshList();
+		});
 
 		refreshList();
 	}
@@ -239,20 +248,16 @@ private:
 		connect(hiddenUsers_, &QPlainTextEdit::textChanged, this, changed);
 		connect(blockedWords_, &QPlainTextEdit::textChanged, this, changed);
 		connect(hideCommands_, &QCheckBox::toggled, this, changed);
-		// A user hidden from the dock while this is open: add it here so a later edit keeps it.
-		connect(&ChatManager::instance(), &ChatManager::filtersChanged, this, [this] {
-			const bool pending = filtersTimer_.isActive();
-			filtersTimer_.stop();
+		// A user hidden from the dock while this is open: add only that one here so a later edit
+		// keeps it. The rest of the text stays as typed, so a user just removed here (its change
+		// still pending) does not come back.
+		connect(&ChatManager::instance(), &ChatManager::filtersChanged, this, [this](const QString &user) {
 			QStringList users = splitList(hiddenUsers_->toPlainText());
-			for (const QString &user : ChatManager::instance().filters().hiddenUsers)
-				if (!users.contains(user, Qt::CaseInsensitive))
-					users << user;
-			{
-				const QSignalBlocker block(hiddenUsers_);
-				hiddenUsers_->setPlainText(users.join('\n'));
-			}
-			if (pending)
-				applyFilters();
+			if (user.isEmpty() || users.contains(user, Qt::CaseInsensitive))
+				return;
+			users << user;
+			const QSignalBlocker block(hiddenUsers_);
+			hiddenUsers_->setPlainText(users.join('\n'));
 		});
 		connect(restore, &QPushButton::clicked, this, [this] {
 			QStringList users = splitList(hiddenUsers_->toPlainText());
@@ -287,10 +292,14 @@ private:
 		m.save();
 	}
 
+	// The chats as ChatManager has them now: every change made here starts from that list.
+	void syncEntries() { entries_ = ChatManager::instance().chats(); }
+
 	void removeEntry(const QString &entry)
 	{
 		if (entry.isEmpty())
 			return;
+		syncEntries();
 		entries_.removeIf([&entry](const chat::ChatEntry &e) { return e.entry == entry; });
 		apply();
 	}
@@ -501,6 +510,7 @@ private:
 
 	void setChatEnabled(const QString &entry, bool on)
 	{
+		syncEntries();
 		for (chat::ChatEntry &e : entries_)
 			if (e.entry == entry)
 				e.enabled = on;
@@ -514,6 +524,7 @@ private:
 		if (!item)
 			return;
 		const QString entry = item->data(Qt::UserRole).toString();
+		syncEntries();
 		qsizetype from = -1;
 		for (qsizetype i = 0; i < entries_.size(); ++i)
 			if (entries_[i].entry == entry)
@@ -531,6 +542,7 @@ private:
 	// After a drag: the list's order becomes the chats' order.
 	void syncOrderFromList()
 	{
+		syncEntries();
 		QList<chat::ChatEntry> ordered;
 		for (int i = 0; i < list_->count(); ++i) {
 			const QString entry = list_->item(i)->data(Qt::UserRole).toString();

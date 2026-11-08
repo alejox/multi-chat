@@ -127,8 +127,8 @@ signals:
 	void cleared();
 	// undoClear() put the cleared messages back into history().
 	void restored();
-	// filters() changed outside the settings dialog (a user hidden from the dock).
-	void filtersChanged();
+	// filters() changed outside the settings dialog: `hiddenUser` was hidden from the dock.
+	void filtersChanged(const QString &hiddenUser);
 	// testMessages() changed (from the dock, the settings or the assistant).
 	void testMessagesChanged(bool on);
 	// Moderation: messages deleted by the platform (see chat::deleteMessage). `ids` lists the
