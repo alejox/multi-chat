@@ -46,7 +46,7 @@ Auditoría (snapshot de `main`):
 - [x] T5 README, compilación e instalación local en macOS. Route: delegated (writer). Checks: `cmake --preset macos && cmake --build --preset macos` → BUILD SUCCEEDED, 0 warnings; pruebas 57/57 + tts OK. Instalación **no hecha**: OBS estaba abierto (`pgrep -x OBS` → 30084); instalar con `ditto` al cerrarlo.
 
 ## Progress
-- Rama creada desde `feat/chat-moderation` (0e34464). Bloque 2: pruebas 54/54 OK; moderación real pendiente de probar por el usuario con un chat real (los mensajes de prueba no existen en la plataforma).
+- Rama creada desde `feat/chat-moderation` (0e34464). Bloque 2: pruebas 54/54 OK; moderación probada por el usuario en un chat real con una segunda cuenta: funciona.
 
 - Bloque 3: T1–T5 hechos (f5e013e, 3d1e70e, 6e75255, c8c77ea y el commit de docs). Pruebas 57/57 (+3 nuevas: `localModeration`, `plainTextCopy`, `searchMatching`).
 - Limitaciones: Deshacer el vaciado no repuebla el chat en pantalla (overlay-source fuera del alcance); los chips aún usan 🔴/👁 en el texto.
