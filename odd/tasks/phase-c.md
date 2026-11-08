@@ -29,7 +29,11 @@ Cerrar los últimos pendientes de la revisión de arquitectura: una fuente menos
   - `multichat_clock` se registra con `OBS_SOURCE_DEPRECATED | OBS_SOURCE_CAP_OBSOLETE` (en OBS 33 no existe `OBS_SOURCE_CAP_DEPRECATED`; `OBS_BasicSourceSelect` oculta los tipos con `OBS_SOURCE_CAP_DISABLED` = `CAP_OBSOLETE`, y libobs los sigue creando al cargar escenas). Mismo id, callbacks y defaults: las escenas guardadas cargan igual.
   - El asistente y "Añadir fuentes" nunca añadían el reloj (`ui-common.cpp` solo añade chat, destacado y voz): sin cambios.
   - Pruebas: `chatClockHasAVerticalPosition` RED observado (falta `clock_position`) → GREEN; test-overlay 20/20; 5/5 suites; build macOS BUILD SUCCEEDED sin avisos.
-- [ ] T2 Medición de cajas en el hilo de UI. Route: delegated (writer).
+- [x] T2 Medición de cajas en el hilo de UI. Route: delegated (writer). Tras T1: b055dbc.
+  - La medida pura (`formatViewers`, `measureFont`, `boxBorder`, `viewerBoxSize`, `clockBoxSize`, `ViewerItem`) pasa a `src/overlay/box-measure.{hpp,cpp}` (solo QtCore/QtGui).
+  - `refresh()` llama a `requestMeasure()`: en el hilo de la interfaz mide y redimensiona en el acto; desde otro hilo (`create`/`ov_update` de OBS) encola con `QMetaObject::invokeMethod(app, ..., Qt::QueuedConnection)` guardando solo una referencia débil (`obs_source_get_weak_source`); si la fuente ya no existe no hace nada. `ov_update` solo guarda la configuración y pide la medida.
+  - Prueba nueva `tests/test-box-measure.cpp` (QGuiApplication en `offscreen`, 9 casos). Excepción a RED: es caracterización de código movido, no cambio de comportamiento; el cambio de hilo necesita OBS y no tiene prueba automática.
+  - Pruebas: 6/6 suites; build macOS BUILD SUCCEEDED sin avisos.
 - [ ] T3 Separar el actualizador. Route: delegated (writer).
 - [ ] T4 Compilación, pruebas, instalación y README. Route: delegated (writer).
 

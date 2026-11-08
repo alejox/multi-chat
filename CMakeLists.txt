@@ -44,6 +44,8 @@ target_sources(
     src/i18n.hpp
     src/overlay-presets.cpp
     src/overlay-presets.hpp
+    src/overlay/box-measure.cpp
+    src/overlay/box-measure.hpp
     src/overlay/config.cpp
     src/overlay/overlay-source.hpp
     src/overlay/properties.cpp

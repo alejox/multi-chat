@@ -267,7 +267,8 @@ src/overlay/               fuentes "Multichat", "Multichat (espectadores)", "Mul
   source.cpp               callbacks de OBS y registro de las fuentes
   properties.cpp           ventana de propiedades
   config.cpp               ajustes → configuración que recibe cada página
-  viewers-layout.cpp       tamaño de los recuadros y ajuste de la cinta al lienzo
+  viewers-layout.cpp       tamaño de los recuadros (medido siempre en el hilo de la interfaz) y ajuste de la cinta al lienzo
+  box-measure.*            medida pura de los recuadros de espectadores y reloj con QFont (sin OBS, con pruebas en tests/test-box-measure.cpp)
   wiring.cpp               estado compartido y reparto de los eventos del manager a las páginas
 src/overlay-presets.*      valores por defecto, preajustes y saneado de CSS/colores/fuentes (sin OBS, con pruebas en tests/test-overlay.cpp)
 src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
@@ -278,7 +279,7 @@ data/icons/                íconos SVG monocromos del dock (se tiñen con el col
 src/updater.*              actualizaciones automáticas desde las Releases de GitHub
 data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la antigua fuente de fecha y hora (clock.html); icons.js y overlay.js son el código compartido
 data/locale/               textos en español e inglés (también los avisos del chat y los errores de conexión, según el idioma de OBS)
-tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts), overlay (test-overlay), manager (test-manager) y JS de las páginas (overlay-js.test.js, con node si está instalado)
+tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts), overlay (test-overlay), medida de recuadros (test-box-measure, QtGui sin pantalla), manager (test-manager) y JS de las páginas (overlay-js.test.js, con node si está instalado)
 ```
 
 ¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra. En Linux, libcurl (que OBS ya usa) hace HTTPS y la conexión TLS del WebSocket; el protocolo WebSocket va en `src/net/net-linux.cpp`.
