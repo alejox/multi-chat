@@ -65,12 +65,10 @@ void sendAll(const QJsonObject &payload)
 
 // ---- Fuente de espectadores ----
 
+// Viewers and clock boxes are measured on the UI thread (see requestMeasure).
 void refresh(OverlaySource *s)
 {
-	if (s->kind == Kind::Viewers)
-		refreshViewers(s);
-	else if (s->kind == Kind::Clock)
-		refreshClock(s);
+	requestMeasure(s);
 }
 
 void sendConfig(OverlaySource *s)

@@ -4,6 +4,7 @@
 // for what the rest of the plugin uses). Everything lives in namespace overlay_source.
 
 #include "overlay-source.hpp"
+#include "box-measure.hpp"
 #include "../i18n.hpp"
 #include "../platforms-registry.hpp"
 #include "../chat-manager.hpp"
@@ -12,18 +13,14 @@
 #include <obs-module.h>
 #include <plugin-support.h>
 
-#include <QDate>
-#include <QDateTime>
 #include <QFileInfo>
-#include <QFont>
 #include <QFontDatabase>
-#include <QFontMetricsF>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QLocale>
 #include <QObject>
-#include <QRegularExpression>
+#include <QCoreApplication>
+#include <QThread>
 #include <QSize>
 #include <QTimer>
 
@@ -86,13 +83,6 @@ template<typename Fn> void forEachSource(Fn &&fn)
 	}
 }
 
-// ---- Fuente del mensaje destacado ----
-
-struct ViewerItem {
-	QString platform, name;
-	int viewers = -1;
-};
-
 // ---- wiring.cpp: manager → pages ----
 void connectManager();
 void send(OverlaySource *s, const QJsonObject &payload);
@@ -102,17 +92,13 @@ void sendAll(const QJsonObject &payload);
 void refresh(OverlaySource *s);
 void sendConfig(OverlaySource *s);
 
-// ---- viewers-layout.cpp: box sizes and scene fitting ----
+// ---- viewers-layout.cpp: box sizes (measured on the UI thread) and scene fitting ----
 QList<ViewerItem> viewerItems(const QJsonObject &config, const QJsonArray &channels);
 int viewerTotal(const QJsonObject &config, const QList<ViewerItem> &items);
-QString formatViewers(int n);
-QFont measureFont(const QJsonObject &config, double em, int defaultWeight);
-double boxBorder(const QJsonObject &config);
-QSize viewerBoxSize(const QJsonObject &config, const QList<ViewerItem> &items, int total);
 QJsonObject viewersPayload(const QList<ViewerItem> &items, int total);
 void refreshViewers(OverlaySource *s);
-QSize clockBoxSize(const QJsonObject &c);
 void refreshClock(OverlaySource *s);
+void requestMeasure(OverlaySource *s);
 uint32_t canvasWidth();
 uint32_t tickerHeight(const QJsonObject &config);
 bool fitsCanvas(Kind kind, const QJsonObject &config);
