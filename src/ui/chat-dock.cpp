@@ -47,7 +47,8 @@
 
 namespace {
 
-constexpr int kMaxMessages = 300;
+// Same limit as the manager's history, so what the dock shows can always be featured or restored.
+constexpr int kMaxMessages = chat::kHistoryLimit;
 
 QString prefsPath()
 {

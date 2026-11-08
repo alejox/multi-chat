@@ -8,7 +8,6 @@
 
 namespace {
 
-constexpr int kHistory = 200;
 // Servicios de OBS que ya indican multistream (transmiten a varias plataformas a la vez).
 const char *const kMultiServices[] = {"restream", "castr", "streamyard", "multistream", "prism"};
 
@@ -197,28 +196,19 @@ void ChatManager::refresh()
 
 void ChatManager::clear()
 {
-	clearedHistory_ = history_;
-	clearedLastFeatured_ = lastFeatured_;
-	history_ = QJsonArray();
-	emit cleared();
+	history_.clear();
 	// Al limpiar el chat tampoco se puede volver a mostrar el último destacado.
-	lastFeatured_ = QJsonObject();
+	featured_.stashLast();
+	emit cleared();
 	clearFeatured();
 }
 
 bool ChatManager::undoClear()
 {
-	if (clearedHistory_.isEmpty())
+	if (!history_.canRestore())
 		return false;
-	// Messages that arrived after clearing stay, after the restored ones.
-	QJsonArray merged = clearedHistory_;
-	for (const QJsonValue v : history_)
-		merged.append(v);
-	while (merged.size() > kHistory)
-		merged.removeFirst();
-	history_ = merged;
-	if (lastFeatured_.isEmpty())
-		lastFeatured_ = clearedLastFeatured_;
+	history_.restore();
+	featured_.restoreLast();
 	discardUndo();
 	emit restored();
 	return true;
@@ -226,8 +216,8 @@ bool ChatManager::undoClear()
 
 void ChatManager::discardUndo()
 {
-	clearedHistory_ = QJsonArray();
-	clearedLastFeatured_ = QJsonObject();
+	history_.discardUndo();
+	featured_.discardStash();
 }
 
 void ChatManager::hideMessage(const QJsonObject &message)
@@ -257,16 +247,11 @@ void ChatManager::hideUser(const QJsonObject &message)
 
 bool ChatManager::feature(const QString &id)
 {
-	if (id.isEmpty())
+	const QJsonObject m = history_.find(id);
+	if (m.isEmpty())
 		return false;
-	for (qsizetype i = history_.size() - 1; i >= 0; --i) {
-		const QJsonObject m = history_.at(i).toObject();
-		if (m.value("id").toString() == id) {
-			feature(m);
-			return true;
-		}
-	}
-	return false;
+	feature(m);
+	return true;
 }
 
 void ChatManager::feature(const QJsonObject &message)
@@ -275,38 +260,28 @@ void ChatManager::feature(const QJsonObject &message)
 		clearFeatured();
 		return;
 	}
-	featured_ = message;
-	lastFeatured_ = message;
-	featuredAt_ = now();
+	featured_.show(message, now());
 	armFeaturedTimer();
-	emit featuredChanged(featured_);
+	emit featuredChanged(featured_.current());
 }
 
 void ChatManager::clearFeatured()
 {
 	featuredTimer_.stop();
-	if (featured_.isEmpty())
-		return;
-	featured_ = QJsonObject();
-	featuredAt_ = now();
-	emit featuredChanged(featured_);
+	if (featured_.hide(now()))
+		emit featuredChanged(featured_.current());
 }
 
-// The time counts from featuredAt_, so a policy that changes while a message is on screen
-// shortens or extends what is left instead of restarting it.
 void ChatManager::armFeaturedTimer()
 {
 	featuredTimer_.stop();
-	if (featured_.isEmpty())
+	const std::optional<qint64> remaining = featured_.remainingMs(now());
+	if (!remaining)
 		return;
-	const int duration = chat::featuredDurationMs(chat::featuredTextLength(featured_), featuredPolicies_.values());
-	if (duration < 0)
-		return;
-	const qint64 remaining = featuredAt_ + duration - now();
-	if (remaining <= 0)
+	if (*remaining <= 0)
 		clearFeatured();
 	else
-		featuredTimer_.start(int(std::min<qint64>(remaining, INT_MAX)));
+		featuredTimer_.start(int(std::min<qint64>(*remaining, INT_MAX)));
 }
 
 void ChatManager::setFeaturedAutoHide(const QString &sourceId, const chat::FeaturedHidePolicy &policy)
@@ -314,7 +289,7 @@ void ChatManager::setFeaturedAutoHide(const QString &sourceId, const chat::Featu
 	QMetaObject::invokeMethod(
 		this,
 		[this, sourceId, policy] {
-			featuredPolicies_.insert(sourceId, policy);
+			featured_.setPolicy(sourceId, policy);
 			armFeaturedTimer();
 		},
 		Qt::QueuedConnection);
@@ -325,7 +300,7 @@ void ChatManager::removeFeaturedAutoHide(const QString &sourceId)
 	QMetaObject::invokeMethod(
 		this,
 		[this, sourceId] {
-			featuredPolicies_.remove(sourceId);
+			featured_.removePolicy(sourceId);
 			armFeaturedTimer();
 		},
 		Qt::QueuedConnection);
@@ -333,8 +308,8 @@ void ChatManager::removeFeaturedAutoHide(const QString &sourceId)
 
 void ChatManager::reshowLast()
 {
-	if (!lastFeatured_.isEmpty())
-		feature(QJsonObject(lastFeatured_));
+	if (!featured_.last().isEmpty())
+		feature(QJsonObject(featured_.last()));
 }
 
 void ChatManager::receive(QJsonObject object)
@@ -347,32 +322,14 @@ void ChatManager::receive(QJsonObject object)
 	if (chat::isFiltered(object, filters_))
 		return;
 	history_.append(object);
-	while (history_.size() > kHistory)
-		history_.removeFirst();
 	emit message(object);
 }
 
 void ChatManager::applyDeletion(QJsonObject deletion)
 {
-	QJsonArray ids;
-	for (qsizetype i = history_.size() - 1; i >= 0; --i) {
-		const QJsonObject m = history_.at(i).toObject();
-		if (chat::deletionMatches(deletion, m)) {
-			ids.append(m.value("id"));
-			history_.removeAt(i);
-		}
-	}
-	deletion.insert("ids", ids);
-	// What "undo clear" would bring back must not include moderated messages either.
-	for (qsizetype i = clearedHistory_.size() - 1; i >= 0; --i)
-		if (chat::deletionMatches(deletion, clearedHistory_.at(i).toObject()))
-			clearedHistory_.removeAt(i);
-	if (!clearedLastFeatured_.isEmpty() && chat::deletionMatches(deletion, clearedLastFeatured_))
-		clearedLastFeatured_ = QJsonObject();
+	deletion.insert("ids", history_.remove(deletion));
 	// A moderated message cannot stay on screen nor come back with "show the last one again".
-	if (!lastFeatured_.isEmpty() && chat::deletionMatches(deletion, lastFeatured_))
-		lastFeatured_ = QJsonObject();
-	if (!featured_.isEmpty() && chat::deletionMatches(deletion, featured_))
+	if (featured_.forget(deletion))
 		clearFeatured();
 	emit deleted(deletion);
 }
@@ -538,7 +495,7 @@ QJsonObject ChatManager::state() const
 
 QJsonArray ChatManager::history() const
 {
-	return history_;
+	return history_.messages();
 }
 
 void ChatManager::publishState()

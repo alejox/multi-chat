@@ -17,6 +17,10 @@
 
 namespace chat {
 
+// Messages kept in memory: the chat manager's history (what undo and "feature" can reach) and the
+// dock's view hold the same amount.
+constexpr int kHistoryLimit = 300;
+
 // A user-facing text built off the main thread (connectors) and translated on it: a locale key
 // from data/locale plus its %1..%N arguments. An empty key means args[0] is shown as is.
 struct Text {

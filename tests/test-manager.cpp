@@ -166,12 +166,13 @@ private slots:
 		QCOMPARE(m.history().at(0).toObject().value("system").toString(), QString("Translated x"));
 	}
 
-	void keepsTheLast200Messages()
+	void keepsTheLastMessagesUpToTheLimit()
 	{
 		ChatManager &m = makeConnected();
-		for (int i = 0; i < 205; ++i)
+		const int limit = chat::kHistoryLimit;
+		for (int i = 0; i < limit + 5; ++i)
 			deliver("twitch:a", chatMessage(QString::number(i), "ana", "m"));
-		QCOMPARE(m.history().size(), 200);
+		QCOMPARE(m.history().size(), limit);
 		QCOMPARE(m.history().first().toObject().value("id").toString(), QString("5"));
 	}
 
@@ -383,15 +384,16 @@ private slots:
 	void undoKeepsTheHistoryLimit()
 	{
 		ChatManager &m = makeConnected();
-		for (int i = 0; i < 150; ++i)
+		const int limit = chat::kHistoryLimit;
+		for (int i = 0; i < limit - 50; ++i)
 			deliver("twitch:a", chatMessage(QString::number(i), "ana", "m"));
 		m.clear();
-		for (int i = 150; i < 250; ++i)
+		for (int i = limit - 50; i < limit + 50; ++i)
 			deliver("twitch:a", chatMessage(QString::number(i), "ana", "m"));
 		QVERIFY(m.undoClear());
-		QCOMPARE(m.history().size(), 200);
+		QCOMPARE(m.history().size(), limit);
 		QCOMPARE(m.history().first().toObject().value("id").toString(), QString("50"));
-		QCOMPARE(m.history().last().toObject().value("id").toString(), QString("249"));
+		QCOMPARE(m.history().last().toObject().value("id").toString(), QString::number(limit + 49));
 	}
 
 	void testMessagesAddTheDemoChat()
@@ -503,6 +505,38 @@ private slots:
 		QCOMPARE(source.value("detail").toString(), QString("Translated x"));
 		QCOMPARE(logs_->size(), 1);
 		QVERIFY(logs_->at(0).startsWith("I [twitch:a] "));
+	}
+
+	void historyRemovesNewestFirstAndPurgesTheUndoCopy()
+	{
+		ChatHistory h;
+		QJsonObject a = chatMessage("1", "ana", "a"), b = chatMessage("2", "ana", "b");
+		a.insert("source", "twitch:a");
+		b.insert("source", "twitch:a");
+		h.append(a);
+		h.append(b);
+		QJsonObject del = chat::deleteAuthor("twitch", "ana-id", "ana");
+		del.insert("source", "twitch:a");
+		QCOMPARE(h.remove(del), QJsonArray({"2", "1"}));
+		h.append(a);
+		h.clear();
+		QVERIFY(h.canRestore());
+		h.remove(del);
+		QVERIFY(!h.canRestore());
+	}
+
+	void featuredRemainingTimeCountsFromWhenItWasShown()
+	{
+		FeaturedState f;
+		QVERIFY(!f.remainingMs(0));
+		f.show(chatMessage("1", "ana", "hola"), 1000);
+		QVERIFY(!f.remainingMs(1000)); // no policy
+		f.setPolicy("x", chat::FeaturedHidePolicy{true, 8, 0, 30});
+		QCOMPARE(*f.remainingMs(3000), qint64(6000));
+		QVERIFY(f.hide(4000));
+		QVERIFY(!f.hide(5000));
+		QCOMPARE(f.changedAt(), qint64(4000));
+		QCOMPARE(f.last().value("id").toString(), QString("1"));
 	}
 
 	void saveFailureIsLogged()
