@@ -4,6 +4,8 @@
 // espectadores y el mensaje destacado les llegan con javascript_event.
 
 #include "overlay-source.hpp"
+#include "i18n.hpp"
+#include "platforms-registry.hpp"
 #include "chat-manager.hpp"
 #include "overlay-presets.hpp"
 
@@ -712,22 +714,17 @@ bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings
 	return true;
 }
 
-QString moduleString(const char *key)
-{
-	return QString::fromUtf8(obs_module_text(key));
-}
-
 // Texts the pages show on their own (badge label and sample messages), in OBS's language.
 void addPageTexts(QJsonObject &config, Kind kind)
 {
-	config.insert("memberBadge", moduleString("Badge.Member"));
+	config.insert("memberBadge", i18n::tr("Badge.Member"));
 	if (kind == Kind::Featured) {
-		config.insert("sampleText", moduleString("Featured.SampleText"));
+		config.insert("sampleText", i18n::tr("Featured.SampleText"));
 		return;
 	}
 	QJsonArray samples;
 	for (int i = 1; i <= 7; ++i)
-		samples.append(moduleString(("Overlay.Sample" + std::to_string(i)).c_str()));
+		samples.append(i18n::tr(("Overlay.Sample" + std::to_string(i)).c_str()));
 	config.insert("samples", samples);
 }
 
@@ -757,9 +754,9 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 		return config;
 	}
 	QJsonArray platforms;
-	for (const char *p : {"twitch", "youtube", "kick", "tiktok", "starvios"})
-		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
-			platforms.append(p);
+	for (const platforms::Platform &p : platforms::kAll)
+		if (obs_data_get_bool(settings, (std::string("show_") + p.id).c_str()))
+			platforms.append(p.id);
 	if (kind == Kind::Clock) {
 		config = QJsonObject{
 			{"size", (int)obs_data_get_int(settings, "font_size")},

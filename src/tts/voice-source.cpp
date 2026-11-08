@@ -13,6 +13,7 @@
 #include "speech-text.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
+#include "../platforms-registry.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
@@ -69,8 +70,6 @@ bool shuttingDown = false;
 QMetaObject::Connection messageConnection;
 QMetaObject::Connection deletedConnection;
 
-const char *const kPlatforms[] = {"twitch", "youtube", "kick", "tiktok", "starvios"};
-
 std::string platformKey(const char *platform)
 {
 	return std::string("read_") + platform;
@@ -119,9 +118,9 @@ tts::SpeechOptions readOptions(obs_data_t *settings)
 	const QString format = QString::fromUtf8(obs_module_text("Voice.AuthorFormat"));
 	if (format.contains(QStringLiteral("%1")) && format.contains(QStringLiteral("%2")))
 		options.authorFormat = format;
-	for (const char *platform : kPlatforms)
-		if (obs_data_get_bool(settings, platformKey(platform).c_str()))
-			options.allowedPlatforms.insert(QString::fromUtf8(platform));
+	for (const platforms::Platform &platform : platforms::kAll)
+		if (obs_data_get_bool(settings, platformKey(platform.id).c_str()))
+			options.allowedPlatforms.insert(QString::fromUtf8(platform.id));
 	// Los mensajes de prueba solo se reciben si se activan en la ventana de chats, y sirven para
 	// escuchar la voz sin estar en directo. Mientras se transmite se descartan en onMessage.
 	options.allowedPlatforms.insert(QStringLiteral("demo"));
@@ -264,8 +263,8 @@ void voice_defaults(obs_data_t *settings)
 	obs_data_set_default_string(settings, "voice", "");
 	obs_data_set_default_int(settings, "rate", kDefaultRatePercent);
 	obs_data_set_default_bool(settings, "read_author", true);
-	for (const char *platform : kPlatforms)
-		obs_data_set_default_bool(settings, platformKey(platform).c_str(), true);
+	for (const platforms::Platform &platform : platforms::kAll)
+		obs_data_set_default_bool(settings, platformKey(platform.id).c_str(), true);
 	obs_data_set_default_int(settings, "max_length", kDefaultMaxLength);
 	obs_data_set_default_string(settings, "blocked_words", "");
 }
@@ -326,9 +325,9 @@ obs_properties_t *voice_properties(void *data)
 
 	obs_properties_add_bool(props, "read_author", obs_module_text("Voice.ReadAuthor"));
 	const QString readPlatform = QString::fromUtf8(obs_module_text("Voice.ReadPlatform"));
-	for (const char *platform : kPlatforms) {
-		const QString label = readPlatform.arg(chat::platformName(QString::fromUtf8(platform)));
-		obs_properties_add_bool(props, platformKey(platform).c_str(), label.toUtf8().constData());
+	for (const platforms::Platform &platform : platforms::kAll) {
+		const QString label = readPlatform.arg(chat::platformName(QString::fromUtf8(platform.id)));
+		obs_properties_add_bool(props, platformKey(platform.id).c_str(), label.toUtf8().constData());
 	}
 
 	obs_property_t *maxLength =

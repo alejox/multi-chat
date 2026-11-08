@@ -1,4 +1,5 @@
 #include "chat-manager.hpp"
+#include "platforms-registry.hpp"
 
 #include <QDateTime>
 #include <QPointer>
@@ -10,12 +11,6 @@ namespace {
 
 // Servicios de OBS que ya indican multistream (transmiten a varias plataformas a la vez).
 const char *const kMultiServices[] = {"restream", "castr", "streamyard", "multistream", "prism"};
-
-int platformOrder(const QString &p)
-{
-	static const QStringList order = {"twitch", "youtube", "kick", "tiktok", "starvios", "demo"};
-	return int(order.indexOf(p));
-}
 
 ChatManager *gInstance = nullptr; // vive hasta que OBS cierra
 
@@ -477,7 +472,7 @@ QJsonObject ChatManager::state() const
 			live << s->info.platform;
 	}
 	std::sort(live.begin(), live.end(),
-		  [](const QString &a, const QString &b) { return platformOrder(a) < platformOrder(b); });
+		  [](const QString &a, const QString &b) { return platforms::order(a) < platforms::order(b); });
 	bool multiService = false;
 	for (const char *word : kMultiServices)
 		multiService = multiService || service_.contains(QLatin1String(word), Qt::CaseInsensitive);

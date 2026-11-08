@@ -2,6 +2,7 @@
 #include "chat-dock.hpp"
 #include "settings-dialog.hpp"
 #include "ui-common.hpp"
+#include "../i18n.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/platforms.hpp"
 
@@ -41,7 +42,7 @@ class FirstRunWizard : public QDialog {
 public:
 	explicit FirstRunWizard(QWidget *parent) : QDialog(parent)
 	{
-		setWindowTitle(ui::T("Wizard.Title"));
+		setWindowTitle(i18n::tr("Wizard.Title"));
 		setAttribute(Qt::WA_DeleteOnClose);
 		setMinimumWidth(500);
 		auto *root = new QVBoxLayout(this);
@@ -53,9 +54,9 @@ public:
 		pages_->addWidget(donePage());
 
 		auto *buttons = new QHBoxLayout();
-		skip_ = new QPushButton(ui::T("Wizard.Skip"), this);
-		back_ = new QPushButton(ui::T("Wizard.Back"), this);
-		next_ = new QPushButton(ui::T("Wizard.Next"), this);
+		skip_ = new QPushButton(i18n::tr("Wizard.Skip"), this);
+		back_ = new QPushButton(i18n::tr("Wizard.Back"), this);
+		next_ = new QPushButton(i18n::tr("Wizard.Next"), this);
 		// Enter in the channel field adds the channel; it must not also turn the page.
 		for (QPushButton *b : {skip_, back_, next_})
 			b->setAutoDefault(false);
@@ -92,7 +93,7 @@ private:
 		const bool last = index == pages_->count() - 1;
 		back_->setVisible(index > 0 && !last);
 		skip_->setVisible(!last);
-		next_->setText(ui::T(last ? "Wizard.Finish" : "Wizard.Next"));
+		next_->setText(i18n::tr(last ? "Wizard.Finish" : "Wizard.Next"));
 		if (index == 1)
 			input_->focusInput();
 		else
@@ -105,8 +106,8 @@ private:
 	{
 		auto *page = new QWidget(this);
 		auto *layout = new QVBoxLayout(page);
-		layout->addWidget(title(ui::T("Wizard.Welcome.Title"), page));
-		layout->addWidget(wrapped(ui::T("Wizard.Welcome.Text"), page));
+		layout->addWidget(title(i18n::tr("Wizard.Welcome.Title"), page));
+		layout->addWidget(wrapped(i18n::tr("Wizard.Welcome.Text"), page));
 		layout->addStretch(1);
 		return page;
 	}
@@ -115,8 +116,8 @@ private:
 	{
 		auto *page = new QWidget(this);
 		auto *layout = new QVBoxLayout(page);
-		layout->addWidget(title(ui::T("Wizard.Chat.Title"), page));
-		layout->addWidget(wrapped(ui::T("Wizard.Chat.Text"), page));
+		layout->addWidget(title(i18n::tr("Wizard.Chat.Title"), page));
+		layout->addWidget(wrapped(i18n::tr("Wizard.Chat.Text"), page));
 		input_ = new ChannelInput(page);
 		// One decision less: the platform follows the streaming service set in OBS.
 		input_->setPlatform(chat::platformForService(ui::streamingServiceName()));
@@ -132,11 +133,11 @@ private:
 		layout->addWidget(input_);
 		added_ = wrapped(QString(), page);
 		layout->addWidget(added_);
-		auto *demo = new QCheckBox(ui::T("Wizard.Chat.Demo"), page);
+		auto *demo = new QCheckBox(i18n::tr("Wizard.Chat.Demo"), page);
 		demo->setChecked(ChatManager::instance().testMessages());
 		connect(demo, &QCheckBox::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
 		layout->addWidget(demo);
-		layout->addWidget(wrapped(ui::T("Wizard.Chat.Later"), page));
+		layout->addWidget(wrapped(i18n::tr("Wizard.Chat.Later"), page));
 		layout->addStretch(1);
 		updateAdded();
 		return page;
@@ -151,7 +152,7 @@ private:
 			if (chat::parseEntry(e.entry, info, error))
 				names << chat::platformName(info.platform) + QStringLiteral(" · ") + info.channel;
 		}
-		added_->setText(names.isEmpty() ? QString() : ui::T("Wizard.Chat.Added").arg(names.join(", ")));
+		added_->setText(names.isEmpty() ? QString() : i18n::tr("Wizard.Chat.Added").arg(names.join(", ")));
 		added_->setVisible(!names.isEmpty());
 	}
 
@@ -159,8 +160,8 @@ private:
 	{
 		auto *page = new QWidget(this);
 		auto *layout = new QVBoxLayout(page);
-		layout->addWidget(title(ui::T("Wizard.Sources.Title"), page));
-		layout->addWidget(wrapped(ui::T("Wizard.Sources.Text"), page));
+		layout->addWidget(title(i18n::tr("Wizard.Sources.Title"), page));
+		layout->addWidget(wrapped(i18n::tr("Wizard.Sources.Text"), page));
 		// One button adds the three sources; the boxes are there to leave one out.
 		addSources_ = new QPushButton(page);
 		addSources_->setAutoDefault(false);
@@ -182,11 +183,11 @@ private:
 		};
 		chatSource_ = source("multichat_overlay");
 		featuredSource_ = source("multichat_featured");
-		auto *featuredHelp = wrapped(ui::T("Wizard.Sources.FeaturedHelp"), page);
+		auto *featuredHelp = wrapped(i18n::tr("Wizard.Sources.FeaturedHelp"), page);
 		featuredHelp->setContentsMargins(22, 0, 0, 0);
 		layout->addWidget(featuredHelp);
 		voiceSource_ = source("multichat_voice");
-		auto *voiceHelp = wrapped(ui::T("Wizard.Sources.VoiceHelp"), page);
+		auto *voiceHelp = wrapped(i18n::tr("Wizard.Sources.VoiceHelp"), page);
 		voiceHelp->setContentsMargins(22, 0, 0, 0);
 		layout->addWidget(voiceHelp);
 		layout->addStretch(1);
@@ -203,8 +204,8 @@ private:
 	void updateScene()
 	{
 		const QString name = ui::editedSceneName();
-		addSources_->setText(name.isEmpty() ? ui::T("Wizard.Sources.AddNoScene")
-						    : ui::T("Wizard.Sources.Add").arg(name));
+		addSources_->setText(name.isEmpty() ? i18n::tr("Wizard.Sources.AddNoScene")
+						    : i18n::tr("Wizard.Sources.Add").arg(name));
 	}
 
 	void addSources()
@@ -220,11 +221,11 @@ private:
 	{
 		auto *page = new QWidget(this);
 		auto *layout = new QVBoxLayout(page);
-		layout->addWidget(title(ui::T("Wizard.Done.Title"), page));
-		layout->addWidget(wrapped(ui::T("Wizard.Done.Text"), page));
+		layout->addWidget(title(i18n::tr("Wizard.Done.Title"), page));
+		layout->addWidget(wrapped(i18n::tr("Wizard.Done.Text"), page));
 		for (const char *tip : {"Wizard.Done.TipDock", "Wizard.Done.TipSettings", "Wizard.Done.TipHotkeys",
 					"Wizard.Done.TipReopen"}) {
-			auto *label = wrapped(QString::fromUtf8("•  ") + ui::T(tip), page);
+			auto *label = wrapped(QString::fromUtf8("•  ") + i18n::tr(tip), page);
 			label->setContentsMargins(8, 0, 0, 0);
 			layout->addWidget(label);
 		}

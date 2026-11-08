@@ -1,4 +1,5 @@
 #include "message.hpp"
+#include "../platforms-registry.hpp"
 
 #include <QDateTime>
 #include <QRegularExpression>
@@ -377,19 +378,8 @@ bool isFiltered(const QJsonObject &message, const FilterRules &rules)
 
 QString platformName(const QString &platform)
 {
-	if (platform == "twitch")
-		return QStringLiteral("Twitch");
-	if (platform == "youtube")
-		return QStringLiteral("YouTube");
-	if (platform == "kick")
-		return QStringLiteral("Kick");
-	if (platform == "tiktok")
-		return QStringLiteral("TikTok");
-	if (platform == "starvios")
-		return QStringLiteral("Starvios");
-	if (platform == "demo")
-		return QStringLiteral("Demo");
-	return platform;
+	const platforms::Platform *p = platforms::find(platform);
+	return p ? QString::fromUtf8(p->name) : platform;
 }
 
 QString linkifyHtml(const QString &text, const QString &linkColor)

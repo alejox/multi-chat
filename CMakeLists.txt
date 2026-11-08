@@ -40,10 +40,13 @@ target_sources(
     src/config-store.hpp
     src/featured-state.cpp
     src/featured-state.hpp
+    src/i18n.cpp
+    src/i18n.hpp
     src/overlay-presets.cpp
     src/overlay-presets.hpp
     src/overlay-source.cpp
     src/overlay-source.hpp
+    src/platforms-registry.hpp
     src/updater.cpp
     src/updater.hpp
     src/chat/connector.cpp

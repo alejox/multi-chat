@@ -23,9 +23,6 @@ AddResult addToCurrentScene(const char *id, QString &sceneName);
 // line per source saying what happened (Wizard.Sources.*), repeats removed.
 QStringList addMultichatSources(bool chat, bool featured, bool voice);
 
-// Texto traducido de data/locale/*.ini.
-QString T(const char *key);
-
 QColor platformColor(const QString &platform);
 // 950 · 1,2 K · 3,4 M
 QString formatCount(int count);

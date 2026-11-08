@@ -52,7 +52,11 @@ Revisión de arquitectura (2026-11-08) sobre `feat/quality`, más Fase A:
   - `readJsonObject`/`writeJsonObject` (con `QSaveFile`) en `src/config-store.*`; `ConfigStore` escribe `"version": 1` y lee un archivo sin versión como 1. `dock.json` usa las mismas funciones y registra el fallo con `obs_log`.
   - RED observado: `configStoreWritesTheVersion` y `configStoreReadsAMissingVersionAsOne` fallaron con el guardado anterior (28 passed, 2 failed); GREEN tras el cambio.
   - Checks: test-chat 71, test-tts 56, test-overlay 17, test-manager 30; build macOS SUCCEEDED, 0 errores, 0 warnings.
-- [ ] T4 `i18n.hpp` y registro de plataformas únicos. Route: delegated (writer).
+- [x] T4 `i18n.hpp` y registro de plataformas únicos. Route: delegated (writer). Previo: T3 `f511306`.
+  - `src/i18n.{hpp,cpp}`: `i18n::tr(key)` y `i18n::translator()` (siempre calificado: dentro de un `QObject` un `tr()` suelto es el de Qt). Borrados `ui::T`, `text` (updater), `moduleString` (overlay) y la lambda de `plugin-main`.
+  - `src/platforms-registry.hpp`: id, nombre, color y orden. Lo usan `chat::platformName`, `ui::platformColor`, el orden de `ChatManager::state()`, las casillas de la voz y los `show_*` del overlay. `icons.js` conserva su tabla; `iconsJsMatchesTheRegistry` (test-overlay) compara ids, orden y colores.
+  - Sin RED: el registro se escribió antes que sus pruebas; se comprobó que la prueba de `icons.js` falla cambiando un color del registro (mutación revertida).
+  - Checks: test-chat 71, test-tts 56, test-overlay 19, test-manager 30; build macOS SUCCEEDED, 0 errores, 0 warnings.
 - [ ] T5 `overlay.js` compartido + pruebas con node. Route: delegated (writer).
 - [ ] T6 Partir `overlay-source.cpp`. Route: delegated (writer).
 - [ ] T7 Partir `chat-dock.cpp` y `settings-dialog.cpp`. Route: delegated (writer).

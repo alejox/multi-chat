@@ -35,6 +35,7 @@ target_link_libraries(test-tts PRIVATE Qt6::Core Qt6::Test)
 
 add_executable(test-overlay test-overlay.cpp ${src}/overlay-presets.cpp)
 target_link_libraries(test-overlay PRIVATE Qt6::Core Qt6::Test)
+target_compile_definitions(test-overlay PRIVATE MULTICHAT_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data")
 
 # ChatManager without OBS: fake connectors, clock and config path (see test-manager.cpp).
 add_executable(
