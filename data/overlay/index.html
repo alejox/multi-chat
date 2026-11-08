@@ -5,13 +5,14 @@
 <title>Multichat</title>
 <!-- La fuente "Multichat" del plugin carga esta página y le manda los mensajes con el
      evento "multichat" (javascript_event de obs-browser):
-       {type: "config", config: {...}} · {type: "message", message: {...}} · {type: "clear"} -->
+       {type: "config", config: {...}} · {type: "message", message: {...}} · {type: "clear"}
+       · {type: "delete", ...} -->
 <style>
   :root { --fs: 22px; --gap: 5px; --pad-y: 6px; --pad-x: 10px; --msg-py: 5px; --msg-px: 11px; --bg-rgb: 0, 0, 0; --bg-alpha: .6; --bg-radius: 9px; --bg-bw: 0px; --bg-brgb: 255, 255, 255;
     --panel-rgb: 0, 0, 0; --panel-alpha: .5; --panel-radius: 0px; --panel-bw: 0px; --panel-brgb: 255, 255, 255; }
   html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
-  body { color: #fff; font: 600 var(--fs)/1.35 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
-    text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; }
+  body { color: var(--fg, #fff); font: 600 var(--fs)/var(--lh, 1.35) var(--font, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif);
+    text-shadow: var(--ts); }
   #list { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--pad-y) var(--pad-x); }
   /* Margen y no gap: así el espaciado puede ser negativo (los mensajes se solapan). */
   .msg + .msg { margin-top: var(--gap); }
@@ -32,7 +33,7 @@
   .amount { display: inline-block; font-size: .75em; font-weight: 800; padding: .05em .4em; margin-right: .35em;
     border-radius: .3em; background: var(--pc); color: #000; text-shadow: none; }
   .author { font-weight: 800; }
-  .body { font-weight: 500; }
+  .body { font-weight: var(--fw, 500); }
   .emote { height: 1.6em; vertical-align: middle; margin: -.3em .05em; }
   .noicons .pf, .nobadges .badge { display: none; }
   /* Fondo general detrás de todo el chat. */
@@ -51,7 +52,7 @@
     font-variant-numeric: tabular-nums; }
   body.h.clock #clock { display: flex; }
   .nobar #clock .bar { display: none; }
-  #clock .bar { width: .18em; height: 1.15em; background: #fff; box-shadow: 0 0 3px #000c; }
+  #clock .bar { width: .18em; height: 1.15em; background: var(--fg, #fff); box-shadow: 0 0 3px #000c; }
   body.bg #clock { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: var(--msg-py) var(--msg-px); border-radius: var(--bg-radius);
     border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
   @keyframes in { from { opacity: 0; transform: translateY(8px); } }
@@ -64,6 +65,33 @@
 <div id="clock"><span class="bar"></span><span id="clock-text"></span></div>
 <script src="icons.js"></script>
 <script>
+// Typography from the plugin (font, weight, colors, outline, shadow, line height). The values
+// are CSS strings built by the plugin; setProperty ignores anything that is not valid CSS.
+// defaultWeight: the text weight of the page when the plugin sends none.
+function applyTextStyle(c, defaultWeight) {
+  const root = document.documentElement.style;
+  const set = (name, value, fallback) => root.setProperty(name, typeof value === 'string' && value ? value : fallback);
+  set('--font', c.font, '"Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif');
+  root.setProperty('--fw', String(Number(c.textWeight) || defaultWeight));
+  set('--fg', c.textColor, '#fff');
+  root.setProperty('--ow', (Number(c.outlineWidth) || 0) + 'px');
+  set('--oc', c.outlineColor, '#000');
+  set('--sc', c.shadowColor, 'rgba(0, 0, 0, 1)');
+  root.setProperty('--sb', (Number(c.shadowBlur ?? 6) || 0) + 'px');
+  if (Number(c.lineHeight) > 0) root.setProperty('--lh', String(Number(c.lineHeight) / 100));
+  const body = document.body.classList;
+  body.toggle('outline', Number(c.outlineWidth) > 0);
+  body.toggle('ts-on', c.shadowMode === 'on');
+  body.toggle('ts-off', c.shadowMode === 'off');
+}
+
+// Name color by the chosen mode: the user's (lightened if too dark), the platform's or a fixed one.
+function authorColor(c, m) {
+  if (c.nameMode === 'platform') return Object.prototype.hasOwnProperty.call(PLATFORMS, m.platform) ? PLATFORMS[m.platform] : '#888';
+  if (c.nameMode === 'fixed' && typeof c.nameColor === 'string') return c.nameColor;
+  return nameColor(m.color, m.author);
+}
+
 const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MIEMBRO', verified: '✓', staff: 'STAFF' };
 const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
 
@@ -109,7 +137,7 @@ function render(m) {
   for (const b of m.badges || []) if (BADGES[b]) row.appendChild(el('span', 'badge b-' + b, BADGES[b]));
   if (m.amount) row.appendChild(el('span', 'amount', m.amount));
   const author = el('span', 'author', m.author);
-  author.style.color = nameColor(m.color, m.author);
+  author.style.color = authorColor(config, m);
   row.appendChild(author);
   if (m.parts && m.parts.length) {
     row.appendChild(document.createTextNode(m.action ? ' ' : ': '));
@@ -243,6 +271,7 @@ function applyConfig(c) {
   const root = document.documentElement.style;
   applyBoxStyle(config, 'bg');
   applyBoxStyle(config, 'panel');
+  applyTextStyle(config, 500);
   document.documentElement.dataset.style = config.style || 'solid';
   root.setProperty('--gap', config.spacing + 'px');
   root.setProperty('--pad-y', config.padY + 'px');
