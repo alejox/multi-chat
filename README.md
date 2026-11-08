@@ -29,6 +29,8 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en vivo, y el total. En fila o en columna, con o sin el nombre del canal. |
 | ⭐ **Mensaje destacado** | Clic en un mensaje del dock y aparece en grande en pantalla con la fuente **"Multichat (destacado)"**: logo de la plataforma, nombre con su color, insignias, emotes y monto de las donaciones. Entra y sale con una animación y se oculta solo al rato. Clic otra vez o Esc para quitarlo, también con atajos de teclado. |
 | 🔊 **Fuente "Multichat (voz)"** | Lee el chat en voz alta como una fuente de audio más, que llega a la emisión y se controla en el mezclador. |
+| 🛡️ **Moderación** | Si un moderador borra un mensaje, o banea o expulsa temporalmente a alguien, sus mensajes desaparecen del dock, del chat en pantalla y del destacado. Mira [Moderación y filtros](#-moderación-y-filtros). |
+| 🚫 **Filtros** | Oculta bots (Nightbot, StreamElements, Streamlabs… vienen de serie), comandos que empiezan por `!` y palabras bloqueadas, desde la pestaña **Filtros** de **Multichat: configurar chats**. |
 | 🙈 **Filtrar** | Clic en un canal del dock para ocultar o mostrar sus mensajes. |
 | 🧪 **Mensajes de prueba** | Para ver el dock y colocar el overlay sin estar en directo. Nunca salen mientras transmites. |
 
@@ -121,6 +123,28 @@ En sus **Propiedades** eliges la animación (deslizar, fundido, zoom o ninguna),
 En **Ajustes → Atajos** hay dos atajos sin tecla asignada: *Multichat: quitar mensaje destacado* y *Multichat: volver a mostrar el último destacado*. Asígnales la tecla que quieras.
 
 Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si aún no le tocaba ocultarse. Limpiar el chat desde el dock también quita el destacado.
+
+### 🛡 Moderación y filtros
+
+Cuando los moderadores de una plataforma borran un mensaje o banean a alguien, Multichat lo quita del dock (sin mover la lista si estás leyendo más arriba), del chat en pantalla (con su animación de salida) y del mensaje destacado. El borrado solo afecta al canal donde ocurrió: nunca a los mensajes de otro chat.
+
+| Plataforma | Mensaje borrado | Ban o expulsión temporal | Vaciar el chat |
+|---|---|---|---|
+| Twitch | ✅ | ✅ | ✅ |
+| YouTube | ✅ | ✅ (mensajes ocultados del autor) | — |
+| Kick | ✅ | ✅ | ✅ |
+| Starvios | ✅ | — | — |
+| TikTok | — | — | — |
+
+TikTok no envía, en lo que lee Multichat, ningún aviso de borrado que se pueda relacionar con los mensajes ya mostrados. Starvios solo avisa de mensajes borrados.
+
+En **Herramientas → Multichat: configurar chats → Filtros** puedes:
+
+- **Ocultar usuarios**: uno por línea. Vienen los bots más comunes (Nightbot, StreamElements, Streamlabs, Moobot, Fossabot, Wizebot, Botrix); el botón *Añadir bots conocidos* los recupera si los borraste.
+- **Ocultar comandos**: los mensajes que empiezan por `!` (activado de serie). Las suscripciones, Super Chats, bits y regalos se muestran siempre.
+- **Palabras bloqueadas**: una palabra o frase por línea. Se compara la palabra entera, sin distinguir mayúsculas ni tildes: *tonto* oculta «TÓNTO» pero no «tontería».
+
+Los filtros se guardan al momento y se aplican a los mensajes que llegan a partir de ahí; los mensajes ocultos tampoco se leen en voz alta.
 
 ### 🔊 Leer el chat en voz alta
 
