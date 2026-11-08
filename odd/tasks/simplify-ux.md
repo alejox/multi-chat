@@ -91,7 +91,14 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - Checks: RED observado (`use of undeclared identifier 'platformForService'`), GREEN `platformFromStreamingService` PASS; `test-chat` 71; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
   - Manual pendiente: con el servicio de OBS en YouTube, el asistente arranca en YouTube; el botón añade las tres fuentes; al Terminar aparece el dock aunque estuviera cerrado.
   - Commit anterior (T6): 5f4a9a0.
-- [ ] T7b Voz: modo de aviso sonoro (`read` | `sound` | `both`), WAV propio y antiinundación. Route: delegated (writer).
+- [x] T7b Voz: modo de aviso sonoro (`read` | `sound` | `both`), WAV propio y antiinundación. Route: delegated (writer).
+  - Módulo puro `src/tts/notification-sound.{hpp,cpp}`: `notificationChime(rate)` (A5 120 ms + E6 130 ms, ataque 8 ms, caída exponencial τ=60 ms, salida 20 ms, pico 0,25 = −12 dBFS, mono), `parseWav(bytes, maxSeconds)` (RIFF/WAVE PCM 16 bits mono/estéreo, chunks acotados al tamaño del archivo, salta chunks extra, rechaza 8/24 bits, >2 canales, truncados, >10 s), `resamplePcm(in, rate)` (lineal), `chimeAllowed(now, last, cooldownMs)`; `kChimeSampleRate` = 48000.
+  - `VoiceEngine::enqueueSound(pcm, id)`: el sonido entra en la misma cola que los textos (orden, ritmo real, `cancel(ids)` lo tira si el mensaje se borra) sin crear el sintetizador.
+  - Fuente de voz: ajustes `mode` ("read" por defecto), `sound_file` (ruta, filtro WAV), `sound_cooldown` (ms, 1500, 0–60000); `voice_mode_changed` muestra las opciones de sonido solo con sonido y las de voz solo con lectura. El WAV se lee fuera del candado y solo si cambia la ruta; si falla, aviso en el log y aviso integrado. En `onMessage` la puerta es `speechTextForMessage` no vacío (filtros de plataforma/palabras/recuperados valen para los tres modos); el antiinundación solo limita el sonido.
+  - Locales: `Voice.Mode(.read/.sound/.both/.Help)`, `Voice.SoundFile(.Help)`, `Voice.SoundFilter`, `Voice.SoundCooldown(.Help)`. README: viñeta en "Leer el chat en voz alta". CMake: nuevo .cpp/.hpp en el plugin y en test-tts.
+  - Checks: RED observado (CMake `Cannot find source file: notification-sound.cpp` y fallo de enlace), GREEN: 6 pruebas nuevas PASS (`test-tts` 56); `ctest` 3/3 (71/56/17); `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings (se corrigió un `-Wmissing-field-initializers` en `enqueue`).
+  - Manual pendiente: ver lista al final del documento.
+  - Commit anterior (T7): eb0805d.
 - [ ] T8 README, compilación e instalación local. Route: delegated (writer).
 
 ## Progress

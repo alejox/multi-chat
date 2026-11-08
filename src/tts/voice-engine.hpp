@@ -53,6 +53,10 @@ public:
 	// Devuelve cuántos textos antiguos se descartaron para hacer sitio. `id` (the chat message
 	// id) lets cancel() drop the text if the message is deleted before it is read.
 	std::size_t enqueue(const QString &text, const QString &id = QString());
+	// Queues ready-made audio (the notification sound) in the same order as the texts: no
+	// synthesizer involved, same real-time pacing, and cancel() drops it like a text. An empty
+	// buffer is ignored (returns 0).
+	std::size_t enqueueSound(const PcmBuffer &sound, const QString &id = QString());
 	// Drops the queued texts with these ids and cuts the current one if it is among them.
 	// Returns how many texts it dropped or cut.
 	std::size_t cancel(const QSet<QString> &ids);

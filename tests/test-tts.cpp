@@ -2,6 +2,7 @@
 
 #include "../src/chat/message.hpp"
 #include "../src/tts/bounded-queue.hpp"
+#include "../src/tts/notification-sound.hpp"
 #include "../src/tts/pcm.hpp"
 #include "../src/tts/speech-text.hpp"
 #include "../src/tts/voice-engine.hpp"
@@ -161,6 +162,46 @@ VoiceEngineConfig fastConfig()
 	VoiceEngineConfig config;
 	config.gapMs = 0;
 	return config;
+}
+
+// A PCM 16-bit WAV file in memory. `extraChunk` inserts a LIST chunk before "data", as many
+// editors do; `dataSize` overrides the declared size of the data chunk (0 = the real one).
+QByteArray wavFile(const std::vector<int16_t> &samples, uint16_t channels, uint32_t rate, uint16_t bits = 16,
+		   bool extraChunk = false, uint32_t dataSize = 0)
+{
+	QByteArray out;
+	QDataStream s(&out, QIODevice::WriteOnly);
+	s.setByteOrder(QDataStream::LittleEndian);
+	const uint32_t bytes = uint32_t(samples.size()) * 2;
+	s.writeRawData("RIFF", 4);
+	s << uint32_t(0); // size, patched below
+	s.writeRawData("WAVE", 4);
+	s.writeRawData("fmt ", 4);
+	s << uint32_t(16) << uint16_t(1) << channels << rate << uint32_t(rate * channels * bits / 8)
+	  << uint16_t(channels * bits / 8) << bits;
+	if (extraChunk) {
+		s.writeRawData("LIST", 4);
+		s << uint32_t(4);
+		s.writeRawData("INFO", 4);
+	}
+	s.writeRawData("data", 4);
+	s << (dataSize ? dataSize : bytes);
+	for (int16_t v : samples)
+		s << v;
+	const uint32_t riffSize = uint32_t(out.size()) - 8;
+	QDataStream patch(&out, QIODevice::ReadWrite);
+	patch.setByteOrder(QDataStream::LittleEndian);
+	patch.skipRawData(4);
+	patch << riffSize;
+	return out;
+}
+
+float peakOf(const PcmBuffer &b)
+{
+	float peak = 0.0f;
+	for (float v : b.samples)
+		peak = std::max(peak, std::abs(v));
+	return peak;
 }
 
 } // namespace
@@ -548,6 +589,118 @@ private slots:
 	}
 
 	// Sin textos no hay sintetizador: la fuente activada pero sin chat no gasta nada.
+	// ---- Notification sound (T7b) ----
+
+	void chimeIsShortQuietAndFadedAtBothEnds()
+	{
+		const PcmBuffer chime = notificationChime(48000);
+		QCOMPARE(chime.sampleRate, uint32_t(48000));
+		QCOMPARE(chime.channels, uint32_t(1));
+		QVERIFY(chime.frames() >= 48000 / 5 && chime.frames() <= 48000 * 3 / 10); // 200–300 ms
+		const float peak = peakOf(chime);
+		QVERIFY(peak <= 0.26f); // -12 dBFS = 0.251
+		QVERIFY(peak >= 0.20f); // it is audible, not a whisper
+		for (std::size_t i = 0; i < 48; ++i) // first millisecond: attack from silence
+			QVERIFY(std::abs(chime.samples[i]) < 0.05f);
+		for (std::size_t i = chime.samples.size() - 240; i < chime.samples.size(); ++i) // last 5 ms
+			QVERIFY(std::abs(chime.samples[i]) < 0.02f);
+		// Another sample rate gives the same duration.
+		const PcmBuffer other = notificationChime(22050);
+		QVERIFY(std::abs(double(other.frames()) / 22050 - double(chime.frames()) / 48000) < 0.002);
+		QVERIFY(notificationChime(0).samples.empty());
+	}
+
+	void wavParserReadsPcm16MonoAndStereo()
+	{
+		const PcmBuffer mono = parseWav(wavFile({0, 16384, -16384, 32767}, 1, 8000));
+		QCOMPARE(mono.sampleRate, uint32_t(8000));
+		QCOMPARE(mono.channels, uint32_t(1));
+		QCOMPARE(mono.frames(), std::size_t(4));
+		QCOMPARE(mono.samples[1], 0.5f);
+		QCOMPARE(mono.samples[2], -0.5f);
+
+		const PcmBuffer stereo = parseWav(wavFile({100, -100, 200, -200}, 2, 44100, 16, true));
+		QCOMPARE(stereo.channels, uint32_t(2));
+		QCOMPARE(stereo.frames(), std::size_t(2));
+		QCOMPARE(stereo.sampleRate, uint32_t(44100));
+		QVERIFY(stereo.samples[3] < 0);
+	}
+
+	void wavParserRejectsWhatItDoesNotUnderstand()
+	{
+		QVERIFY(parseWav(QByteArray()).samples.empty());
+		QVERIFY(parseWav(QByteArray("RIFF....WAVEjunk")).samples.empty());
+		QVERIFY(parseWav(wavFile({1, 2}, 1, 8000, 8)).samples.empty());   // 8-bit
+		QVERIFY(parseWav(wavFile({1, 2}, 1, 8000, 24)).samples.empty());  // 24-bit
+		QVERIFY(parseWav(wavFile({1, 2}, 3, 8000)).samples.empty());      // 3 channels
+		QVERIFY(parseWav(wavFile({1, 2}, 1, 8000, 16, false, 4000)).samples.empty()); // data chunk longer than the file
+		QByteArray truncated = wavFile({1, 2, 3, 4}, 1, 8000);
+		truncated.chop(3);
+		QVERIFY(parseWav(truncated).samples.empty());
+		// Longer than allowed: 11 s at 1000 Hz with a 10 s limit.
+		QVERIFY(parseWav(wavFile(std::vector<int16_t>(11000, 1), 1, 1000), 10.0).samples.empty());
+		QCOMPARE(parseWav(wavFile(std::vector<int16_t>(9000, 1), 1, 1000), 10.0).frames(), std::size_t(9000));
+	}
+
+	void resampleInterpolatesLinearly()
+	{
+		PcmBuffer in;
+		in.sampleRate = 1000;
+		in.channels = 1;
+		in.samples = {0.0f, 1.0f, 0.0f};
+		const PcmBuffer up = resamplePcm(in, 2000);
+		QCOMPARE(up.sampleRate, uint32_t(2000));
+		QCOMPARE(up.frames(), std::size_t(6));
+		QCOMPARE(up.samples[0], 0.0f);
+		QCOMPARE(up.samples[1], 0.5f);
+		QCOMPARE(up.samples[2], 1.0f);
+		QCOMPARE(up.samples[3], 0.5f);
+		const PcmBuffer same = resamplePcm(in, 1000);
+		QCOMPARE(same.samples, in.samples);
+		PcmBuffer stereo;
+		stereo.sampleRate = 1000;
+		stereo.channels = 2;
+		stereo.samples = {1.0f, -1.0f, 0.0f, 0.0f};
+		const PcmBuffer down = resamplePcm(stereo, 500);
+		QCOMPARE(down.channels, uint32_t(2));
+		QCOMPARE(down.frames(), std::size_t(1));
+		QCOMPARE(down.samples[0], 1.0f);
+		QCOMPARE(down.samples[1], -1.0f);
+		QVERIFY(resamplePcm(in, 0).samples.empty());
+	}
+
+	void chimeCooldownAllowsOnePerWindow()
+	{
+		const uint64_t ms = 1000000ULL;
+		QVERIFY(chimeAllowed(5000 * ms, 0, 1500));          // never played yet
+		QVERIFY(!chimeAllowed(5000 * ms, 4000 * ms, 1500)); // 1 s ago
+		QVERIFY(chimeAllowed(5500 * ms, 4000 * ms, 1500));  // exactly the window
+		QVERIFY(chimeAllowed(9000 * ms, 4000 * ms, 1500));
+		QVERIFY(chimeAllowed(4001 * ms, 4000 * ms, 0)); // no cooldown
+		QVERIFY(!chimeAllowed(3000 * ms, 4000 * ms, 1500)); // clock went backwards: wait
+	}
+
+	// A sound goes through the same queue as the texts: real-time pace, no synthesizer, and
+	// cancel() drops it when its message is deleted.
+	void soundsPlayWithoutTheSynthesizerAndCanBeCancelled()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueueSound(silence(60), "m1");
+		QVERIFY(waitFor([&] { return rig.frames() == 60; }));
+		QCOMPARE(rig.speech->created.load(), 0);
+
+		rig.engine->enqueue("texto", "m2");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		rig.engine->enqueueSound(silence(60), "m3");
+		rig.engine->enqueueSound(silence(60), "m4");
+		QCOMPARE(rig.engine->cancel({"m3"}), std::size_t(1));
+		rig.speech->job(0).onDone();
+		QVERIFY(waitFor([&] { return rig.frames() == 120; }));
+		QThread::msleep(40);
+		QCOMPARE(rig.frames(), uint64_t(120)); // m3 never played
+		QVERIFY(rig.engine->enqueueSound(PcmBuffer(), "empty") == 0);
+	}
+
 	void backendIsCreatedOnFirstText()
 	{
 		Rig rig(fastConfig());
