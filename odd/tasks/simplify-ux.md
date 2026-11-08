@@ -52,7 +52,12 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - `featured.html`: sin temporizador propio; oculta al recibir `message: null`. Regla documentada en README (la más corta de las activadas; ninguna activada = no se oculta).
   - Checks: RED observado (`error: use of undeclared identifier 'featuredTextLength'`), GREEN `test-chat featuredDurationFollowsTheLength` PASS; `ctest` 3/3 (test-chat 68, test-tts 50, test-overlay 17); `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
   - Manual pendiente: destacar, esperar el vencimiento y ver que el dock deja de resaltar; atajo "volver a mostrar" tras vencer.
-- [ ] T3 Vocabulario unificado. Route: delegated (writer).
+- [x] T3 Vocabulario unificado. Route: delegated (writer).
+  - Regla: *Ocultar* = quitar de Multichat (`Dock.Menu.HideMessage/HideUser`, `Settings.Filters.*` sin cambios); *Silenciar canal* = chip (`Dock.ChipHint`); *Pausar* = desconectar (`Settings.Row.EnabledTip`, `Settings.ListHelp`); *Filtros* = reglas; "canal" para lo que se añade (`Settings.Chats`, `Settings.Tab.Chats`, `Settings.NoChats`, `Settings.Validate.Duplicate`, `Dock.Empty`, `Dock.Configure`, `Source.Chats`, `Wizard.Chat.Later`, `Wizard.Done.TipSettings`, `Settings.Mode.AutoHelp`); "en directo" siempre (`Live.Yes`, `Live.No`, `Dock.LiveOn`, `Dock.Refresh`, `Viewers.Preview`); "en pantalla" en vez de "overlay" (`Settings.Demo`, README). `Source.Fade` → "Desaparecen después de", `Group.Animation` → "Animación y duración", `Featured.AutoHide` → "Se quita solo", `Text.Weight.900` → "Máxima", `Dock.Settings` → "Configurar Multichat". Claves sin cambiar: nombres (`Source.Name`), `Status.*`, `Error.*` (ya uniformes en minúscula y sin punto final), `Update.*`, `Menu.*`/`Update.MenuItem` (los toca T6), `Wizard.*` salvo las dos citadas (T7 reescribe el asistente).
+  - Huérfanas eliminadas en ambos .ini: `Source.Opacity`, `Settings.Validate.Found`.
+  - Prueba nueva `localeFilesHaveTheSameKeysAndNoOrphans` (test-chat): mismo conjunto de claves en los dos .ini, ninguna vacía y cada clave usada en `src/` (literal completo, prefijo dinámico `"Status."` o raíz numérica `"Overlay.Sample"`); `tests/CMakeLists.txt` define `MULTICHAT_SRC_DIR`. RED observado: `locale key is not used by the plugin: Source.Opacity`; GREEN tras quitar las huérfanas.
+  - Checks: `ctest` 3/3 (test-chat 69, test-tts 50, test-overlay 17).
+  - Commit anterior (T2): 62f4eaf.
 - [ ] T4 Mensajes de prueba globales con migración. Route: delegated (writer).
 - [ ] T5 Propiedades con "Mostrar opciones avanzadas". Route: delegated (writer).
 - [ ] T6 Un menú, botones en Configurar, rueda del dock. Route: delegated (writer).
