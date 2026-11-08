@@ -138,11 +138,11 @@ La primera vez que abres OBS con el plugin, sin chats configurados, aparece el *
 2. En el dock **Multichat**, haz clic en un mensaje: aparece en la fuente y se resalta en el dock. Otro clic en otro mensaje lo reemplaza.
 3. Para quitarlo: clic otra vez en el mensaje resaltado o **Esc** con el dock seleccionado.
 
-En sus **Propiedades** eliges la animación (deslizar, fundido, zoom o ninguna), la posición dentro de la fuente, el tamaño de letra, el ancho y el alto, el fondo con los mismos estilos que el chat y si se ven el logo y las insignias. Con *Ocultar automáticamente* (activado por defecto) se queda en pantalla 8 s más 60 ms por carácter, como mucho 30 s; desactívalo para dejarlo hasta que lo quites.
+En sus **Propiedades** eliges la animación (deslizar, fundido, zoom o ninguna), la posición dentro de la fuente, el tamaño de letra, el ancho y el alto, el fondo con los mismos estilos que el chat y si se ven el logo y las insignias. Con *Se quita solo* (activado por defecto) se queda en pantalla 8 s más 60 ms por carácter, como mucho 30 s; desactívalo para dejarlo hasta que lo quites. El tiempo lo lleva el plugin, no la página: al vencer, el dock deja de resaltar el mensaje a la vez que desaparece de pantalla, y *volver a mostrar el último* sigue funcionando. Si tienes varias fuentes de destacado con tiempos distintos, manda la más corta de las que tengan *Se quita solo* activado; si ninguna lo tiene, el mensaje se queda hasta que lo quites.
 
 En **Ajustes → Atajos** hay dos atajos sin tecla asignada: *Multichat: quitar mensaje destacado* y *Multichat: volver a mostrar el último destacado*. Asígnales la tecla que quieras.
 
-Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si aún no le tocaba ocultarse. Limpiar el chat desde el dock también quita el destacado.
+Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si aún no venció su tiempo. Limpiar el chat desde el dock también quita el destacado.
 
 ### 🎨 Aspecto de las fuentes
 

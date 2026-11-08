@@ -1913,6 +1913,30 @@ private slots:
 		QCOMPARE(plain, before);
 	}
 
+	void featuredDurationFollowsTheLength()
+	{
+		// Same rule featured.html used: base + per character, capped. Emotes count as two.
+		QJsonObject m = makeMessage("twitch", "c", "Ana", QJsonArray{textPart("hola"), emotePart("https://e/1", "Kappa")});
+		QCOMPARE(featuredTextLength(m), 6);
+		m.insert("system", "Ana subscribed");
+		QCOMPARE(featuredTextLength(m), 6 + 14);
+		QCOMPARE(featuredTextLength(QJsonObject{}), 0);
+
+		FeaturedHidePolicy p{true, 8, 60, 30};
+		QCOMPARE(featuredDurationMs(0, p), 8000);
+		QCOMPARE(featuredDurationMs(100, p), 14000);
+		QCOMPARE(featuredDurationMs(100000, p), 30000); // capped by hideMax
+		p.enabled = false;
+		QCOMPARE(featuredDurationMs(10, p), -1); // never hides on its own
+		QCOMPARE(featuredDurationMs(10, FeaturedHidePolicy{true, 0, 0, 0}), 0);
+
+		// Several featured sources: the shortest enabled one wins; none enabled → never.
+		QList<FeaturedHidePolicy> none;
+		QCOMPARE(featuredDurationMs(10, none), -1);
+		QList<FeaturedHidePolicy> mixed{{false, 1, 0, 1}, {true, 20, 0, 60}, {true, 5, 100, 60}};
+		QCOMPARE(featuredDurationMs(10, mixed), 6000);
+	}
+
 	void localeFilesHaveEveryText()
 	{
 		const auto readIni = [](const QString &name) {

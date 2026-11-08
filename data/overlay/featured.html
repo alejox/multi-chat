@@ -6,9 +6,11 @@
 <!-- La fuente "Multichat (destacado)" del plugin carga esta página y le manda, con el evento
      "multichat" (javascript_event de obs-browser):
        {type: "config", config: {...}}
-       {type: "featured", message: {...} | null, at: <ms en que se destacó>, now: <ms ahora>}
+       {type: "featured", message: {...} | null, at: <ms en que se destacó>}
      El estado vive en el plugin: tras recargar la página, el siguiente envío lo repone. El
-     tiempo para ocultarlo se cuenta desde "at", así que recargar no alarga lo que se ve.
+     plugin también decide cuándo se oculta solo (manda message: null al vencer), así el dock,
+     los atajos y todas las fuentes de destacado van a la vez; "at" distingue dos destacados
+     seguidos del mismo mensaje.
      El texto del chat se pone siempre como texto (textContent), nunca como HTML. -->
 <style>
   :root { --fs: 34px; --pad-y: 16px; --pad-x: 22px; --dur: 300ms; --from: translateY(1.2em);
@@ -111,15 +113,14 @@ const SAMPLE = { id: 'sample', platform: 'twitch', author: 'LunaGamer', color: '
   parts: [{ type: 'text', text: 'This is a sample featured message!' }], kind: 'chat' };
 const DURATION = 300; // ms de la animación de entrada y salida
 
-let config = { size: 34, animation: 'slide', autoHide: true, hideBase: 8, hidePerChar: 60, hideMax: 30,
-  valign: 'bottom', halign: 'center', icons: true, badges: true, padY: 16, padX: 22, background: true,
+let config = { size: 34, animation: 'slide', valign: 'bottom', halign: 'center', icons: true, badges: true, padY: 16, padX: 22, background: true,
   style: 'solid', bgColor: '#000000', bgOpacity: 75, bgRadius: 16, bgBorderWidth: 0, bgBorderColor: '#ffffff',
   preview: true, streaming: false };
-// Lo último que mandó el plugin. offset: diferencia entre su reloj y el de la página.
-let state = { message: null, at: 0, offset: 0 };
+// Lo último que mandó el plugin.
+let state = { message: null, at: 0 };
 let shownKey = null;
 let ready = false; // hasta la primera configuración no se sabe si se está transmitiendo
-let hideTimer = 0, swapTimer = 0;
+let swapTimer = 0;
 const box = document.getElementById('box');
 
 const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
@@ -216,19 +217,6 @@ function build(m) {
   box.appendChild(content);
 }
 
-// Caracteres que cuentan para el tiempo en pantalla (un emote cuenta como dos).
-function textLength(m) {
-  let n = String(m.system || '').length;
-  for (const p of Array.isArray(m.parts) ? m.parts : [])
-    if (p) n += p.type === 'emote' ? 2 : String(p.text || '').length;
-  return n;
-}
-
-function duration(m) {
-  if (!config.autoHide) return Infinity;
-  return Math.min(config.hideMax * 1000, config.hideBase * 1000 + config.hidePerChar * textLength(m));
-}
-
 function show(m) {
   const enter = () => {
     build(m);
@@ -245,19 +233,17 @@ function show(m) {
 }
 
 function update() {
-  clearTimeout(hideTimer);
-  let m = state.message, key = null, remaining = Infinity;
+  let m = state.message, key = null;
   if (!ready) {
     m = null;
   } else if (m) {
     key = (m.id || '') + '@' + state.at;
-    remaining = duration(m) - (Date.now() + state.offset - state.at);
   } else if (config.preview && !config.streaming) {
     m = typeof config.sampleText === 'string' && config.sampleText
       ? { ...SAMPLE, parts: [{ type: 'text', text: config.sampleText }] } : SAMPLE;
     key = 'sample';
   }
-  if (!m || remaining <= 0) {
+  if (!m) {
     clearTimeout(swapTimer);
     box.classList.remove('show');
     shownKey = null;
@@ -268,7 +254,6 @@ function update() {
     shownKey = key;
     show(m);
   }
-  if (remaining !== Infinity) hideTimer = setTimeout(update, remaining + 20);
 }
 
 function applyConfig(c) {
@@ -300,8 +285,7 @@ window.addEventListener('multichat', e => {
     applyConfig(data.config || {});
   } else if (data.type === 'featured') {
     const message = data.message && typeof data.message === 'object' ? data.message : null;
-    const now = Number(data.now) || Date.now();
-    state = { message, at: Number(data.at) || 0, offset: now - Date.now() };
+    state = { message, at: Number(data.at) || 0 };
     update();
   }
 });

@@ -223,6 +223,36 @@ QString messageText(const QJsonObject &message)
 	return text;
 }
 
+int featuredTextLength(const QJsonObject &message)
+{
+	int n = int(message.value("system").toString().size());
+	for (const QJsonValue v : message.value("parts").toArray()) {
+		const QJsonObject p = v.toObject();
+		n += p.value("type").toString() == QLatin1String("emote") ? 2 : int(p.value("text").toString().size());
+	}
+	return n;
+}
+
+int featuredDurationMs(int textLength, const FeaturedHidePolicy &policy)
+{
+	if (!policy.enabled)
+		return -1;
+	const qint64 wanted = qint64(policy.baseSeconds) * 1000 + qint64(policy.perCharMs) * std::max(0, textLength);
+	const qint64 cap = qint64(policy.maxSeconds) * 1000;
+	return int(std::clamp<qint64>(std::min(wanted, cap), 0, INT_MAX));
+}
+
+int featuredDurationMs(int textLength, const QList<FeaturedHidePolicy> &policies)
+{
+	int shortest = -1;
+	for (const FeaturedHidePolicy &p : policies) {
+		const int ms = featuredDurationMs(textLength, p);
+		if (ms >= 0 && (shortest < 0 || ms < shortest))
+			shortest = ms;
+	}
+	return shortest;
+}
+
 QString plainText(const QJsonObject &message)
 {
 	QString text = messageText(message);

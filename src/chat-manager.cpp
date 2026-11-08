@@ -11,6 +11,7 @@
 #include <QPointer>
 
 #include <algorithm>
+#include <climits>
 
 namespace {
 
@@ -58,6 +59,8 @@ ChatManager::ChatManager()
 	timer_.setInterval(2000);
 	connect(&timer_, &QTimer::timeout, this, &ChatManager::tick);
 	timer_.start();
+	featuredTimer_.setSingleShot(true);
+	connect(&featuredTimer_, &QTimer::timeout, this, &ChatManager::clearFeatured);
 }
 
 void ChatManager::load()
@@ -248,16 +251,57 @@ void ChatManager::feature(const QJsonObject &message)
 	featured_ = message;
 	lastFeatured_ = message;
 	featuredAt_ = nowMs();
+	armFeaturedTimer();
 	emit featuredChanged(featured_);
 }
 
 void ChatManager::clearFeatured()
 {
+	featuredTimer_.stop();
 	if (featured_.isEmpty())
 		return;
 	featured_ = QJsonObject();
 	featuredAt_ = nowMs();
 	emit featuredChanged(featured_);
+}
+
+// The time counts from featuredAt_, so a policy that changes while a message is on screen
+// shortens or extends what is left instead of restarting it.
+void ChatManager::armFeaturedTimer()
+{
+	featuredTimer_.stop();
+	if (featured_.isEmpty())
+		return;
+	const int duration = chat::featuredDurationMs(chat::featuredTextLength(featured_), featuredPolicies_.values());
+	if (duration < 0)
+		return;
+	const qint64 remaining = featuredAt_ + duration - nowMs();
+	if (remaining <= 0)
+		clearFeatured();
+	else
+		featuredTimer_.start(int(std::min<qint64>(remaining, INT_MAX)));
+}
+
+void ChatManager::setFeaturedAutoHide(const QString &sourceId, const chat::FeaturedHidePolicy &policy)
+{
+	QMetaObject::invokeMethod(
+		this,
+		[this, sourceId, policy] {
+			featuredPolicies_.insert(sourceId, policy);
+			armFeaturedTimer();
+		},
+		Qt::QueuedConnection);
+}
+
+void ChatManager::removeFeaturedAutoHide(const QString &sourceId)
+{
+	QMetaObject::invokeMethod(
+		this,
+		[this, sourceId] {
+			featuredPolicies_.remove(sourceId);
+			armFeaturedTimer();
+		},
+		Qt::QueuedConnection);
 }
 
 void ChatManager::reshowLast()
@@ -485,6 +529,7 @@ void ChatManager::shutdown()
 		return;
 	shutdown_ = true;
 	timer_.stop();
+	featuredTimer_.stop();
 	for (auto &s : sources_)
 		disconnectSource(*s);
 	// Los hilos no pueden seguir vivos cuando OBS descarga el plugin.
