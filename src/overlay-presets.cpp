@@ -135,6 +135,7 @@ void addText(std::vector<Setting> &list, SourceKind kind, long long weight, long
 	list.push_back(S("custom_css", ""));
 	list.push_back(S("preset", kCustomPreset));
 	list.push_back(S("preset_applied", kCustomPreset));
+	list.push_back(B("advanced", false)); // "Show advanced options" in the properties window
 }
 
 // Which source types a preset value applies to.

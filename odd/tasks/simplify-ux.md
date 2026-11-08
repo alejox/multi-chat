@@ -67,7 +67,13 @@ Revisión de equipo (arquitectura + UX + mercado, 2026-11-08) sobre `feat/qualit
   - Checks: RED observado (`use of undeclared identifier 'testMessagesEnabled'`), GREEN `testMessagesSwitchAndLegacyPreview` PASS; `test-chat` 70, `test-tts` 50, `test-overlay` 17; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
   - Manual pendiente: activar desde la rueda y ver que Configurar y las fuentes siguen; abrir una escena vieja con `preview` activado a mano y comprobar que el interruptor queda encendido una sola vez.
   - Commit anterior (T3): 740eb13.
-- [ ] T5 Propiedades con "Mostrar opciones avanzadas". Route: delegated (writer).
+- [x] T5 Propiedades con "Mostrar opciones avanzadas". Route: delegated (writer).
+  - Nuevo ajuste `advanced` (bool, por defecto `false`, en `addText` de `overlay-presets.cpp`, común a las 4 fuentes). Orden: Preajuste → Diseño → Plataformas → (reloj de la cinta en el chat) → casilla `Source.Advanced` → Texto → Fondo → Animación (destacado) → Avanzado. `showAdvancedGroups()` oculta `group_text/background/animation/advanced` salvo con la casilla; se llama desde `ov_layout_changed`, `fe_changed` y `box_changed`; `advanced` entra en `changesVisibility`.
+  - Movidos a Avanzado sin renombrar claves: chat `fade`, `max` (visibles solo en vertical, antes era el grupo entero), `spacing`, `hspacing`, `pad_y/pad_x`, `panel` + `panel_*`; espectadores/reloj/destacado `pad_y/pad_x`. El grupo "Animación" del chat desaparece (quedaba vacío); el "Diseño" del reloj también (solo tenía el relleno).
+  - Locales: `Source.Advanced`, `Source.Advanced.Help`. README: sección Aspecto y la fila de la tabla.
+  - Checks: RED observado en `legacyKeysKeepTheirDefaults` (`chat: advanced` ausente tras añadir la clave al mapa de legado), GREEN tras el default; `test-overlay` 17, `test-chat` 70; `cmake --build --preset macos` BUILD SUCCEEDED, 0 warnings.
+  - Manual pendiente: abrir Propiedades de las 4 fuentes, ver solo lo esencial, activar la casilla y ver el resto; en horizontal `fade`/`max` ocultos dentro de Avanzado.
+  - Commit anterior (T4): 51f22b3.
 - [ ] T6 Un menú, botones en Configurar, rueda del dock. Route: delegated (writer).
 - [ ] T7 Asistente: plataforma detectada, un botón, muestra el dock. Route: delegated (writer).
 - [ ] T7b Voz: modo de aviso sonoro (`read` | `sound` | `both`), WAV propio y antiinundación. Route: delegated (writer).
