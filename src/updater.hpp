@@ -5,7 +5,9 @@
 // Al abrir OBS, cada 12 horas y desde Herramientas → "Multichat: buscar actualizaciones"
 // revisa la última Release. Si trae una versión más nueva, pregunta (Actualizar ahora / Más
 // tarde / Omitir esta versión) y el dock muestra un aviso con el botón "Actualizar".
-// Al aceptar la instala sola: descarga el zip con el curl del sistema, lo descomprime (tar en
+// Al aceptar la instala sola: descarga el zip con el curl del sistema, comprueba su SHA-256 (el
+// "digest" del asset en la API de GitHub o, si falta, el SHA256SUMS de la Release; sin hash no
+// instala), lo descomprime (tar en
 // Windows, ditto en macOS) y reemplaza el plugin; el cambio se aplica al reiniciar OBS.
 //   - Windows: en C:\ProgramData\obs-studio\plugins\obs-multichat (carpeta de OBS 33). Es de
 //     administrador: la copia la hace PowerShell con "Ejecutar como administrador". Si el plugin
@@ -46,6 +48,9 @@ private:
 	void handleRelease(const QByteArray &json, bool manual);
 	void askToUpdate(const chat::Release &release);
 	void download(const chat::Release &release);
+	// Checks the download's SHA-256 against the published one before installing.
+	void verify(const chat::Release &release, const QString &zipPath);
+	void installIfMatches(const QString &version, const QString &zipPath, const QString &expected);
 	void install(const QString &version, const QString &zipPath);
 	void fail(const QString &message, const QString &detail = QString());
 

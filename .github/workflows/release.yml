@@ -1,6 +1,6 @@
 name: Publicar versión
 
-# Publica una Release con los zips de Windows y macOS y el .tar.gz de Linux. Se lanza:
+# Publica una Release con los zips de Windows y macOS, el .tar.gz de Linux y su SHA256SUMS. Se lanza:
 #   - solo, al subir a main un cambio de "version" en buildspec.json (si ese tag aún no existe);
 #   - al empujar un tag v<version>:  git tag v2.0.2 && git push origin v2.0.2
 #   - a mano: Actions → Publicar versión → Run workflow (sobre la rama elegida).
@@ -52,6 +52,13 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Sumas SHA-256
+        # El actualizador del plugin comprueba la descarga con el "digest" del asset que da la API
+        # de GitHub y, si falta, con este SHA256SUMS ("<hash>  <archivo>" por línea).
+        working-directory: dist
+        run: |
+          sha256sum -- obs-multichat-* > SHA256SUMS
+          cat SHA256SUMS
       - name: Crear la Release
         env:
           GH_TOKEN: ${{ github.token }}
