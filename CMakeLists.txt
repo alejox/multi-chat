@@ -63,6 +63,8 @@ target_sources(
     src/tts/voice-engine.hpp
     src/ui/chat-dock.cpp
     src/ui/chat-dock.hpp
+    src/ui/first-run-wizard.cpp
+    src/ui/first-run-wizard.hpp
     src/ui/flow-layout.cpp
     src/ui/flow-layout.hpp
     src/ui/image-cache.cpp
@@ -70,6 +72,7 @@ target_sources(
     src/ui/profile-cache.cpp
     src/ui/profile-cache.hpp
     src/ui/settings-dialog.cpp
+    src/ui/settings-dialog.hpp
     src/ui/ui-common.cpp
     src/ui/ui-common.hpp
 )

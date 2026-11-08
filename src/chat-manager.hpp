@@ -44,6 +44,9 @@ public:
 	// Configured chats in the user's order, paused ones included.
 	QList<chat::ChatEntry> chats() const { return chats_; }
 	Mode mode() const { return mode_; }
+	// The first-run assistant was shown (or skipped); saved in config.json as "wizardShown".
+	bool wizardShown() const { return config_.value("wizardShown").toBool(); }
+	void setWizardShown();
 	bool demo() const { return demo_; }
 	// Changes the chat list: paused chats are disconnected but kept, and sources follow the list's
 	// order. Returns the (translated) errors of the invalid entries.

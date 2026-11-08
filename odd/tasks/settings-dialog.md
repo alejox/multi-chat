@@ -50,7 +50,12 @@ Auditoría (snapshot de `main`, líneas pueden haber cambiado con los bloques 2�
   - Fila: casilla «Conectar <canal>», avatar, nombre (perfil o canal), plataforma · canal, estado (icono + texto, «en pausa», en vivo y espectadores) y detalle del error en líneas separadas; botón quitar con icono `close.svg` y nombre accesible «Quitar <canal>». Las filas se actualizan en sitio y solo se reconstruyen si cambia la lista.
   - Orden: arrastrar (InternalMove; tras soltar se lee el orden y se reconstruyen las filas) o Alt+↑/↓. ChatManager ordena `sources_` según la lista (T1), y el dock ya recoloca los chips cuando cambia el orden del estado.
   - Checks: macOS BUILD SUCCEEDED, 0 errores, 0 warnings; pruebas 61/48/17 sin cambios (lógica de orden cubierta por `sourcePlan`). UI: prueba manual pendiente del usuario.
-- [ ] T4 Asistente de primera ejecución con inserción de fuentes en la escena. Route: delegated (writer).
+- [x] T4 Asistente de primera ejecución con inserción de fuentes en la escena. Route: delegated (writer).
+  - T3 = commit `1389e5f`.
+  - El campo de canal con su validación se extrae a `ChannelInput` (`src/ui/settings-dialog.hpp`) y lo usan la ventana y el asistente.
+  - `first-run-wizard.cpp`: QDialog + QStackedWidget (bienvenida, canal con mensajes de prueba opcionales, fuentes en la escena, listo con atajos). Saltar/cerrar/terminar guarda `"wizardShown": true` en `config.json` (ChatManager conserva las demás claves). Se abre tras `OBS_FRONTEND_EVENT_FINISHED_LOADING` solo si no hay chats y la marca no está; Herramientas → «Multichat: asistente de inicio» lo vuelve a abrir.
+  - Fuentes: escena en edición (vista previa en modo estudio), no añade si ya hay una del mismo tipo en esa escena, reutiliza una fuente existente con el nombre por defecto y el mismo tipo, libera todas las referencias. Transformación por defecto.
+  - Checks: macOS BUILD SUCCEEDED, 0 errores, 0 warnings; pruebas sin cambios. UI y OBS: prueba manual pendiente del usuario.
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
 
 ## Progress
