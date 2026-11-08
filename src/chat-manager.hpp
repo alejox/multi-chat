@@ -9,6 +9,7 @@
 #include "chat-history.hpp"
 #include "config-store.hpp"
 #include "featured-state.hpp"
+#include "tts/voice-settings.hpp"
 
 #include <QHash>
 #include <QJsonArray>
@@ -85,6 +86,19 @@ public:
 	// order. Returns the (translated) errors of the invalid entries.
 	QStringList configure(const QList<chat::ChatEntry> &chats, Mode mode);
 
+	// Voice (read the chat aloud), saved in config.json as "voice". setVoiceSettings saves and
+	// emits voiceSettingsChanged when something changed.
+	tts::VoiceSettings voiceSettings() const { return voice_; }
+	void setVoiceSettings(const tts::VoiceSettings &settings);
+	// Voice sources saved in scenes by older versions: while config.json has no "voice", the
+	// first call with sources takes their settings (see tts::migrateVoiceSources) and appends
+	// their blocked words to the Filters. Later calls change nothing.
+	void migrateLegacyVoice(const QList<tts::LegacyVoiceSource> &sources);
+	// Volume, mute, monitoring and filters of the plugin's voice output, as obs_save_source gives
+	// them, saved in config.json as "voiceOutput" (empty = none saved yet).
+	QJsonObject voiceOutputState() const { return config_.value("voiceOutput").toObject(); }
+	void setVoiceOutputState(const QJsonObject &state);
+
 	// Hidden users, commands and blocked words. They apply to messages that arrive from now on.
 	chat::FilterRules filters() const { return filters_; }
 	void setFilters(const chat::FilterRules &rules) { filters_ = rules; }
@@ -134,6 +148,8 @@ signals:
 	// Moderation: messages deleted by the platform (see chat::deleteMessage). `ids` lists the
 	// history messages removed; consumers holding more messages use chat::deletionMatches.
 	void deleted(const QJsonObject &deletion);
+	// voiceSettings() changed (settings dialog, assistant or migration).
+	void voiceSettingsChanged();
 	// Cambió el destacado; vacío = se quitó.
 	void featuredChanged(const QJsonObject &message);
 
@@ -166,6 +182,7 @@ private:
 	std::vector<std::shared_ptr<chat::Connector>> retired_;
 	ChatHistory history_;
 	chat::FilterRules filters_ = chat::FilterRules::defaults();
+	tts::VoiceSettings voice_;
 	FeaturedState featured_;
 	QTimer featuredTimer_;
 	QJsonObject lastState_;

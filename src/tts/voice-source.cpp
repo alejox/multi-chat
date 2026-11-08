@@ -21,6 +21,7 @@
 #include <util/platform.h>
 
 #include <QFile>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QObject>
 #include <QString>
@@ -125,7 +126,7 @@ tts::SpeechOptions readOptions(obs_data_t *settings)
 	// escuchar la voz sin estar en directo. Mientras se transmite se descartan en onMessage.
 	options.allowedPlatforms.insert(QStringLiteral("demo"));
 	options.maxLength = int(obs_data_get_int(settings, "max_length"));
-	options.blockedWords = tts::parseBlockedWords(QString::fromUtf8(obs_data_get_string(settings, "blocked_words")));
+	// Blocked words live only in the Filters: ChatManager never emits a message they hide.
 	return options;
 }
 
@@ -271,7 +272,6 @@ void voice_defaults(obs_data_t *settings, uint32_t version)
 	for (const platforms::Platform &platform : platforms::kAll)
 		obs_data_set_default_bool(settings, platformKey(platform.id).c_str(), true);
 	obs_data_set_default_int(settings, "max_length", kDefaultMaxLength);
-	obs_data_set_default_string(settings, "blocked_words", "");
 }
 
 void voice_defaults_v0(obs_data_t *settings)
@@ -348,9 +348,6 @@ obs_properties_t *voice_properties(void *data)
 	obs_property_t *maxLength =
 		obs_properties_add_int(props, "max_length", obs_module_text("Voice.MaxLength"), 20, 1000, 10);
 	obs_property_set_long_description(maxLength, obs_module_text("Voice.MaxLength.Help"));
-	obs_property_t *blocked = obs_properties_add_text(props, "blocked_words", obs_module_text("Voice.BlockedWords"),
-							  OBS_TEXT_MULTILINE);
-	obs_property_set_long_description(blocked, obs_module_text("Voice.BlockedWords.Help"));
 
 	obs_properties_add_button2(props, "skip", obs_module_text("Voice.Skip"), voice_skip_clicked, data);
 	return props;
@@ -388,6 +385,28 @@ void register_voice_source()
 	info.version = tts::kVoiceSourceVersion;
 	info.get_defaults = voice_defaults_latest;
 	obs_register_source(&info);
+}
+
+void voice_migrate_legacy_sources()
+{
+	QList<tts::LegacyVoiceSource> legacy;
+	obs_enum_sources(
+		[](void *param, obs_source_t *source) {
+			const char *id = obs_source_get_unversioned_id(source);
+			if (!id || std::strcmp(id, tts::kVoiceSourceId) != 0)
+				return true;
+			obs_data_t *settings = obs_source_get_settings(source);
+			// Only the values the user changed: the defaults depend on the version.
+			const char *json = obs_data_get_json(settings);
+			tts::LegacyVoiceSource entry;
+			entry.version = tts::voiceSourceVersion(QString::fromUtf8(obs_source_get_id(source)));
+			entry.settings = QJsonDocument::fromJson(QByteArray(json ? json : "{}")).object();
+			obs_data_release(settings);
+			static_cast<QList<tts::LegacyVoiceSource> *>(param)->append(entry);
+			return true;
+		},
+		&legacy);
+	ChatManager::instance().migrateLegacyVoice(legacy);
 }
 
 void voice_source_shutdown()

@@ -30,7 +30,7 @@ target_compile_definitions(test-chat PRIVATE MULTICHAT_LOCALE_DIR="${CMAKE_CURRE
                                             MULTICHAT_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
 add_executable(test-tts test-tts.cpp ${src}/chat/message.cpp ${src}/tts/notification-sound.cpp ${src}/tts/speech-text.cpp
-                        ${src}/tts/voice-engine.cpp)
+                        ${src}/tts/voice-engine.cpp ${src}/tts/voice-settings.cpp)
 target_link_libraries(test-tts PRIVATE Qt6::Core Qt6::Test)
 
 add_executable(test-overlay test-overlay.cpp ${src}/overlay-presets.cpp)
@@ -58,6 +58,8 @@ add_executable(
   ${src}/chat/youtube.cpp
   ${src}/chat/tiktok.cpp
   ${src}/chat/starvios.cpp
+  ${src}/tts/speech-text.cpp
+  ${src}/tts/voice-settings.cpp
 )
 target_link_libraries(test-manager PRIVATE Qt6::Core Qt6::Test)
 
