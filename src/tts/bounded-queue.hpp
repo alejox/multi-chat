@@ -38,6 +38,22 @@ public:
 		return trim();
 	}
 
+	// Removes every item that matches, keeping the order of the rest. Returns how many it removed
+	// (they do not count as dropped).
+	template<typename Predicate> std::size_t removeIf(Predicate matches)
+	{
+		std::size_t removed = 0;
+		for (auto it = items_.begin(); it != items_.end();) {
+			if (matches(*it)) {
+				it = items_.erase(it);
+				++removed;
+			} else {
+				++it;
+			}
+		}
+		return removed;
+	}
+
 	void clear() { items_.clear(); }
 	bool empty() const { return items_.empty(); }
 	std::size_t size() const { return items_.size(); }

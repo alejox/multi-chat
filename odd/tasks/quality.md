@@ -41,7 +41,9 @@ Cerrar los pendientes de calidad de la auditoría y de los bloques 1–5 para qu
   - Evidencia `gh api repos/alejox/multi-chat/releases/latest`: v2.1.1 trae `digest: "sha256:<hex>"` en los tres assets. Decisión: hash del `digest` del asset; si falta, el `SHA256SUMS` de la Release; sin hash o con hash distinto no se instala (`Update.NoChecksum` / `Update.VerifyFailed`). Textos de detalle del actualizador pasados a `data/locale`.
   - T1 en 3e6410f. RED observado: test-chat no compilaba (`Release::sha256/assetName/sumsUrl`, `sha256FromDigest` sin declarar). GREEN: `releaseChecksums` pasa; test-chat 66, test-tts 48, test-overlay 17; build macOS BUILD SUCCEEDED sin errores ni warnings; YAML de release.yml válido.
   - Sin verificar aquí: rutas de Windows y Linux del actualizador (no compilan en macOS) y el paso nuevo de release.yml (corre en la próxima Release).
-- [ ] T3 Overlay (esquema de imágenes, dedupe acotado) y voz (cancelar borrados). Route: delegated (writer).
+- [x] T3 Overlay (esquema de imágenes, dedupe acotado) y voz (cancelar borrados). Route: delegated (writer).
+  - Overlay: `safeUrl()` (solo http/https, igual que featured.html) para los emotes; si no, se muestra el nombre. Dedupe con `Set` + cola FIFO de 2000 ids que olvida los más viejos. Voz: `BoundedQueue::removeIf`, `VoiceEngine::enqueue(text, id)` y `cancel(ids)` (quita los de la cola y corta el actual); `voice-source` escucha `ChatManager::deleted` (borrados de plataforma y ocultar desde el dock).
+  - T2 en 761a870. RED observado: test-tts no compilaba (`removeIf` no existe; `enqueue` con 2 argumentos). GREEN: test-tts 50 (8 repeticiones de las pruebas nuevas sin fallos), test-chat 66, test-overlay 17; build macOS BUILD SUCCEEDED sin errores ni warnings. Lógica JS comprobada con node (2500 ids → 2000, se olvidan los más viejos; `javascript:`/`file:`/`data:` rechazados).
 - [ ] T4 Chips con SVG y `ProfileCache` con error de red. Route: delegated (writer).
 - [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
 

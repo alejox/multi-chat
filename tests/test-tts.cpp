@@ -433,6 +433,45 @@ private slots:
 		QCOMPARE(v, 3);
 	}
 
+	void queueRemovesMatchingItemsInOrder()
+	{
+		BoundedQueue<int> q(5);
+		for (int i = 1; i <= 5; ++i)
+			q.push(i);
+		QCOMPARE(q.removeIf([](int v) { return v % 2 == 0; }), std::size_t(2));
+		QCOMPARE(q.size(), std::size_t(3));
+		QCOMPARE(q.removeIf([](int) { return false; }), std::size_t(0));
+		QCOMPARE(q.droppedTotal(), std::size_t(0)); // removed on purpose, not for lack of space
+		int v = 0;
+		for (int expected : {1, 3, 5}) {
+			QVERIFY(q.pop(v));
+			QCOMPARE(v, expected);
+		}
+	}
+
+	void deletedMessagesAreNotSpoken()
+	{
+		Rig rig(fastConfig());
+		rig.engine->enqueue("actual", "m1");
+		rig.engine->enqueue("borrado", "m2");
+		rig.engine->enqueue("sigue", "m3");
+		rig.engine->enqueue("sin id");
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 1; }));
+		QCOMPARE(rig.engine->cancel({"m2", "otro"}), std::size_t(1));
+		rig.speech->job(0).onDone();
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 2; }));
+		QCOMPARE(rig.speech->job(1).request.text, QString("sigue"));
+
+		// The one being spoken is cut too.
+		rig.speech->job(1).onPcm(silence(5000));
+		QVERIFY(waitFor([&] { return rig.frames() >= 20; }));
+		QCOMPARE(rig.engine->cancel({"m3"}), std::size_t(1));
+		QVERIFY(waitFor([&] { return rig.speech->stops.load() == 1; }));
+		QVERIFY(waitFor([&] { return rig.speech->jobCount() == 3; }));
+		QCOMPARE(rig.speech->job(2).request.text, QString("sin id"));
+		QCOMPARE(rig.engine->cancel({}), std::size_t(0));
+	}
+
 	void queueCapacityChangesAndClear()
 	{
 		BoundedQueue<int> q(4);
