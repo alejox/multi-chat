@@ -194,6 +194,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 		{"clockSeconds", obs_data_get_bool(settings, "clock_seconds")},
 		{"clockHour24", obs_data_get_bool(settings, "clock_hour24")},
 		{"clockBar", obs_data_get_bool(settings, "clock_bar")},
+		{"clockPosition", obs_data_get_string(settings, "clock_position")},
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
 		{"tickerWidth", (int)obs_data_get_int(settings, "ticker_width")},
 	};

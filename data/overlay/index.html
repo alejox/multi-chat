@@ -46,11 +46,14 @@
     animation: none; transition: none; will-change: transform; }
   body.h .sys { display: inline; margin-right: .5em; }
   body.h .msg + .msg { margin-top: 0; }
-  /* Fecha y hora fijas al final de la cinta; los mensajes se cortan antes de llegar. */
+  /* Date and time: fixed at the end of the ticker (messages stop before reaching it) or,
+     in the vertical list, above or below the messages. */
   #clock { display: none; position: absolute; right: var(--pad-x); top: 50%; transform: translateY(-50%); align-items: center;
     gap: .45em; padding: 0 .45em 0 .35em; white-space: nowrap; font-weight: 800; letter-spacing: .02em;
     font-variant-numeric: tabular-nums; }
-  body.h.clock #clock { display: flex; }
+  body.clock #clock { display: flex; }
+  body:not(.h) #clock { top: var(--pad-y); left: var(--pad-x); right: auto; transform: none; }
+  body:not(.h).clock-bottom #clock { top: auto; bottom: var(--pad-y); }
   .nobar #clock .bar { display: none; }
   #clock .bar { width: .18em; height: 1.15em; background: var(--fg, #fff); box-shadow: 0 0 3px #000c; }
   body.bg #clock { background: rgba(var(--bg-rgb), var(--bg-alpha)); padding: var(--msg-py) var(--msg-px); border-radius: var(--bg-radius);
@@ -69,7 +72,7 @@
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok', 'starvios'], icons: true, badges: true,
   background: false, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 9, bgBorderWidth: 0, bgBorderColor: '#ffffff',
-  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, clockDate: true, clockTime: true, clockSeconds: false, clockHour24: true, clockBar: true, speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, sample: false, streaming: false };
+  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, clockDate: true, clockTime: true, clockSeconds: false, clockHour24: true, clockBar: true, clockPosition: 'top', speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, sample: false, streaming: false };
 let lastReal = 0;
 // Ids already shown, oldest first. Past the limit the oldest is forgotten, never all at once:
 // clearing everything would let a reconnect replay recent messages.
@@ -212,15 +215,21 @@ requestAnimationFrame(tick);
 const clock = document.getElementById('clock');
 const clockText = document.getElementById('clock-text');
 function updateClock() {
-  if (!(config.clock && config.layout === 'horizontal')) {
-    list.style.right = '';
-    return;
-  }
+  list.style.right = '';
+  list.style.top = '';
+  list.style.bottom = '';
+  if (!config.clock) return;
   clockText.textContent = clockLabel(new Date(), { date: config.clockDate, time: config.clockTime,
     seconds: config.clockSeconds, hour24: config.clockHour24 });
   document.body.classList.toggle('nobar', config.clockBar === false);
   // Entre el último mensaje y el reloj, el mismo espacio que entre mensajes.
-  list.style.right = `calc(${clock.offsetWidth}px + var(--pad-x) + ${Math.max(0, config.hspacing)}px)`;
+  if (config.layout === 'horizontal') {
+    list.style.right = `calc(${clock.offsetWidth}px + var(--pad-x) + ${Math.max(0, config.hspacing)}px)`;
+    return;
+  }
+  const inset = `${clock.offsetHeight + Math.max(0, config.spacing)}px`;
+  if (config.clockPosition === 'bottom') list.style.bottom = inset;
+  else list.style.top = inset;
 }
 setInterval(updateClock, 1000);
 
@@ -247,6 +256,7 @@ function applyConfig(c) {
   document.body.classList.toggle('noicons', !config.icons);
   document.body.classList.toggle('nobadges', !config.badges);
   document.body.classList.toggle('clock', !!config.clock);
+  document.body.classList.toggle('clock-bottom', config.clockPosition === 'bottom');
   updateClock();
   trimOverflow();
 }

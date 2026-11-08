@@ -202,6 +202,18 @@ private slots:
 		QVERIFY(!asMap(defaultSettings(SourceKind::Clock)).count("name_mode"));
 	}
 
+	// The chat's own clock works in both layouts: at the end of the ticker, or above or below
+	// the vertical list. It starts off, so saved scenes look the same.
+	void chatClockHasAVerticalPosition()
+	{
+		const auto chat = asMap(defaultSettings(SourceKind::Chat));
+		QVERIFY(chat.at("clock") == V(false));
+		QVERIFY2(chat.count("clock_position"), "clock_position");
+		QVERIFY(chat.at("clock_position") == S("top"));
+		for (SourceKind kind : {SourceKind::Viewers, SourceKind::Clock, SourceKind::Featured})
+			QVERIFY(!asMap(defaultSettings(kind)).count("clock_position"));
+	}
+
 	void defaultsHaveNoDuplicateKeys()
 	{
 		for (SourceKind kind : kKinds) {
