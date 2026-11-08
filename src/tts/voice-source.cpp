@@ -254,9 +254,9 @@ void voice_deactivate(void *data)
 		s->engine->clear();
 }
 
-void voice_defaults(obs_data_t *settings)
+void voice_defaults(obs_data_t *settings, uint32_t version)
 {
-	obs_data_set_default_bool(settings, "enabled", true); // new sources read aloud; saved ones keep their value
+	obs_data_set_default_bool(settings, "enabled", tts::voiceEnabledByDefault(version));
 	obs_data_set_default_string(settings, "mode", "read");
 	obs_data_set_default_string(settings, "sound_file", "");
 	obs_data_set_default_int(settings, "sound_cooldown", kDefaultCooldownMs);
@@ -267,6 +267,16 @@ void voice_defaults(obs_data_t *settings)
 		obs_data_set_default_bool(settings, platformKey(platform.id).c_str(), true);
 	obs_data_set_default_int(settings, "max_length", kDefaultMaxLength);
 	obs_data_set_default_string(settings, "blocked_words", "");
+}
+
+void voice_defaults_v0(obs_data_t *settings)
+{
+	voice_defaults(settings, 0);
+}
+
+void voice_defaults_latest(obs_data_t *settings)
+{
+	voice_defaults(settings, tts::kVoiceSourceVersion);
 }
 
 // OBS pasa aquí los datos de la fuente (que sigue viva mientras la ventana esté abierta), o
@@ -351,7 +361,7 @@ void register_voice_source()
 	deletedConnection = QObject::connect(&manager, &ChatManager::deleted, &manager, onDeleted);
 
 	obs_source_info info = {};
-	info.id = "multichat_voice";
+	info.id = tts::kVoiceSourceId;
 	info.type = OBS_SOURCE_TYPE_INPUT;
 	// Sin duplicar: dos copias independientes leerían cada mensaje dos veces.
 	info.output_flags = OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
@@ -361,8 +371,17 @@ void register_voice_source()
 	info.destroy = voice_destroy;
 	info.update = voice_update;
 	info.deactivate = voice_deactivate;
-	info.get_defaults = voice_defaults;
 	info.get_properties = voice_properties;
+
+	// Version 0: the scenes saved before keep loading it (OBS stores the versioned id) with
+	// "enabled" off by default; it no longer appears in "Add Source".
+	obs_source_info legacy = info;
+	legacy.output_flags |= OBS_SOURCE_DEPRECATED | OBS_SOURCE_CAP_OBSOLETE;
+	legacy.get_defaults = voice_defaults_v0;
+	obs_register_source(&legacy);
+
+	info.version = tts::kVoiceSourceVersion;
+	info.get_defaults = voice_defaults_latest;
 	obs_register_source(&info);
 }
 

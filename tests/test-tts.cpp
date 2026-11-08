@@ -6,6 +6,7 @@
 #include "../src/tts/pcm.hpp"
 #include "../src/tts/speech-text.hpp"
 #include "../src/tts/voice-engine.hpp"
+#include "../src/tts/voice-source.hpp"
 
 #include <QElapsedTimer>
 #include <QThread>
@@ -210,6 +211,15 @@ class TtsTest : public QObject {
 	Q_OBJECT
 
 private slots:
+	// Voice sources saved before version 2 never stored "enabled" (OBS only saves values the user
+	// changed), so they keep the old "off" default; new ones read aloud from the start.
+	void voiceSourceDefaultsDependOnVersion()
+	{
+		QVERIFY(!voiceEnabledByDefault(0));
+		QVERIFY(voiceEnabledByDefault(kVoiceSourceVersion));
+		QCOMPARE(kVoiceSourceVersion, 2u);
+	}
+
 	void plainTextIsSpoken() { QCOMPARE(speechTextForMessage(message("hola a todos"), baseOptions()), QString("hola a todos")); }
 
 	void authorPrefixIsOptional()
