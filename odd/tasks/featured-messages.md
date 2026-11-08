@@ -35,10 +35,11 @@ Hoy el dock solo muestra el chat; no hay forma de poner un comentario concreto e
 - [x] T1 Arreglar el orden de locks en `overlay-source.cpp`. Route: delegated (writer junto con T2–T4; misma zona de código).
   - Accept: `ov_update` no mantiene `sourcesMutex` mientras llama a funciones de OBS que toman locks de escena.
   - Check: compilación macOS sin warnings.
-  - Evidence: `sourcesMutex` solo cubre `sources` y `lastSources`; los recorridos (`sendAll`, heartbeat, `overlay_set_streaming`, espectadores) toman una referencia de cada fuente con `obs_source_get_ref` bajo el candado y llaman a OBS fuera; `config`/`sized` van con un candado por fuente que nunca se mantiene durante llamadas a OBS. `cmake --build --preset macos`: BUILD SUCCEEDED, 0 warnings. Commit: este commit (`fix(overlay): …`).
-- [ ] T2 Estado destacado en `ChatManager` + fuente `multichat_featured` + `featured.html` + textos. Route: delegated (writer; 4+ archivos no triviales).
+  - Evidence: `sourcesMutex` solo cubre `sources` y `lastSources`; los recorridos (`sendAll`, heartbeat, `overlay_set_streaming`, espectadores) toman una referencia de cada fuente con `obs_source_get_ref` bajo el candado y llaman a OBS fuera; `config`/`sized` van con un candado por fuente que nunca se mantiene durante llamadas a OBS. `cmake --build --preset macos`: BUILD SUCCEEDED, 0 warnings. Commit: `4f52a7f`.
+- [x] T2 Estado destacado en `ChatManager` + fuente `multichat_featured` + `featured.html` + textos. Route: delegated (writer; 4+ archivos no triviales).
   - Accept: la fuente aparece en OBS, muestra el mensaje enviado y lo reenvía tras recargar.
   - Check: compilación macOS sin warnings; prueba manual.
+  - Evidence: `ChatManager::feature/clearFeatured/reshowLast` + señal `featuredChanged`; limpiar el chat quita el destacado y olvida el último. Fuente `multichat_featured` (`Kind::Featured`) con `featured.html`; el estado (`message`, `at`, `now`) se manda al crear la fuente, al cambiar y en el latido de 3 s; la página oculta según `at`, así que recargar no alarga el tiempo. Texto solo con `textContent`; emotes/avatar solo http/https. `cmake --build --preset macos`: BUILD SUCCEEDED, 0 warnings; `node --check` del script: OK. Prueba manual en OBS: pendiente (la hace el usuario). Commit: este commit (`feat(featured): …`).
 - [ ] T3 Dock: clic para destacar/quitar, Esc, resaltado; hotkeys de OBS. Route: delegated (writer).
   - Accept: clic destaca, segundo clic o Esc quita, hotkeys registradas en Ajustes → Atajos.
   - Check: compilación macOS sin warnings; prueba manual.

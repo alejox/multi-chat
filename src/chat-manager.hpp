@@ -53,10 +53,23 @@ public:
 	QJsonObject state() const;
 	QJsonArray history() const;
 
+	// Mensaje destacado (el que la fuente "Multichat (destacado)" muestra en grande).
+	// Vacío si no hay ninguno. featuredAt: cuándo se destacó, en ms desde la época.
+	QJsonObject featured() const { return featured_; }
+	qint64 featuredAt() const { return featuredAt_; }
+	// Destaca el mensaje del historial con ese id. Devuelve false si ya no está.
+	bool feature(const QString &id);
+	void feature(const QJsonObject &message);
+	void clearFeatured();
+	// Vuelve a destacar el último mensaje destacado (aunque ya se haya quitado).
+	void reshowLast();
+
 signals:
 	void message(const QJsonObject &message);
 	void stateChanged(const QJsonObject &state);
 	void cleared();
+	// Cambió el destacado; vacío = se quitó.
+	void featuredChanged(const QJsonObject &message);
 
 private:
 	ChatManager();
@@ -79,6 +92,9 @@ private:
 	std::vector<std::unique_ptr<Source>> sources_;
 	std::vector<std::shared_ptr<chat::Connector>> retired_;
 	QJsonArray history_;
+	QJsonObject featured_;
+	QJsonObject lastFeatured_;
+	qint64 featuredAt_ = 0;
 	QJsonObject lastState_;
 	QTimer timer_;
 	QThreadPool pool_;

@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Multichat (destacado)</title>
+<!-- La fuente "Multichat (destacado)" del plugin carga esta página y le manda, con el evento
+     "multichat" (javascript_event de obs-browser):
+       {type: "config", config: {...}}
+       {type: "featured", message: {...} | null, at: <ms en que se destacó>, now: <ms ahora>}
+     El estado vive en el plugin: tras recargar la página, el siguiente envío lo repone. El
+     tiempo para ocultarlo se cuenta desde "at", así que recargar no alarga lo que se ve.
+     El texto del chat se pone siempre como texto (textContent), nunca como HTML. -->
+<style>
+  :root { --fs: 34px; --pad-y: 16px; --pad-x: 22px; --dur: 300ms; --from: translateY(1.2em);
+    --bg-rgb: 0, 0, 0; --bg-alpha: .75; --bg-radius: 16px; --bg-bw: 0px; --bg-brgb: 255, 255, 255; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  body { box-sizing: border-box; display: flex; padding: 12px; color: #fff;
+    font: 600 var(--fs)/1.3 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Roboto, sans-serif;
+    text-shadow: 0 0 2px #000, 0 1px 3px #000c, 0 0 6px #0008; }
+  body.v-top { align-items: flex-start; } body.v-center { align-items: center; } body.v-bottom { align-items: flex-end; }
+  body.h-left { justify-content: flex-start; } body.h-center { justify-content: center; } body.h-right { justify-content: flex-end; }
+
+  #box { position: relative; box-sizing: border-box; display: flex; align-items: flex-start; gap: .5em;
+    max-width: 100%; max-height: 100%; overflow: hidden; padding: var(--pad-y) var(--pad-x);
+    opacity: 0; visibility: hidden; transform: var(--from);
+    transition: opacity var(--dur) ease, transform var(--dur) ease, visibility 0s linear var(--dur); }
+  #box.show { opacity: 1; visibility: visible; transform: none;
+    transition: opacity var(--dur) ease, transform var(--dur) ease, visibility 0s; }
+  [data-anim="fade"] #box { transform: none; }
+  [data-anim="zoom"] #box:not(.show) { transform: scale(.85); }
+  [data-anim="none"] #box { transform: none; transition: none; }
+  @media (prefers-reduced-motion: reduce) {
+    #box, #box:not(.show) { transform: none !important; }
+  }
+  body.bg #box { background: rgba(var(--bg-rgb), var(--bg-alpha)); border-radius: var(--bg-radius);
+    border: var(--bg-bw) solid rgb(var(--bg-brgb)); text-shadow: none; }
+  /* Donaciones, Super Chats, bits...: franja del color de la plataforma. */
+  #box.hl::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: .2em; background: var(--pc); }
+  body.bg #box.hl { background: color-mix(in srgb, var(--pc) 28%, rgba(var(--bg-rgb), var(--bg-alpha))); }
+
+  .avatar { width: 2.2em; height: 2.2em; border-radius: 50%; object-fit: cover; flex: none; }
+  .pf { flex: none; width: 1.5em; height: 1.5em; margin-top: .05em; filter: drop-shadow(0 1px 2px #000a); }
+  .pf svg { width: 100%; height: 100%; display: block; }
+  .content { min-width: 0; overflow-wrap: anywhere; }
+  .head { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .35em; }
+  .author { font-weight: 800; }
+  .badge { display: inline-block; font-size: .5em; font-weight: 800; padding: .1em .45em; border-radius: .3em;
+    text-shadow: none; letter-spacing: .03em; }
+  .b-owner { background: #e5484d; } .b-moderator { background: #2f9e58; } .b-vip { background: #d6409f; }
+  .b-subscriber, .b-member { background: #6e56cf; } .b-verified, .b-staff { background: #5a6070; }
+  .amount { display: inline-block; font-size: .7em; font-weight: 800; padding: .05em .45em; border-radius: .3em;
+    background: var(--pc); color: #000; text-shadow: none; }
+  .sys { font-size: .65em; opacity: .85; font-style: italic; }
+  .text { font-weight: 500; margin-top: .1em; }
+  .emote { height: 1.5em; vertical-align: middle; margin: -.25em .05em; }
+  .noicons .pf, .nobadges .badge { display: none; }
+</style>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="v-bottom h-center">
+<div id="box"></div>
+<script src="icons.js"></script>
+<script>
+const BADGES = { owner: 'HOST', moderator: 'MOD', vip: 'VIP', subscriber: 'SUB', member: 'MIEMBRO', verified: '✓', staff: 'STAFF' };
+const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A65', '#4DD0E1', '#F06292', '#AED581', '#9575CD'];
+const SAMPLE = { id: 'sample', platform: 'twitch', author: 'LunaGamer', color: '#FF7F50', badges: ['subscriber'],
+  parts: [{ type: 'text', text: '¡Este es un mensaje destacado de ejemplo!' }], kind: 'chat' };
+const DURATION = 300; // ms de la animación de entrada y salida
+
+let config = { size: 34, animation: 'slide', autoHide: true, hideBase: 8, hidePerChar: 60, hideMax: 30,
+  valign: 'bottom', halign: 'center', icons: true, badges: true, padY: 16, padX: 22, background: true,
+  style: 'solid', bgColor: '#000000', bgOpacity: 75, bgRadius: 16, bgBorderWidth: 0, bgBorderColor: '#ffffff',
+  preview: true, streaming: false };
+// Lo último que mandó el plugin. offset: diferencia entre su reloj y el de la página.
+let state = { message: null, at: 0, offset: 0 };
+let shownKey = null;
+let ready = false; // hasta la primera configuración no se sabe si se está transmitiendo
+let hideTimer = 0, swapTimer = 0;
+const box = document.getElementById('box');
+
+const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
+
+function nameColor(hex, name) {
+  if (!hex || !/^#?[0-9a-f]{6}$/i.test(hex)) {
+    let h = 0;
+    for (const c of String(name || '')) h = (h * 31 + c.codePointAt(0)) | 0;
+    return FALLBACK[Math.abs(h) % FALLBACK.length];
+  }
+  hex = hex.replace('#', '');
+  let [r, g, b] = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (lum < 0.45) {
+    const k = (0.45 - lum) / 0.55 + 0.25;
+    [r, g, b] = [r, g, b].map(v => Math.round(v + (255 - v) * k));
+  }
+  return `rgb(${r},${g},${b})`;
+}
+
+// Solo imágenes por http o https.
+function safeUrl(u) {
+  if (typeof u !== 'string' || !u) return null;
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = String(text);
+  return e;
+}
+
+function platformIcon(platform) {
+  const icon = el('span', 'pf');
+  // ICONS son SVG fijos de icons.js; la plataforma solo elige cuál.
+  if (own(ICONS, platform)) icon.innerHTML = ICONS[platform];
+  return icon;
+}
+
+function build(m) {
+  box.textContent = '';
+  box.className = '';
+  box.style.setProperty('--pc', own(PLATFORMS, m.platform) ? PLATFORMS[m.platform] : '#888');
+  if (m.kind === 'highlight' || m.amount) box.classList.add('hl');
+
+  // Foto del autor si el mensaje la trae; si no, el logo de la plataforma.
+  const avatar = safeUrl(m.avatar);
+  if (avatar) {
+    const img = el('img', 'avatar');
+    img.alt = '';
+    img.src = avatar;
+    img.onerror = () => img.replaceWith(platformIcon(m.platform));
+    box.appendChild(img);
+  } else {
+    box.appendChild(platformIcon(m.platform));
+  }
+
+  const content = el('div', 'content');
+  if (m.system) content.appendChild(el('div', 'sys', m.system));
+  const head = el('div', 'head');
+  for (const b of Array.isArray(m.badges) ? m.badges : [])
+    if (own(BADGES, b)) head.appendChild(el('span', 'badge b-' + b, BADGES[b]));
+  if (m.amount) head.appendChild(el('span', 'amount', m.amount));
+  const author = el('span', 'author', m.author || '');
+  author.style.color = nameColor(m.color, m.author);
+  head.appendChild(author);
+  content.appendChild(head);
+
+  const parts = Array.isArray(m.parts) ? m.parts : [];
+  if (parts.length) {
+    const text = el('div', 'text');
+    if (m.action) text.style.color = author.style.color;
+    for (const p of parts) {
+      if (!p) continue;
+      const url = p.type === 'emote' ? safeUrl(p.url) : null;
+      if (url) {
+        const img = el('img', 'emote');
+        img.src = url;
+        img.alt = String(p.name || '');
+        img.onerror = () => img.replaceWith(document.createTextNode(String(p.name || '')));
+        text.appendChild(img);
+      } else {
+        text.appendChild(document.createTextNode(String(p.type === 'emote' ? p.name || '' : p.text || '')));
+      }
+    }
+    content.appendChild(text);
+  }
+  box.appendChild(content);
+}
+
+// Caracteres que cuentan para el tiempo en pantalla (un emote cuenta como dos).
+function textLength(m) {
+  let n = String(m.system || '').length;
+  for (const p of Array.isArray(m.parts) ? m.parts : [])
+    if (p) n += p.type === 'emote' ? 2 : String(p.text || '').length;
+  return n;
+}
+
+function duration(m) {
+  if (!config.autoHide) return Infinity;
+  return Math.min(config.hideMax * 1000, config.hideBase * 1000 + config.hidePerChar * textLength(m));
+}
+
+function show(m) {
+  const enter = () => {
+    build(m);
+    void box.offsetWidth; // que la animación de entrada arranque desde el estado oculto
+    box.classList.add('show');
+  };
+  // Si ya había otro, primero sale y luego entra el nuevo.
+  if (box.classList.contains('show') && config.animation !== 'none') {
+    box.classList.remove('show');
+    swapTimer = setTimeout(enter, DURATION);
+  } else {
+    enter();
+  }
+}
+
+function update() {
+  clearTimeout(hideTimer);
+  let m = state.message, key = null, remaining = Infinity;
+  if (!ready) {
+    m = null;
+  } else if (m) {
+    key = (m.id || '') + '@' + state.at;
+    remaining = duration(m) - (Date.now() + state.offset - state.at);
+  } else if (config.preview && !config.streaming) {
+    m = SAMPLE;
+    key = 'sample';
+  }
+  if (!m || remaining <= 0) {
+    clearTimeout(swapTimer);
+    box.classList.remove('show');
+    shownKey = null;
+    return;
+  }
+  if (key !== shownKey) {
+    clearTimeout(swapTimer);
+    shownKey = key;
+    show(m);
+  }
+  if (remaining !== Infinity) hideTimer = setTimeout(update, remaining + 20);
+}
+
+function applyConfig(c) {
+  config = { ...config, ...c };
+  const root = document.documentElement;
+  root.style.setProperty('--fs', config.size + 'px');
+  root.style.setProperty('--pad-y', config.padY + 'px');
+  root.style.setProperty('--pad-x', config.padX + 'px');
+  root.style.setProperty('--dur', (config.animation === 'none' ? 0 : DURATION) + 'ms');
+  root.style.setProperty('--from', config.valign === 'top' ? 'translateY(-1.2em)' : 'translateY(1.2em)');
+  root.dataset.anim = config.animation || 'slide';
+  root.dataset.style = config.style || 'solid';
+  applyBoxStyle(config, 'bg');
+  const body = document.body;
+  for (const v of ['top', 'center', 'bottom']) body.classList.toggle('v-' + v, config.valign === v);
+  for (const h of ['left', 'center', 'right']) body.classList.toggle('h-' + h, config.halign === h);
+  body.classList.toggle('bg', !!config.background);
+  body.classList.toggle('noicons', !config.icons);
+  body.classList.toggle('nobadges', !config.badges);
+  update();
+}
+
+window.addEventListener('multichat', e => {
+  const data = e.detail || {};
+  if (data.type === 'config') {
+    ready = true;
+    applyConfig(data.config || {});
+  } else if (data.type === 'featured') {
+    const message = data.message && typeof data.message === 'object' ? data.message : null;
+    const now = Number(data.now) || Date.now();
+    state = { message, at: Number(data.at) || 0, offset: now - Date.now() };
+    update();
+  }
+});
+
+applyConfig({});
+</script>
+</body>
+</html>

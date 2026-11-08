@@ -1,6 +1,7 @@
-// Fuentes "Multichat" (el chat en la escena) y "Multichat (espectadores)". Por dentro son
-// fuentes de navegador privadas con data/overlay/index.html y viewers.html; los mensajes y
-// los espectadores les llegan con javascript_event.
+// Fuentes "Multichat" (el chat en la escena), "Multichat (espectadores)", "Multichat (fecha y
+// hora)" y "Multichat (destacado)". Por dentro son fuentes de navegador privadas con
+// data/overlay/index.html, viewers.html, clock.html y featured.html; los mensajes, los
+// espectadores y el mensaje destacado les llegan con javascript_event.
 
 #include "overlay-source.hpp"
 #include "chat-manager.hpp"
@@ -34,7 +35,7 @@
 
 namespace {
 
-enum class Kind { Chat, Viewers, Clock };
+enum class Kind { Chat, Viewers, Clock, Featured };
 
 struct OverlaySource {
 	Kind kind = Kind::Chat;
@@ -98,6 +99,26 @@ template<typename Fn> void forEachSource(Fn &&fn)
 		fn(s);
 		obs_source_release(ref);
 	}
+}
+
+// ---- Fuente del mensaje destacado ----
+
+// Último estado del destacado, para mandarlo a las fuentes nuevas y tras recargar la página.
+// Se escribe en el hilo de la interfaz y se lee desde donde OBS cree las fuentes.
+std::mutex featuredMutex;
+QJsonObject featuredState{{"type", "featured"}, {"message", QJsonValue::Null}, {"at", 0}};
+
+// La página cuenta el tiempo para ocultarlo desde "at" (cuando se destacó), con "now" para
+// corregir la diferencia de reloj; así recargarla no vuelve a mostrar uno que ya se ocultó.
+void sendFeatured(OverlaySource *s)
+{
+	QJsonObject payload;
+	{
+		std::lock_guard<std::mutex> lock(featuredMutex);
+		payload = featuredState;
+	}
+	payload.insert("now", QDateTime::currentMSecsSinceEpoch());
+	send(s, payload);
 }
 
 void sendAll(const QJsonObject &payload)
@@ -421,9 +442,10 @@ obs_data_t *browserSettings(const OverlaySource *s)
 	obs_data_t *bs = obs_data_create();
 	// En Windows obs_module_file puede dar una ruta relativa: la fuente de navegador
 	// necesita la absoluta.
-	char *page = obs_module_file(s->kind == Kind::Viewers ? "overlay/viewers.html"
-				     : s->kind == Kind::Clock ? "overlay/clock.html"
-							      : "overlay/index.html");
+	char *page = obs_module_file(s->kind == Kind::Viewers    ? "overlay/viewers.html"
+				     : s->kind == Kind::Clock    ? "overlay/clock.html"
+				     : s->kind == Kind::Featured ? "overlay/featured.html"
+								 : "overlay/index.html");
 	const QString path = page ? QFileInfo(QString::fromUtf8(page)).absoluteFilePath() : QString();
 	bfree(page);
 	obs_data_set_bool(bs, "is_local_file", true);
@@ -546,6 +568,27 @@ bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings
 QJsonObject readConfig(Kind kind, obs_data_t *settings)
 {
 	QJsonObject config;
+	if (kind == Kind::Featured) {
+		config = QJsonObject{
+			{"size", (int)obs_data_get_int(settings, "font_size")},
+			{"animation", obs_data_get_string(settings, "animation")},
+			{"autoHide", obs_data_get_bool(settings, "auto_hide")},
+			{"hideBase", (int)obs_data_get_int(settings, "hide_base")},
+			{"hidePerChar", (int)obs_data_get_int(settings, "hide_per_char")},
+			{"hideMax", (int)obs_data_get_int(settings, "hide_max")},
+			{"valign", obs_data_get_string(settings, "valign")},
+			{"halign", obs_data_get_string(settings, "halign")},
+			{"icons", obs_data_get_bool(settings, "icons")},
+			{"badges", obs_data_get_bool(settings, "badges")},
+			{"padY", (int)obs_data_get_int(settings, "pad_y")},
+			{"padX", (int)obs_data_get_int(settings, "pad_x")},
+			{"background", obs_data_get_bool(settings, "background")},
+			{"style", obs_data_get_string(settings, "style")},
+			{"preview", obs_data_get_bool(settings, "preview")},
+		};
+		readBoxStyle(config, settings, "", "bg");
+		return config;
+	}
 	QJsonArray platforms;
 	for (const char *p : {"twitch", "youtube", "kick", "tiktok", "starvios"})
 		if (obs_data_get_bool(settings, (std::string("show_") + p).c_str()))
@@ -620,7 +663,7 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 void readSettings(OverlaySource *s, obs_data_t *settings)
 {
 	const QJsonObject config = readConfig(s->kind, settings);
-	if (s->kind == Kind::Chat) { // espectadores y reloj calculan su tamaño solos
+	if (s->kind == Kind::Chat || s->kind == Kind::Featured) { // espectadores y reloj calculan su tamaño solos
 		s->width = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "width"));
 		s->height = (uint32_t)std::max<long long>(30, obs_data_get_int(settings, "height"));
 	}
@@ -659,6 +702,8 @@ void *create(obs_data_t *settings, obs_source_t *source, Kind kind)
 	}
 	sendConfig(s);
 	refresh(s);
+	if (kind == Kind::Featured)
+		sendFeatured(s);
 	return s;
 }
 
@@ -675,6 +720,11 @@ void *vw_create(obs_data_t *settings, obs_source_t *source)
 void *ck_create(obs_data_t *settings, obs_source_t *source)
 {
 	return create(settings, source, Kind::Clock);
+}
+
+void *fe_create(obs_data_t *settings, obs_source_t *source)
+{
+	return create(settings, source, Kind::Featured);
 }
 
 void ov_destroy(void *data)
@@ -947,6 +997,90 @@ obs_properties_t *ck_properties(void *)
 	return props;
 }
 
+const char *fe_get_name(void *)
+{
+	return obs_module_text("Featured.Name");
+}
+
+void fe_defaults(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, "width", 900);
+	obs_data_set_default_int(settings, "height", 320);
+	obs_data_set_default_int(settings, "font_size", 34);
+	obs_data_set_default_string(settings, "animation", "slide");
+	obs_data_set_default_bool(settings, "auto_hide", true);
+	obs_data_set_default_int(settings, "hide_base", 8);
+	obs_data_set_default_int(settings, "hide_per_char", 60);
+	obs_data_set_default_int(settings, "hide_max", 30);
+	obs_data_set_default_string(settings, "valign", "bottom");
+	obs_data_set_default_string(settings, "halign", "center");
+	obs_data_set_default_bool(settings, "icons", true);
+	obs_data_set_default_bool(settings, "badges", true);
+	obs_data_set_default_int(settings, "pad_y", 16);
+	obs_data_set_default_int(settings, "pad_x", 22);
+	obs_data_set_default_bool(settings, "background", true);
+	obs_data_set_default_string(settings, "style", "solid");
+	boxStyleDefaults(settings, "", 75, 16);
+	obs_data_set_default_bool(settings, "preview", true);
+}
+
+// Los tiempos de "ocultar solo" se ven con la casilla activada; el fondo, con la suya.
+bool fe_changed(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+	const bool autoHide = obs_data_get_bool(settings, "auto_hide");
+	for (const char *key : {"hide_base", "hide_per_char", "hide_max"})
+		obs_property_set_visible(obs_properties_get(props, key), autoHide);
+	return box_changed(props, property, settings);
+}
+
+obs_properties_t *fe_properties(void *)
+{
+	obs_properties_t *props = obs_properties_create();
+	obs_property_t *size =
+		obs_properties_add_int_slider(props, "font_size", obs_module_text("Source.FontSize"), 12, 120, 1);
+	obs_property_int_set_suffix(size, " px");
+
+	obs_property_t *animation = obs_properties_add_list(props, "animation", obs_module_text("Featured.Animation"),
+							    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	for (const char *id : {"slide", "fade", "zoom", "none"})
+		obs_property_list_add_string(animation, obs_module_text(("Featured.Animation." + std::string(id)).c_str()),
+					     id);
+
+	obs_property_t *autoHide = obs_properties_add_bool(props, "auto_hide", obs_module_text("Featured.AutoHide"));
+	obs_property_set_long_description(autoHide, obs_module_text("Featured.AutoHide.Help"));
+	obs_property_set_modified_callback(autoHide, fe_changed);
+	obs_property_t *base = obs_properties_add_int(props, "hide_base", obs_module_text("Featured.HideBase"), 1, 300, 1);
+	obs_property_int_set_suffix(base, " s");
+	obs_property_t *perChar =
+		obs_properties_add_int(props, "hide_per_char", obs_module_text("Featured.HidePerChar"), 0, 1000, 5);
+	obs_property_int_set_suffix(perChar, " ms");
+	obs_property_t *max = obs_properties_add_int(props, "hide_max", obs_module_text("Featured.HideMax"), 1, 600, 1);
+	obs_property_int_set_suffix(max, " s");
+
+	obs_property_t *valign = obs_properties_add_list(props, "valign", obs_module_text("Featured.VAlign"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	for (const char *id : {"top", "center", "bottom"})
+		obs_property_list_add_string(valign, obs_module_text(("Featured.VAlign." + std::string(id)).c_str()), id);
+	obs_property_t *halign = obs_properties_add_list(props, "halign", obs_module_text("Featured.HAlign"),
+							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	for (const char *id : {"left", "center", "right"})
+		obs_property_list_add_string(halign, obs_module_text(("Featured.HAlign." + std::string(id)).c_str()), id);
+
+	obs_properties_add_bool(props, "icons", obs_module_text("Source.Icons"));
+	obs_properties_add_bool(props, "badges", obs_module_text("Source.Badges"));
+	addStyleList(props);
+	obs_property_set_modified_callback(obs_properties_get(props, "style"), fe_changed);
+	obs_property_set_modified_callback(
+		obs_properties_add_bool(props, "background", obs_module_text("Viewers.Background")), fe_changed);
+	addBoxStyle(props, "");
+	addPadding(props, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+
+	obs_properties_add_bool(props, "preview", obs_module_text("Featured.Preview"));
+	obs_properties_add_int(props, "width", obs_module_text("Source.Width"), 100, 4096, 1);
+	obs_properties_add_int(props, "height", obs_module_text("Source.Height"), 100, 4096, 1);
+	return props;
+}
+
 uint32_t ov_width(void *data)
 {
 	return static_cast<OverlaySource *>(data)->width;
@@ -1029,12 +1163,29 @@ void register_overlay_source()
 		});
 	};
 	QObject::connect(&manager, &ChatManager::stateChanged, &manager, pushViewers);
+	QObject::connect(&manager, &ChatManager::featuredChanged, &manager, [](const QJsonObject &m) {
+		{
+			std::lock_guard<std::mutex> lock(featuredMutex);
+			featuredState.insert("message", m.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(m));
+			featuredState.insert("at", ChatManager::instance().featuredAt());
+		}
+		forEachSource([](OverlaySource *s) {
+			if (s->kind == Kind::Featured)
+				sendFeatured(s);
+		});
+	});
 
 	// La página puede recargarse (al cambiar el tamaño, al volver a la escena...):
 	// le reenviamos la configuración cada pocos segundos.
 	auto *heartbeat = new QTimer(&manager);
 	heartbeat->setInterval(3000);
-	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] { forEachSource(sendConfig); });
+	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] {
+		forEachSource([](OverlaySource *s) {
+			sendConfig(s);
+			if (s->kind == Kind::Featured)
+				sendFeatured(s);
+		});
+	});
 	QObject::connect(heartbeat, &QTimer::timeout, &manager, pushViewers);
 	// La cinta horizontal sigue al lienzo si cambia su resolución.
 	QObject::connect(heartbeat, &QTimer::timeout, &manager, [] {
@@ -1085,4 +1236,12 @@ void register_overlay_source()
 	clock.get_defaults = ck_defaults;
 	clock.get_properties = ck_properties;
 	obs_register_source(&clock);
+
+	obs_source_info featured = info;
+	featured.id = "multichat_featured";
+	featured.get_name = fe_get_name;
+	featured.create = fe_create;
+	featured.get_defaults = fe_defaults;
+	featured.get_properties = fe_properties;
+	obs_register_source(&featured);
 }
