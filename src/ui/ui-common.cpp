@@ -1,6 +1,7 @@
 #include "ui-common.hpp"
 #include "../i18n.hpp"
 #include "../platforms-registry.hpp"
+#include "../tts/voice-source.hpp"
 
 #include <obs-frontend-api.h>
 #include <obs-module.h>
@@ -311,7 +312,7 @@ bool sceneHasSourceOfType(obs_scene_t *scene, const char *id)
 		scene,
 		[](obs_scene_t *, obs_sceneitem_t *item, void *param) {
 			auto *s = static_cast<Search *>(param);
-			const char *itemId = obs_source_get_id(obs_sceneitem_get_source(item));
+			const char *itemId = obs_source_get_unversioned_id(obs_sceneitem_get_source(item));
 			if (itemId && std::strcmp(itemId, s->id) == 0)
 				s->found = true;
 			return !s->found;
@@ -351,7 +352,7 @@ AddResult addToCurrentScene(const char *id, QString &sceneName)
 		obs_source_t *existing = obs_get_source_by_name(name.toUtf8().constData());
 		if (!existing)
 			break;
-		const char *existingId = obs_source_get_id(existing);
+		const char *existingId = obs_source_get_unversioned_id(existing);
 		if (existingId && std::strcmp(existingId, id) == 0) {
 			source = existing; // keeps the reference
 			break;
@@ -359,8 +360,11 @@ AddResult addToCurrentScene(const char *id, QString &sceneName)
 		obs_source_release(existing);
 		name = base + QStringLiteral(" %1").arg(n);
 	}
-	if (!source)
-		source = obs_source_create(id, name.toUtf8().constData(), nullptr, nullptr);
+	if (!source) {
+		// A versioned type (the voice) is created as its latest version.
+		const char *latest = obs_get_latest_input_type_id(id);
+		source = obs_source_create(latest ? latest : id, name.toUtf8().constData(), nullptr, nullptr);
+	}
 	AddResult result = AddResult::Failed;
 	if (source && obs_scene_add(scene, source))
 		result = AddResult::Added;
@@ -395,7 +399,7 @@ QStringList addMultichatSources(bool chat, bool featured, bool voice)
 	if (featured)
 		add("multichat_featured");
 	if (voice)
-		add("multichat_voice");
+		add(tts::kVoiceSourceId);
 	lines.removeDuplicates();
 	return lines;
 }

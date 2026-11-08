@@ -6,6 +6,7 @@
 #include "../i18n.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/platforms.hpp"
+#include "../tts/voice-source.hpp"
 
 #include <obs-module.h>
 
@@ -187,7 +188,7 @@ private:
 		auto *featuredHelp = wrapped(i18n::tr("Wizard.Sources.FeaturedHelp"), page);
 		featuredHelp->setContentsMargins(22, 0, 0, 0);
 		layout->addWidget(featuredHelp);
-		voiceSource_ = source("multichat_voice");
+		voiceSource_ = source(tts::kVoiceSourceId);
 		auto *voiceHelp = wrapped(i18n::tr("Wizard.Sources.VoiceHelp"), page);
 		voiceHelp->setContentsMargins(22, 0, 0, 0);
 		layout->addWidget(voiceHelp);
