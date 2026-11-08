@@ -4,6 +4,7 @@
 
 #include "../src/chat-manager.hpp"
 
+#include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QSignalSpy>
@@ -537,6 +538,34 @@ private slots:
 		QVERIFY(!f.hide(5000));
 		QCOMPARE(f.changedAt(), qint64(4000));
 		QCOMPARE(f.last().value("id").toString(), QString("1"));
+	}
+
+	void configStoreWritesTheVersion()
+	{
+		ConfigStore store(configPath());
+		QVERIFY(store.save(QJsonObject{{"mode", "auto"}}));
+		QCOMPARE(readConfig().value("version").toInt(), ConfigStore::kVersion);
+		QCOMPARE(ConfigStore::kVersion, 1);
+		QCOMPARE(dir_->path() + "/config.json", configPath());
+		QCOMPARE(QDir(dir_->path()).entryList(QDir::Files), QStringList({"config.json"})); // no temp files
+	}
+
+	void configStoreReadsAMissingVersionAsOne()
+	{
+		writeConfig(QJsonObject{{"mode", "always"}});
+		const QJsonObject loaded = ConfigStore(configPath()).load();
+		QCOMPARE(loaded.value("version").toInt(), 1);
+		QCOMPARE(loaded.value("mode").toString(), QString("always"));
+		QVERIFY(ConfigStore(dir_->filePath("none.json")).load().isEmpty());
+	}
+
+	void jsonFilesAreReplacedWhole()
+	{
+		const QString path = dir_->filePath("sub/dock.json");
+		QVERIFY(writeJsonObject(path, QJsonObject{{"a", 1}, {"b", 2}}));
+		QVERIFY(writeJsonObject(path, QJsonObject{{"a", 3}}));
+		QCOMPARE(readJsonObject(path), QJsonObject({{"a", 3}}));
+		QVERIFY(!writeJsonObject(QString(), QJsonObject{{"a", 1}}));
 	}
 
 	void saveFailureIsLogged()

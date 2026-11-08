@@ -4,24 +4,22 @@
 #include "image-cache.hpp"
 #include "ui-common.hpp"
 #include "../chat-manager.hpp"
+#include "../config-store.hpp"
 #include "../chat/message.hpp"
 #include "../updater.hpp"
 
 #include <obs-module.h>
+#include <plugin-support.h>
 
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
 #include <QDesktopServices>
-#include <QDir>
 #include <QDockWidget>
 #include <QEvent>
-#include <QFile>
-#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QKeyEvent>
 #include <QDateTime>
 #include <QLabel>
@@ -60,19 +58,14 @@ QString prefsPath()
 
 QJsonObject loadPrefs()
 {
-	QFile file(prefsPath());
-	if (!file.open(QIODevice::ReadOnly))
-		return {};
-	return QJsonDocument::fromJson(file.readAll()).object();
+	return readJsonObject(prefsPath());
 }
 
 void savePrefs(const QJsonObject &prefs)
 {
 	const QString path = prefsPath();
-	QDir().mkpath(QFileInfo(path).absolutePath());
-	QFile file(path);
-	if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
-		file.write(QJsonDocument(prefs).toJson());
+	if (!writeJsonObject(path, prefs))
+		obs_log(LOG_WARNING, "could not save %s", path.toUtf8().constData());
 }
 
 // Lo que se guarda en cada bloque (un mensaje) del documento: su id y su fondo sin destacar.
