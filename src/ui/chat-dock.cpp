@@ -89,15 +89,6 @@ void setBlockBackground(const QTextBlock &block, const QColor &color)
 	QTextCursor(block).setBlockFormat(format);
 }
 
-QColor blend(const QColor &a, const QColor &b, float t)
-{
-	auto mix = [t](float x, float y) {
-		return x + (y - x) * t;
-	};
-	return QColor::fromRgbF(mix(float(a.redF()), float(b.redF())), mix(float(a.greenF()), float(b.greenF())),
-				mix(float(a.blueF()), float(b.blueF())));
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------------------
@@ -225,7 +216,7 @@ void ChatView::changeEvent(QEvent *event)
 QString ChatView::html(const QJsonObject &m) const
 {
 	const QColor base = palette().color(QPalette::Base);
-	const QColor muted = blend(palette().color(QPalette::Text), base, 0.45f);
+	const QColor muted = ui::blend(palette().color(QPalette::Text), base, 0.45f);
 	const QString platform = m.value("platform").toString();
 	const int icon = qRound(emoteSize_ * 0.75);
 	QString out;
@@ -308,7 +299,7 @@ void ChatView::addMessage(const QJsonObject &m)
 	format.setBottomMargin(2);
 	if (m.value("kind").toString() == "highlight") {
 		const QColor base = palette().color(QPalette::Base);
-		data->background = blend(base, ui::platformColor(m.value("platform").toString()), 0.22f);
+		data->background = ui::blend(base, ui::platformColor(m.value("platform").toString()), 0.22f);
 		format.setLeftMargin(2);
 	}
 	const bool featured = !data->id.isEmpty() && data->id == featuredId_;
@@ -330,7 +321,7 @@ void ChatView::addMessage(const QJsonObject &m)
 
 QColor ChatView::featuredColor() const
 {
-	return blend(palette().color(QPalette::Base), palette().color(QPalette::Highlight), 0.5f);
+	return ui::blend(palette().color(QPalette::Base), palette().color(QPalette::Highlight), 0.5f);
 }
 
 void ChatView::setFeatured(const QString &id)
@@ -605,26 +596,30 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	status_ = new QLabel(this);
 	status_->setTextFormat(Qt::PlainText);
 	header->addWidget(status_, 1);
-	auto button = [&](const QString &text, const char *tip, auto slot) {
+	status_->setAccessibleName(ui::T("Dock.Status"));
+	// Monochrome SVG icons tinted with the theme (applyTheme); the tooltip names the action.
+	auto button = [&](const QString &icon, const char *tip, auto slot) {
 		auto *b = new QToolButton(this);
-		b->setText(text);
 		b->setToolTip(ui::T(tip));
+		b->setAccessibleName(ui::T(tip));
 		b->setAutoRaise(true);
+		b->setIconSize(QSize(16, 16));
 		connect(b, &QToolButton::clicked, this, slot);
 		header->addWidget(b);
+		iconButtons_.append({b, icon});
 		return b;
 	};
-	button(QStringLiteral("A−"), "Dock.Smaller", [this] { changeFont(-1); });
-	button(QStringLiteral("A+"), "Dock.Bigger", [this] { changeFont(1); });
-	button(QString::fromUtf8("⟳"), "Dock.Refresh", [] { ChatManager::instance().refresh(); });
-	button(QString::fromUtf8("🗑"), "Dock.Clear", [this] { clearWithUndo(); });
-	button(QString::fromUtf8("⚙"), "Dock.Settings", [this] { open_multichat_settings(this); });
+	button("search", "Dock.Search", [this] { openSearch(); });
+	button("text-smaller", "Dock.Smaller", [this] { changeFont(-1); });
+	button("text-bigger", "Dock.Bigger", [this] { changeFont(1); });
+	button("refresh", "Dock.Refresh", [] { ChatManager::instance().refresh(); });
+	button("clear", "Dock.Clear", [this] { clearWithUndo(); });
+	button("settings", "Dock.Settings", [this] { open_multichat_settings(this); });
 	root->addLayout(header);
 
 	banner_ = new QWidget(this);
 	banner_->setObjectName("multichatBanner");
 	banner_->setAttribute(Qt::WA_StyledBackground);
-	banner_->setStyleSheet("#multichatBanner { background-color: rgba(145, 70, 255, 70); border-radius: 4px; }");
 	auto *bannerLayout = new QHBoxLayout(banner_);
 	bannerLayout->setContentsMargins(6, 3, 6, 3);
 	bannerLayout->setSpacing(4);
@@ -644,9 +639,9 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 
 	// Aviso de versión nueva en las Releases de GitHub.
 	auto *update = new QWidget(this);
+	update_ = update;
 	update->setObjectName("multichatUpdate");
 	update->setAttribute(Qt::WA_StyledBackground);
-	update->setStyleSheet("#multichatUpdate { background-color: rgba(62, 207, 110, 60); border-radius: 4px; }");
 	auto *updateLayout = new QHBoxLayout(update);
 	updateLayout->setContentsMargins(6, 3, 3, 3);
 	auto *updateText = new QLabel(update);
@@ -672,7 +667,6 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 
 	errors_ = new QLabel(this);
 	errors_->setWordWrap(true);
-	errors_->setStyleSheet("color: #ff6b6b;");
 	errors_->hide();
 	root->addWidget(errors_);
 
@@ -711,8 +705,9 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	searchEdit_->setClearButtonEnabled(true);
 	searchCount_ = new QLabel(searchBar_);
 	auto *searchClose = new QToolButton(searchBar_);
-	searchClose->setText(QString::fromUtf8("✕"));
 	searchClose->setAutoRaise(true);
+	searchClose->setIconSize(QSize(14, 14));
+	iconButtons_.append({searchClose, "close"});
 	searchClose->setToolTip(ui::T("Dock.Search.Close"));
 	searchClose->setAccessibleName(ui::T("Dock.Search.Close"));
 	searchLayout->addWidget(searchEdit_, 1);
@@ -746,6 +741,8 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	view_->setShowTimestamps(timestamps_);
 	connect(searchEdit_, &QLineEdit::textChanged, view_, &ChatView::setSearch);
 	connect(view_, &ChatView::contentChanged, this, &ChatDock::updateSearchCount);
+
+	applyTheme();
 
 	ChatManager &manager = ChatManager::instance();
 	QList<QJsonObject> history;
@@ -792,6 +789,39 @@ void ChatDock::keyPressEvent(QKeyEvent *event)
 		return;
 	}
 	QWidget::keyPressEvent(event);
+}
+
+void ChatDock::changeEvent(QEvent *event)
+{
+	QWidget::changeEvent(event);
+	if (event->type() == QEvent::PaletteChange || event->type() == QEvent::StyleChange)
+		applyTheme();
+}
+
+void ChatDock::applyTheme()
+{
+	if (!view_)
+		return; // still being built
+	const QPalette pal = palette();
+	const qreal dpr = devicePixelRatioF();
+	const QColor text = pal.color(QPalette::ButtonText);
+	for (const auto &[button, icon] : iconButtons_) {
+		const QIcon themed = ui::themedIcon(icon, text, button->iconSize().width(), dpr);
+		if (themed.isNull())
+			button->setText(button->toolTip().left(1)); // icon files missing: still clickable
+		else
+			button->setIcon(themed);
+	}
+	const QColor window = pal.color(QPalette::Window);
+	auto tint = [&window](const QColor &accent, float amount) {
+		return ui::blend(window, accent, amount).name();
+	};
+	banner_->setStyleSheet(QStringLiteral("#multichatBanner { background-color: %1; border-radius: 4px; }")
+				       .arg(tint(QColor(145, 70, 255), 0.3f)));
+	update_->setStyleSheet(QStringLiteral("#multichatUpdate { background-color: %1; border-radius: 4px; }")
+				       .arg(tint(QColor(62, 207, 110), 0.25f)));
+	errors_->setStyleSheet(QStringLiteral("color: %1;").arg(ui::alertColor(window).name()));
+	updateState(ChatManager::instance().state());
 }
 
 void ChatDock::clearWithUndo()
@@ -900,7 +930,8 @@ void ChatDock::updateState(const QJsonObject &state)
 		const QString service = state.value("service").toString();
 		status_->setText(QString::fromUtf8("● ") + ui::T("Dock.OnAir") +
 				 (service.isEmpty() ? QString() : QStringLiteral(" · ") + service) + viewersText);
-		status_->setStyleSheet("color: #ff4d4d; font-weight: bold;");
+		status_->setStyleSheet(
+			QStringLiteral("color: %1; font-weight: bold;").arg(ui::alertColor(palette().color(QPalette::Window)).name()));
 	} else {
 		QStringList names;
 		for (const QJsonValue p : live)
@@ -920,28 +951,47 @@ void ChatDock::updateState(const QJsonObject &state)
 			bannerIcons_[i]->setPixmap(ui::platformIcon(live[i].toString(), 16, dpr));
 	}
 
-	// Un botón por chat: clic para ocultar o mostrar sus mensajes.
-	while (QLayoutItem *item = chipsLayout_->takeAt(0)) {
-		delete item->widget();
-		delete item;
-	}
+	// One button per chat: click to hide or show its messages. Updated in place by key, so
+	// focus and the hover state survive the frequent state updates.
+	QStringList order;
 	for (const QJsonValue v : sources) {
 		const QJsonObject s = v.toObject();
 		const QString key = s.value("key").toString();
 		const QString platform = s.value("platform").toString();
 		const QString status = s.value("status").toString();
-		auto *chip = new QToolButton(chips_);
-		chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		order << key;
+		QToolButton *chip = chipByKey_.value(key);
+		if (!chip) {
+			chip = new QToolButton(chips_);
+			chip->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			chip->setIconSize(QSize(16, 16));
+			chip->setCheckable(true);
+			connect(chip, &QToolButton::toggled, this, [this, key](bool shown) {
+				if (shown)
+					hidden_.remove(key);
+				else
+					hidden_.insert(key);
+				view_->setHiddenSources(hidden_);
+				QJsonObject prefs = loadPrefs();
+				QJsonArray list;
+				for (const QString &h : hidden_)
+					list.append(h);
+				prefs.insert("hidden", list);
+				savePrefs(prefs);
+			});
+			chipByKey_.insert(key, chip);
+		}
 		chip->setIcon(ui::statusIcon(platform, status, 16, dpr));
-		chip->setIconSize(QSize(16, 16));
 		const int chipViewers = s.value("viewers").toInt(-1);
 		chip->setText(s.value("channel").toString() +
 			      (s.value("live").toInt() == 1 ? QString::fromUtf8("  🔴") : QString()) +
 			      (chipViewers >= 0 ? QString::fromUtf8(" 👁 ") + ui::formatCount(chipViewers) : QString()));
-		chip->setCheckable(true);
-		chip->setChecked(!hidden_.contains(key));
-		QString tip = chat::platformName(platform) + " · " + s.value("channel").toString() + "\n" +
-			      ui::T(("Status." + status).toUtf8().constData());
+		{
+			const QSignalBlocker block(chip);
+			chip->setChecked(!hidden_.contains(key));
+		}
+		const QString statusText = ui::T(("Status." + status).toUtf8().constData());
+		QString tip = chat::platformName(platform) + " · " + s.value("channel").toString() + "\n" + statusText;
 		const int liveState = s.value("live").toInt();
 		tip += " · " + ui::T(liveState == 1 ? "Live.Yes" : liveState == 0 ? "Live.No" : "Live.Unknown");
 		if (chipViewers >= 0)
@@ -950,20 +1000,28 @@ void ChatDock::updateState(const QJsonObject &state)
 			tip += "\n" + s.value("detail").toString();
 		tip += "\n" + ui::T("Dock.ChipHint");
 		chip->setToolTip(tip);
-		connect(chip, &QToolButton::toggled, this, [this, key](bool shown) {
-			if (shown)
-				hidden_.remove(key);
-			else
-				hidden_.insert(key);
-			view_->setHiddenSources(hidden_);
-			QJsonObject prefs = loadPrefs();
-			QJsonArray list;
-			for (const QString &h : hidden_)
-				list.append(h);
-			prefs.insert("hidden", list);
-			savePrefs(prefs);
-		});
-		chipsLayout_->addWidget(chip);
+		chip->setAccessibleName(chat::platformName(platform) + " " + s.value("channel").toString());
+		chip->setAccessibleDescription(statusText);
+	}
+	// Chats no longer configured go away.
+	for (auto it = chipByKey_.begin(); it != chipByKey_.end();) {
+		if (order.contains(it.key())) {
+			++it;
+			continue;
+		}
+		chipsLayout_->removeWidget(it.value());
+		it.value()->deleteLater();
+		it = chipByKey_.erase(it);
+	}
+	// Same order as the settings; only re-laid out when it changed.
+	QStringList current;
+	for (int i = 0; i < chipsLayout_->count(); ++i)
+		current << chipByKey_.key(qobject_cast<QToolButton *>(chipsLayout_->itemAt(i)->widget()));
+	if (current != order) {
+		while (QLayoutItem *item = chipsLayout_->takeAt(0))
+			delete item; // the widget stays
+		for (const QString &key : order)
+			chipsLayout_->addWidget(chipByKey_.value(key));
 	}
 	chips_->setVisible(!sources.isEmpty());
 

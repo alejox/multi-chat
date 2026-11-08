@@ -3,8 +3,10 @@
 // Dock "Multichat": estado de cada chat, aviso de multistream y los mensajes de todas
 // las plataformas juntos.
 
+#include <QHash>
 #include <QJsonObject>
 #include <QList>
+#include <QPair>
 #include <QSet>
 #include <QTextBrowser>
 #include <QTimer>
@@ -88,8 +90,11 @@ public:
 
 protected:
 	void keyPressEvent(QKeyEvent *event) override;
+	void changeEvent(QEvent *event) override;
 
 private:
+	// Icons and colors from the current OBS theme (palette).
+	void applyTheme();
 	void updateState(const QJsonObject &state);
 	void changeFont(int delta);
 	void showMenu(const QJsonObject &message, const QPoint &globalPos);
@@ -105,6 +110,9 @@ private:
 	QList<QLabel *> bannerIcons_;
 	QWidget *chips_ = nullptr;
 	FlowLayout *chipsLayout_ = nullptr;
+	QHash<QString, QToolButton *> chipByKey_; // updated in place, by source key
+	QList<QPair<QToolButton *, QString>> iconButtons_; // button, icon name
+	QWidget *update_ = nullptr;
 	QLabel *errors_ = nullptr;
 	QWidget *empty_ = nullptr;
 	ChatView *view_ = nullptr;
