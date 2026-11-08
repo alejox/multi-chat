@@ -56,10 +56,14 @@ Auditoría (snapshot de `main`, líneas pueden haber cambiado con los bloques 2�
   - `first-run-wizard.cpp`: QDialog + QStackedWidget (bienvenida, canal con mensajes de prueba opcionales, fuentes en la escena, listo con atajos). Saltar/cerrar/terminar guarda `"wizardShown": true` en `config.json` (ChatManager conserva las demás claves). Se abre tras `OBS_FRONTEND_EVENT_FINISHED_LOADING` solo si no hay chats y la marca no está; Herramientas → «Multichat: asistente de inicio» lo vuelve a abrir.
   - Fuentes: escena en edición (vista previa en modo estudio), no añade si ya hay una del mismo tipo en esa escena, reutiliza una fuente existente con el nombre por defecto y el mismo tipo, libera todas las referencias. Transformación por defecto.
   - Checks: macOS BUILD SUCCEEDED, 0 errores, 0 warnings; pruebas sin cambios. UI y OBS: prueba manual pendiente del usuario.
-- [ ] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
+- [x] T5 README, compilación e instalación local en macOS. Route: delegated (writer).
+  - T4 = commit `31c9c2e`.
+  - README: asistente de inicio, validación al añadir, pausar, ordenar (Alt+↑/↓) y quitar; los pausados no se conectan.
+  - `cmake --preset macos && cmake --build --preset macos`: BUILD SUCCEEDED, 0 errores, 0 warnings. Pruebas: test-chat 61, test-tts 48, test-overlay 17 (100 %).
+  - OBS no estaba abierto: bundle anterior borrado, instalado con `ditto` en `~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin`, `codesign -v` OK.
 
 ## Progress
 - Rama creada desde `feat/source-properties` (684777a). Bloque 4 probado por el usuario en OBS: funciona.
 
 ## Next step
-T1–T5 con un writer delegado.
+Prueba manual del usuario en OBS (lista en la respuesta del writer). Sin push ni PR.

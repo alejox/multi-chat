@@ -22,7 +22,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 🧩 **Dock "Multichat"** | Todos los mensajes juntos con el logo de cada plataforma, insignias (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, suscripciones y regalos de TikTok. |
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en vivo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
-| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto. Para quitar uno, pulsa la ✕ a su derecha. |
+| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
 | 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van por secciones (Diseño, Texto, Plataformas e insignias, Fondo, Animación y ocultar, Avanzado). |
 | ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
 | 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
@@ -105,7 +105,12 @@ Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 
 ## 🎛️ Usarlo
 
-1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube.
+La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: añade tu canal y pone las fuentes **Multichat** en la escena que estás editando (sin duplicarlas si ya están). Se puede saltar y volver a abrir desde **Herramientas → Multichat: asistente de inicio**.
+
+1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube. Mientras busca el canal se ve una barra de carga; si el nombre tiene un formato que la plataforma no admite, lo dice debajo, y si el canal no existe, el botón pasa a **Añadir igualmente** (Intro nunca añade un canal no encontrado).
+   - **Pausar**: desmarca la casilla de un chat para desconectarlo sin perderlo; vuelve a marcarla para reconectarlo.
+   - **Ordenar**: arrastra los chats (o selecciona uno y pulsa **Alt+↑ / Alt+↓**). Los chips del dock siguen el mismo orden.
+   - **Quitar**: la ✕ de la fila o la tecla **Supr** con el chat seleccionado.
 2. **Docks → Multichat** para ver el chat dentro de OBS.
 3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha.
 4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
@@ -203,6 +208,8 @@ Límites: el primer mensaje puede tardar unos segundos en sonar mientras el sist
 | **Automático** (por defecto) | Comprueba cada minuto qué canales están en vivo y conecta solo esos chats. Al empezar a transmitir lo comprueba cada 15 s durante 3 minutos. Si no se puede saber el estado de un canal, lo conecta mientras OBS esté transmitiendo. |
 | **Siempre conectado** | Conecta todos los chats aunque no estés en directo. En YouTube, TikTok y Starvios espera a que empiece el directo. |
 
+Los chats pausados no se conectan en ningún modo.
+
 Funciona con cualquier forma de hacer multistream (Restream, *Multiple RTMP outputs*, Aitum Multistream…), porque consulta a cada plataforma directamente. Si el servicio de emisión de OBS es Restream, Castr o StreamYard, también se marca como multistream.
 
 ### Notas por plataforma
@@ -250,7 +257,7 @@ src/overlay-presets.*      valores por defecto, preajustes y saneado de CSS/colo
 src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
-src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
+src/ui/                    dock, ventana de configuración, asistente de inicio, cachés de emotes y de perfiles
 data/icons/                íconos SVG monocromos del dock (se tiñen con el color del tema)
 src/updater.*              actualizaciones automáticas desde las Releases de GitHub
 data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
