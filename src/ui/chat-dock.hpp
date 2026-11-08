@@ -25,16 +25,29 @@ public:
 	void setFontSize(int pointSize);
 	void addMessage(const QJsonObject &message);
 	void setMessages(const QList<QJsonObject> &messages);
+	// Resalta el mensaje destacado (id vacío: ninguno).
+	void setFeatured(const QString &id);
+
+signals:
+	// Clic en un mensaje (no en un enlace ni al seleccionar texto).
+	void messageClicked(const QJsonObject &message);
 
 protected:
 	QVariant loadResource(int type, const QUrl &name) override;
 	void changeEvent(QEvent *event) override;
+	void mousePressEvent(QMouseEvent *event) override;
+	void mouseReleaseEvent(QMouseEvent *event) override;
+	void keyPressEvent(QKeyEvent *event) override;
 
 private:
 	QString html(const QJsonObject &message) const;
 	void rebuild();
+	QColor featuredColor() const;
+	QString messageIdAt(const QPoint &pos) const;
 
 	QList<QJsonObject> messages_;
+	QString featuredId_;
+	QPoint pressPos_;
 	QSet<QString> hidden_;
 	int emoteSize_ = 22;
 };
@@ -44,6 +57,9 @@ class ChatDock : public QWidget {
 
 public:
 	explicit ChatDock(QWidget *parent = nullptr);
+
+protected:
+	void keyPressEvent(QKeyEvent *event) override;
 
 private:
 	void updateState(const QJsonObject &state);

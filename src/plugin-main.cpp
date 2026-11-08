@@ -20,7 +20,10 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <obs-module.h>
 #include <plugin-support.h>
 
+#include <QDir>
+#include <QFileInfo>
 #include <QMainWindow>
+#include <QMetaObject>
 
 #include "chat-manager.hpp"
 #include "overlay-source.hpp"
@@ -47,6 +50,107 @@ QString streamingService()
 		name = QString::fromUtf8(obs_service_get_display_name(obs_service_get_type(service)));
 	obs_data_release(settings);
 	return name;
+}
+
+// ---- Atajos de teclado (Ajustes → Atajos) ----
+
+obs_hotkey_id clearFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
+obs_hotkey_id reshowFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
+
+// Las teclas elegidas se guardan junto a la configuración del plugin, no en la colección de escenas.
+QString hotkeysPath()
+{
+	char *path = obs_module_config_path("hotkeys.json");
+	QString out = QString::fromUtf8(path);
+	bfree(path);
+	return out;
+}
+
+// OBS llama a los atajos desde su hilo de atajos: el destacado vive en el hilo de la interfaz.
+void on_clear_featured(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
+{
+	if (pressed)
+		QMetaObject::invokeMethod(
+			&ChatManager::instance(), [] { ChatManager::instance().clearFeatured(); }, Qt::QueuedConnection);
+}
+
+void on_reshow_featured(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
+{
+	if (pressed)
+		QMetaObject::invokeMethod(
+			&ChatManager::instance(), [] { ChatManager::instance().reshowLast(); }, Qt::QueuedConnection);
+}
+
+void loadHotkey(obs_data_t *data, const char *key, obs_hotkey_id id)
+{
+	if (obs_data_array_t *bindings = obs_data_get_array(data, key)) {
+		obs_hotkey_load(id, bindings);
+		obs_data_array_release(bindings);
+	}
+}
+
+// false si OBS ya no conoce el atajo (al descargar el plugin ya los ha liberado).
+bool saveHotkey(obs_data_t *data, const char *key, obs_hotkey_id id)
+{
+	obs_data_array_t *bindings = obs_hotkey_save(id);
+	if (!bindings)
+		return false;
+	obs_data_set_array(data, key, bindings);
+	obs_data_array_release(bindings);
+	return true;
+}
+
+void registerHotkeys()
+{
+	clearFeaturedHotkey = obs_hotkey_register_frontend("multichat.clear_featured",
+							    obs_module_text("Hotkey.ClearFeatured"), on_clear_featured,
+							    nullptr);
+	reshowFeaturedHotkey = obs_hotkey_register_frontend("multichat.reshow_featured",
+							     obs_module_text("Hotkey.ReshowFeatured"), on_reshow_featured,
+							     nullptr);
+	obs_data_t *data = obs_data_create_from_json_file_safe(hotkeysPath().toUtf8().constData(), "bak");
+	if (data) {
+		loadHotkey(data, "clear_featured", clearFeaturedHotkey);
+		loadHotkey(data, "reshow_featured", reshowFeaturedHotkey);
+		obs_data_release(data);
+	}
+}
+
+void saveHotkeys()
+{
+	if (clearFeaturedHotkey == OBS_INVALID_HOTKEY_ID)
+		return;
+	obs_data_t *data = obs_data_create();
+	// Sin los atajos no se escribe nada: así no se borran las teclas guardadas.
+	if (!saveHotkey(data, "clear_featured", clearFeaturedHotkey) ||
+	    !saveHotkey(data, "reshow_featured", reshowFeaturedHotkey)) {
+		obs_data_release(data);
+		return;
+	}
+	const QString path = hotkeysPath();
+	QDir().mkpath(QFileInfo(path).absolutePath());
+	if (!obs_data_save_json_safe(data, path.toUtf8().constData(), "tmp", "bak"))
+		obs_log(LOG_WARNING, "no se pudo guardar %s", path.toUtf8().constData());
+	obs_data_release(data);
+}
+
+// Las teclas ya se guardaron al salir (OBS_FRONTEND_EVENT_EXIT): al descargar el plugin OBS ya
+// liberó los atajos, así que aquí solo se sueltan los ids.
+void unregisterHotkeys()
+{
+	if (clearFeaturedHotkey == OBS_INVALID_HOTKEY_ID)
+		return;
+	obs_hotkey_unregister(clearFeaturedHotkey);
+	obs_hotkey_unregister(reshowFeaturedHotkey);
+	clearFeaturedHotkey = reshowFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
+}
+
+// OBS guarda la colección de escenas al cambiar los ajustes (también los atajos) y al salir:
+// aprovechamos para guardar las teclas.
+void on_frontend_save(obs_data_t *, bool saving, void *)
+{
+	if (saving)
+		saveHotkeys();
 }
 
 void shutdown()
@@ -77,6 +181,7 @@ void on_frontend_event(enum obs_frontend_event event, void *)
 		}
 		break;
 	case OBS_FRONTEND_EVENT_EXIT:
+		saveHotkeys();
 		// Los hilos de los chats terminan antes de que Qt desarme la interfaz.
 		shutdown();
 		break;
@@ -105,6 +210,8 @@ bool obs_module_load(void)
 	obs_frontend_add_tools_menu_item(
 		obs_module_text("Update.MenuItem"), [](void *) { Updater::instance().check(true); }, nullptr);
 	obs_frontend_add_event_callback(on_frontend_event, nullptr);
+	obs_frontend_add_save_callback(on_frontend_save, nullptr);
+	registerHotkeys();
 	Updater::instance().start();
 
 	obs_log(LOG_INFO, "plugin loaded successfully (version %s)", PLUGIN_VERSION);
@@ -114,6 +221,8 @@ bool obs_module_load(void)
 void obs_module_unload(void)
 {
 	obs_frontend_remove_event_callback(on_frontend_event, nullptr);
+	obs_frontend_remove_save_callback(on_frontend_save, nullptr);
+	unregisterHotkeys();
 	shutdown();
 	obs_log(LOG_INFO, "plugin unloaded");
 }

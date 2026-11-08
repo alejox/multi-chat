@@ -8,6 +8,8 @@
 
 #include <obs-module.h>
 
+#include <QAbstractTextDocumentLayout>
+#include <QApplication>
 #include <QDesktopServices>
 #include <QDir>
 #include <QEvent>
@@ -16,10 +18,13 @@
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QTextBlockUserData>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QToolButton>
@@ -54,6 +59,24 @@ void savePrefs(const QJsonObject &prefs)
 		file.write(QJsonDocument(prefs).toJson());
 }
 
+// Lo que se guarda en cada bloque (un mensaje) del documento: su id y su fondo sin destacar.
+class MessageData : public QTextBlockUserData {
+public:
+	QString id;
+	QColor background; // inválido = sin fondo
+};
+
+// Aplica el fondo de un bloque: el de destacado o el suyo de siempre.
+void setBlockBackground(const QTextBlock &block, const QColor &color)
+{
+	QTextBlockFormat format = block.blockFormat();
+	if (color.isValid())
+		format.setBackground(color);
+	else
+		format.clearBackground();
+	QTextCursor(block).setBlockFormat(format);
+}
+
 QColor blend(const QColor &a, const QColor &b, float t)
 {
 	auto mix = [t](float x, float y) {
@@ -81,6 +104,7 @@ ChatView::ChatView(QWidget *parent) : QTextBrowser(parent)
 	setUndoRedoEnabled(false);
 	document()->setMaximumBlockCount(kMaxMessages);
 	document()->setDocumentMargin(4);
+	viewport()->setToolTip(ui::T("Dock.FeatureHint"));
 
 	connect(&ImageCache::instance(), &ImageCache::ready, this, [this](const QString &url) {
 		QScrollBar *bar = verticalScrollBar();
@@ -185,17 +209,98 @@ void ChatView::addMessage(const QJsonObject &m)
 	const int keep = bar->value();
 	append(html(m)); // QTextEdit::append sigue abajo solo si ya estaba abajo
 
+	auto *data = new MessageData;
+	data->id = m.value("id").toString();
 	QTextBlockFormat format;
 	format.setTopMargin(2);
 	format.setBottomMargin(2);
 	if (m.value("kind").toString() == "highlight") {
 		const QColor base = palette().color(QPalette::Base);
-		format.setBackground(blend(base, ui::platformColor(m.value("platform").toString()), 0.22f));
+		data->background = blend(base, ui::platformColor(m.value("platform").toString()), 0.22f);
 		format.setLeftMargin(2);
 	}
-	QTextCursor cursor(document()->lastBlock());
+	const bool featured = !data->id.isEmpty() && data->id == featuredId_;
+	const QColor background = featured ? featuredColor() : data->background;
+	if (background.isValid())
+		format.setBackground(background);
+	QTextBlock block = document()->lastBlock();
+	block.setUserData(data);
+	QTextCursor cursor(block);
 	cursor.mergeBlockFormat(format);
 	bar->setValue(atBottom ? bar->maximum() : keep);
+}
+
+QColor ChatView::featuredColor() const
+{
+	return blend(palette().color(QPalette::Base), palette().color(QPalette::Highlight), 0.5f);
+}
+
+void ChatView::setFeatured(const QString &id)
+{
+	if (id == featuredId_)
+		return;
+	const QString old = featuredId_;
+	featuredId_ = id;
+	// Solo cambian los bloques del destacado anterior y del nuevo: sin reconstruir, para no
+	// mover la lista si se está leyendo más arriba.
+	for (QTextBlock block = document()->begin(); block.isValid(); block = block.next()) {
+		const auto *data = dynamic_cast<MessageData *>(block.userData());
+		if (!data || data->id.isEmpty())
+			continue;
+		if (data->id == id)
+			setBlockBackground(block, featuredColor());
+		else if (data->id == old)
+			setBlockBackground(block, data->background);
+	}
+}
+
+QString ChatView::messageIdAt(const QPoint &pos) const
+{
+	const QTextBlock block = cursorForPosition(pos).block();
+	if (!block.isValid())
+		return {};
+	// cursorForPosition da el bloque más cercano: hay que estar dentro de él de verdad.
+	const QPointF docPos(pos.x() + horizontalScrollBar()->value(), pos.y() + verticalScrollBar()->value());
+	if (!document()->documentLayout()->blockBoundingRect(block).contains(docPos))
+		return {};
+	const auto *data = dynamic_cast<MessageData *>(block.userData());
+	return data ? data->id : QString();
+}
+
+void ChatView::mousePressEvent(QMouseEvent *event)
+{
+	pressPos_ = event->position().toPoint();
+	QTextBrowser::mousePressEvent(event);
+}
+
+void ChatView::mouseReleaseEvent(QMouseEvent *event)
+{
+	QTextBrowser::mouseReleaseEvent(event);
+	if (event->button() != Qt::LeftButton)
+		return;
+	const QPoint pos = event->position().toPoint();
+	// Arrastrar para seleccionar texto o pulsar un enlace no destaca nada.
+	if ((pos - pressPos_).manhattanLength() > QApplication::startDragDistance() || textCursor().hasSelection() ||
+	    !anchorAt(pos).isEmpty())
+		return;
+	const QString id = messageIdAt(pos);
+	if (id.isEmpty())
+		return;
+	for (auto it = messages_.crbegin(); it != messages_.crend(); ++it)
+		if (it->value("id").toString() == id) {
+			emit messageClicked(*it);
+			return;
+		}
+}
+
+void ChatView::keyPressEvent(QKeyEvent *event)
+{
+	if (event->key() == Qt::Key_Escape && !ChatManager::instance().featured().isEmpty()) {
+		ChatManager::instance().clearFeatured();
+		event->accept();
+		return;
+	}
+	QTextBrowser::keyPressEvent(event);
 }
 
 void ChatView::setMessages(const QList<QJsonObject> &messages)
@@ -346,6 +451,29 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	connect(&manager, &ChatManager::cleared, view_, [this] { view_->setMessages({}); });
 	connect(&manager, &ChatManager::stateChanged, this, &ChatDock::updateState);
 	updateState(manager.state());
+
+	// Clic en un mensaje: lo destaca (reemplaza al anterior); clic en el destacado: lo quita.
+	view_->setFeatured(manager.featured().value("id").toString());
+	connect(&manager, &ChatManager::featuredChanged, view_,
+		[this](const QJsonObject &m) { view_->setFeatured(m.value("id").toString()); });
+	connect(view_, &ChatView::messageClicked, this, [](const QJsonObject &m) {
+		ChatManager &mgr = ChatManager::instance();
+		const QString id = m.value("id").toString();
+		if (!id.isEmpty() && mgr.featured().value("id").toString() == id)
+			mgr.clearFeatured();
+		else
+			mgr.feature(m);
+	});
+}
+
+void ChatDock::keyPressEvent(QKeyEvent *event)
+{
+	if (event->key() == Qt::Key_Escape && !ChatManager::instance().featured().isEmpty()) {
+		ChatManager::instance().clearFeatured();
+		event->accept();
+		return;
+	}
+	QWidget::keyPressEvent(event);
 }
 
 void ChatDock::changeFont(int delta)
