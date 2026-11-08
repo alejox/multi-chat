@@ -23,7 +23,8 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en vivo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
 | ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto. Para quitar uno, pulsa la ✕ a su derecha. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Se configura en sus Propiedades: disposición, velocidad, tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
+| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van por secciones (Diseño, Texto, Plataformas e insignias, Fondo, Animación y ocultar, Avanzado). |
+| ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
 | 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en los recuadros de espectadores y de fecha y hora. |
 | 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en vivo, y el total. En fila o en columna, con o sin el nombre del canal. |
@@ -120,7 +121,7 @@ Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
   - *Ocultar usuario* lo añade a **Filtros → Ocultar usuarios** y quita sus mensajes de ese chat.
 - **Buscar**: **Ctrl+F** (⌘F en macOS) o el botón de la lupa. Filtra por texto, emote o nombre, sin distinguir mayúsculas ni tildes, y dice cuántos coinciden. **Esc** cierra la búsqueda.
 - **Hora**: clic derecho → *Mostrar hora* añade la hora a cada mensaje (apagado por defecto; se recuerda).
-- **Vaciar el chat**: el botón de la papelera vacía el dock, el chat en pantalla y el destacado. Durante unos segundos aparece **Chat vaciado · Deshacer**; *Deshacer* devuelve los mensajes al dock (el chat en pantalla sigue vacío y se llena con los mensajes nuevos).
+- **Vaciar el chat**: el botón de la papelera vacía el dock, el chat en pantalla y el destacado. Durante unos segundos aparece **Chat vaciado · Deshacer**; *Deshacer* devuelve los mensajes al dock y al chat en pantalla (en la cinta horizontal, solo los 3 últimos). La voz no los vuelve a leer.
 - **Tema**: los íconos y los colores se adaptan al tema de OBS, claro u oscuro.
 
 ### ⭐ Destacar un mensaje
@@ -134,6 +135,24 @@ En sus **Propiedades** eliges la animación (deslizar, fundido, zoom o ninguna),
 En **Ajustes → Atajos** hay dos atajos sin tecla asignada: *Multichat: quitar mensaje destacado* y *Multichat: volver a mostrar el último destacado*. Asígnales la tecla que quieras.
 
 Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si aún no le tocaba ocultarse. Limpiar el chat desde el dock también quita el destacado.
+
+### 🎨 Aspecto de las fuentes
+
+Las Propiedades de las cuatro fuentes (chat, destacado, espectadores y fecha y hora) están agrupadas en secciones. Las escenas guardadas siguen igual: no cambió ninguna opción existente.
+
+- **Preajuste** (arriba): elige uno y se ajustan varias opciones a la vez; puedes seguir tocando todo. Si cambias algo de lo que puso el preajuste, la lista vuelve a *Personalizado*.
+
+  | Preajuste | Cómo se ve |
+  |---|---|
+  | Limpio | Texto blanco con sombra suave, sin recuadros. |
+  | Neón | Recuadros synthwave, nombres del color de la plataforma y brillo magenta. |
+  | Burbujas | Burbujas oscuras muy redondeadas, sin sombra y con más aire. |
+  | Minimal en una línea | En el chat, la cinta horizontal ajustada al lienzo sobre una franja oscura con la fecha y la hora. En las demás, recuadro negro mate. |
+  | Alto contraste | Recuadros negros opacos con borde blanco, texto en negrita y nombres amarillos. |
+  | Vertical 1080×1920 | Burbujas de cristal grandes para un lienzo vertical (chat de 1000×1400). |
+
+- **Texto**: fuente (las instaladas en el equipo; si falta, se usa la del sistema), grosor, color del texto, color del nombre (el del usuario, el de la plataforma o uno fijo; chat y destacado), contorno, sombra (*Automática*, como antes: solo sin fondo; *Siempre*; *Nunca*) con su color y desenfoque, e interlineado (chat y destacado). El tamaño sigue siendo *Tamaño de letra*.
+- **Avanzado → CSS personalizado**: CSS que se añade a la página después de los estilos del plugin (hasta 20 KB). Solo CSS: nunca se ejecuta código. Por ejemplo `.author { text-transform: uppercase; }`.
 
 ### 🛡 Moderación y filtros
 
@@ -226,14 +245,15 @@ Cada push compila en GitHub Actions para Windows, macOS y Linux (`.github/workfl
 ```
 src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
 src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
-src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
+src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)", "Multichat (fecha y hora)" y "Multichat (destacado)" (fuentes de navegador privadas)
+src/overlay-presets.*      valores por defecto, preajustes y saneado de CSS/colores/fuentes (sin OBS, con pruebas en tests/test-overlay.cpp)
 src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
 src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
 src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
 src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
 data/icons/                íconos SVG monocromos del dock (se tiñen con el color del tema)
 src/updater.*              actualizaciones automáticas desde las Releases de GitHub
-data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
+data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
 data/locale/               textos en español e inglés
 ```
 
