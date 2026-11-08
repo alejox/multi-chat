@@ -23,7 +23,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en directo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
 | ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Si no se pudo comprobar (sin conexión o la plataforma no respondió), lo dice y deja añadirlo con **Añadir**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van por secciones (Diseño, Texto, Plataformas e insignias, Fondo, Animación y duración, Avanzado). |
+| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades muestran lo esencial (Preajuste, Diseño, Plataformas e insignias) y, con *Mostrar opciones avanzadas*, el resto (Texto, Fondo, Avanzado). |
 | ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
 | 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en los recuadros de espectadores y de fecha y hora. |
@@ -146,7 +146,7 @@ Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si a�
 
 ### 🎨 Aspecto de las fuentes
 
-Las Propiedades de las cuatro fuentes (chat, destacado, espectadores y fecha y hora) están agrupadas en secciones. Las escenas guardadas siguen igual: no cambió ninguna opción existente.
+Las Propiedades de las cuatro fuentes (chat, destacado, espectadores y fecha y hora) muestran primero lo esencial: **Preajuste**, **Diseño** y **Plataformas**. La casilla **Mostrar opciones avanzadas** (apagada de serie) despliega **Texto**, **Fondo**, **Animación** (destacado) y **Avanzado** (desaparecer después de, máximo de mensajes, espacios, márgenes, fondo general y CSS). Las escenas guardadas siguen igual: no cambió ninguna opción existente, solo dónde se ve.
 
 - **Preajuste** (arriba): elige uno y se ajustan varias opciones a la vez; puedes seguir tocando todo. Si cambias algo de lo que puso el preajuste, la lista vuelve a *Personalizado*.
 

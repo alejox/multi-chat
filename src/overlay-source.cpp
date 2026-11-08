@@ -692,12 +692,23 @@ void showTextStyle(obs_properties_t *props, obs_data_t *settings)
 	obs_property_set_visible(obs_properties_get(props, "shadow_blur"), shadow);
 }
 
+// Text, background, animation and the fine-tuning group only show with "Show advanced
+// options"; the presets cover most cases without them.
+void showAdvancedGroups(obs_properties_t *props, obs_data_t *settings)
+{
+	const bool advanced = obs_data_get_bool(settings, "advanced");
+	for (const char *group : {"group_text", "group_background", "group_animation", "group_advanced"})
+		if (obs_property_t *p = obs_properties_get(props, group))
+			obs_property_set_visible(p, advanced);
+}
+
 // Los controles del fondo solo se ven con su casilla activada.
 bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings)
 {
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
 	obs_property_set_visible(obs_properties_get(props, "style"), obs_data_get_bool(settings, "background"));
 	showTextStyle(props, settings);
+	showAdvancedGroups(props, settings);
 	return true;
 }
 
@@ -973,8 +984,9 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "hspacing"), horizontal);
 	obs_property_set_visible(obs_properties_get(props, "spacing"), !horizontal);
 	obs_property_set_visible(obs_properties_get(props, "align"), !horizontal);
-	// Hiding and the message limit only apply to the vertical list: the whole section goes.
-	obs_property_set_visible(obs_properties_get(props, "group_animation"), !horizontal);
+	// Disappearing and the message limit only apply to the vertical list.
+	obs_property_set_visible(obs_properties_get(props, "fade"), !horizontal);
+	obs_property_set_visible(obs_properties_get(props, "max"), !horizontal);
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
 	showBoxStyle(props, settings, "panel_", obs_data_get_bool(settings, "panel"));
 	obs_property_set_visible(obs_properties_get(props, "style"),
@@ -982,6 +994,7 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	for (const char *key : {"msg_pad_y", "msg_pad_x"})
 		obs_property_set_visible(obs_properties_get(props, key), obs_data_get_bool(settings, "background"));
 	showTextStyle(props, settings);
+	showAdvancedGroups(props, settings);
 	return true;
 }
 
@@ -1017,7 +1030,7 @@ void addCustomCss(obs_properties_t *props)
 bool changesVisibility(const char *name)
 {
 	for (const char *key : {"layout", "fit_canvas", "clock", "style", "background", "panel", "auto_hide",
-				"name_mode", "outline_width", "text_shadow"})
+				"name_mode", "outline_width", "text_shadow", "advanced"})
 		if (strcmp(name, key) == 0)
 			return true;
 	return false;
@@ -1093,6 +1106,13 @@ obs_properties_t *addGroup(obs_properties_t *props, const char *name, const char
 	return group;
 }
 
+// The switch that reveals the text, background, animation and fine-tuning groups.
+void addAdvancedSwitch(obs_properties_t *props)
+{
+	obs_property_t *advanced = obs_properties_add_bool(props, "advanced", obs_module_text("Source.Advanced"));
+	obs_property_set_long_description(advanced, obs_module_text("Source.Advanced.Help"));
+}
+
 void addPlatforms(obs_properties_t *props)
 {
 	obs_properties_add_bool(props, "show_twitch", obs_module_text("Source.ShowTwitch"));
@@ -1133,38 +1153,11 @@ obs_properties_t *ov_properties(void *)
 	obs_property_t *speed =
 		obs_properties_add_int_slider(design, "speed", obs_module_text("Source.Speed"), 20, 600, 10);
 	obs_property_int_set_suffix(speed, " px/s");
-	obs_property_t *spacing =
-		obs_properties_add_int_slider(design, "spacing", obs_module_text("Source.Spacing"), -40, 60, 1);
-	obs_property_int_set_suffix(spacing, " px");
-	obs_property_t *hspacing =
-		obs_properties_add_int_slider(design, "hspacing", obs_module_text("Source.Spacing"), -200, 400, 2);
-	obs_property_int_set_suffix(hspacing, " px");
-	addPadding(design, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
-
-	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
-	obs_property_t *size =
-		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
-	obs_property_int_set_suffix(size, " px");
-	addTextStyle(text, Kind::Chat);
 
 	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
 	addPlatforms(platforms);
 	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
-
-	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	obs_properties_add_bool(background, "background", obs_module_text("Source.Background"));
-	addStyleList(background);
-	addBoxStyle(background, "");
-	addPadding(background, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
-	obs_properties_add_bool(background, "panel", obs_module_text("Source.Panel"));
-	addBoxStyle(background, "panel_");
-
-	obs_properties_t *animation = addGroup(props, "group_animation", "Group.Animation");
-	obs_property_t *fade = obs_properties_add_int(animation, "fade", obs_module_text("Source.Fade"), 0, 600, 1);
-	obs_property_int_set_suffix(fade, " s");
-	obs_property_set_long_description(fade, obs_module_text("Source.Fade.Help"));
-	obs_properties_add_int(animation, "max", obs_module_text("Source.Max"), 1, 100, 1);
 
 	obs_properties_t *clock = addGroup(props, "group_clock", "Group.TickerClock");
 	obs_property_t *clockOn = obs_properties_add_bool(clock, "clock", obs_module_text("Source.Clock"));
@@ -1175,7 +1168,36 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_add_bool(clock, "clock_hour24", obs_module_text("Clock.Hour24"));
 	obs_properties_add_bool(clock, "clock_bar", obs_module_text("Clock.Bar"));
 
-	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
+	addAdvancedSwitch(props);
+
+	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
+	obs_property_t *size =
+		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
+	obs_property_int_set_suffix(size, " px");
+	addTextStyle(text, Kind::Chat);
+
+	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
+	obs_properties_add_bool(background, "background", obs_module_text("Source.Background"));
+	addStyleList(background);
+	addBoxStyle(background, "");
+	addPadding(background, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
+
+	// Fine tuning: disappearing, limits, spacing, margins and the panel behind the whole chat.
+	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	obs_property_t *fade = obs_properties_add_int(advanced, "fade", obs_module_text("Source.Fade"), 0, 600, 1);
+	obs_property_int_set_suffix(fade, " s");
+	obs_property_set_long_description(fade, obs_module_text("Source.Fade.Help"));
+	obs_properties_add_int(advanced, "max", obs_module_text("Source.Max"), 1, 100, 1);
+	obs_property_t *spacing =
+		obs_properties_add_int_slider(advanced, "spacing", obs_module_text("Source.Spacing"), -40, 60, 1);
+	obs_property_int_set_suffix(spacing, " px");
+	obs_property_t *hspacing =
+		obs_properties_add_int_slider(advanced, "hspacing", obs_module_text("Source.Spacing"), -200, 400, 2);
+	obs_property_int_set_suffix(hspacing, " px");
+	addPadding(advanced, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
+	obs_properties_add_bool(advanced, "panel", obs_module_text("Source.Panel"));
+	addBoxStyle(advanced, "panel_");
+	addCustomCss(advanced);
 	hookAll(props, Kind::Chat);
 	return props;
 }
@@ -1193,7 +1215,10 @@ obs_properties_t *vw_properties(void *)
 	obs_property_list_add_string(layout, obs_module_text("Viewers.Layout.Column"), "column");
 	obs_properties_add_bool(design, "total", obs_module_text("Viewers.Total"));
 	obs_properties_add_bool(design, "names", obs_module_text("Viewers.Names"));
-	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+
+	addPlatforms(addGroup(props, "group_platforms", "Group.PlatformsOnly"));
+
+	addAdvancedSwitch(props);
 
 	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
 	obs_property_t *size =
@@ -1201,14 +1226,14 @@ obs_properties_t *vw_properties(void *)
 	obs_property_int_set_suffix(size, " px");
 	addTextStyle(text, Kind::Viewers);
 
-	addPlatforms(addGroup(props, "group_platforms", "Group.PlatformsOnly"));
-
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
 	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
 	addStyleList(background);
 	addBoxStyle(background, "");
 
-	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
+	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+	addCustomCss(advanced);
 	hookAll(props, Kind::Viewers);
 	return props;
 }
@@ -1234,21 +1259,22 @@ obs_properties_t *ck_properties(void *)
 	obs_properties_add_bool(clock, "hour24", obs_module_text("Clock.Hour24"));
 	obs_properties_add_bool(clock, "bar", obs_module_text("Clock.Bar"));
 
+	addAdvancedSwitch(props);
+
 	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 10, 160, 1);
 	obs_property_int_set_suffix(size, " px");
 	addTextStyle(text, Kind::Clock);
 
-	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
-	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
-
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
 	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
 	addStyleList(background);
 	addBoxStyle(background, "");
 
-	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
+	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+	addCustomCss(advanced);
 	hookAll(props, Kind::Clock);
 	return props;
 }
@@ -1285,19 +1311,20 @@ obs_properties_t *fe_properties(void *)
 							 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	for (const char *id : {"left", "center", "right"})
 		obs_property_list_add_string(halign, obs_module_text(("Featured.HAlign." + std::string(id)).c_str()), id);
-	addPadding(design, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	obs_properties_add_int(design, "width", obs_module_text("Source.Width"), 100, 4096, 1);
 	obs_properties_add_int(design, "height", obs_module_text("Source.Height"), 100, 4096, 1);
+
+	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
+	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
+	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
+
+	addAdvancedSwitch(props);
 
 	obs_properties_t *text = addGroup(props, "group_text", "Group.Text");
 	obs_property_t *size =
 		obs_properties_add_int_slider(text, "font_size", obs_module_text("Source.FontSize"), 12, 120, 1);
 	obs_property_int_set_suffix(size, " px");
 	addTextStyle(text, Kind::Featured);
-
-	obs_properties_t *platforms = addGroup(props, "group_platforms", "Group.Platforms");
-	obs_properties_add_bool(platforms, "icons", obs_module_text("Source.Icons"));
-	obs_properties_add_bool(platforms, "badges", obs_module_text("Source.Badges"));
 
 	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
 	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
@@ -1321,7 +1348,9 @@ obs_properties_t *fe_properties(void *)
 	obs_property_t *max = obs_properties_add_int(animation, "hide_max", obs_module_text("Featured.HideMax"), 1, 600, 1);
 	obs_property_int_set_suffix(max, " s");
 
-	addCustomCss(addGroup(props, "group_advanced", "Group.Advanced"));
+	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
+	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
+	addCustomCss(advanced);
 	hookAll(props, Kind::Featured);
 	return props;
 }
