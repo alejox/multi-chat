@@ -6,6 +6,7 @@
 
 #include "speech-backend.hpp"
 
+#include <QSet>
 #include <QString>
 
 #include <cstddef>
@@ -49,8 +50,12 @@ public:
 	VoiceEngine(const VoiceEngine &) = delete;
 	VoiceEngine &operator=(const VoiceEngine &) = delete;
 
-	// Devuelve cuántos textos antiguos se descartaron para hacer sitio.
-	std::size_t enqueue(const QString &text);
+	// Devuelve cuántos textos antiguos se descartaron para hacer sitio. `id` (the chat message
+	// id) lets cancel() drop the text if the message is deleted before it is read.
+	std::size_t enqueue(const QString &text, const QString &id = QString());
+	// Drops the queued texts with these ids and cuts the current one if it is among them.
+	// Returns how many texts it dropped or cut.
+	std::size_t cancel(const QSet<QString> &ids);
 	void setVoice(const QString &voiceId, double rate);
 	// Corta el texto actual y descarta el audio que le quedaba; sigue con el siguiente.
 	void skipCurrent();

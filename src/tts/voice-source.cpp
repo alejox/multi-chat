@@ -44,6 +44,7 @@ std::mutex sourcesMutex;
 std::set<VoiceSource *> sources;
 bool shuttingDown = false;
 QMetaObject::Connection messageConnection;
+QMetaObject::Connection deletedConnection;
 
 const char *const kPlatforms[] = {"twitch", "youtube", "kick", "tiktok", "starvios"};
 
@@ -120,8 +121,26 @@ void onMessage(const QJsonObject &message)
 			continue;
 		const QString text = tts::speechTextForMessage(message, s->options);
 		if (!text.isEmpty())
-			s->engine->enqueue(text);
+			s->engine->enqueue(text, message.value(QStringLiteral("id")).toString());
 	}
+}
+
+// A message deleted by moderators (or hidden from the dock) is not read if it is still waiting.
+void onDeleted(const QJsonObject &deletion)
+{
+	QSet<QString> ids;
+	for (const QJsonValue id : deletion.value(QStringLiteral("ids")).toArray())
+		ids.insert(id.toString());
+	const QString id = deletion.value(QStringLiteral("id")).toString();
+	if (!id.isEmpty())
+		ids.insert(id);
+	ids.remove(QString());
+	if (ids.isEmpty())
+		return;
+	std::lock_guard<std::mutex> lock(sourcesMutex);
+	for (VoiceSource *s : sources)
+		if (s->engine)
+			s->engine->cancel(ids);
 }
 
 const char *voice_get_name(void *)
@@ -232,6 +251,7 @@ void register_voice_source()
 	ChatManager &manager = ChatManager::instance();
 	// Solo mensajes nuevos: el historial nunca se lee en voz alta.
 	messageConnection = QObject::connect(&manager, &ChatManager::message, &manager, onMessage);
+	deletedConnection = QObject::connect(&manager, &ChatManager::deleted, &manager, onDeleted);
 
 	obs_source_info info = {};
 	info.id = "multichat_voice";
@@ -252,6 +272,7 @@ void register_voice_source()
 void voice_source_shutdown()
 {
 	QObject::disconnect(messageConnection);
+	QObject::disconnect(deletedConnection);
 	std::vector<std::unique_ptr<tts::VoiceEngine>> stopped;
 	{
 		std::lock_guard<std::mutex> lock(sourcesMutex);

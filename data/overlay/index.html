@@ -116,7 +116,20 @@ let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kic
   background: false, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 9, bgBorderWidth: 0, bgBorderColor: '#ffffff',
   panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, clockDate: true, clockTime: true, clockSeconds: false, clockHour24: true, clockBar: true, speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, preview: true, streaming: false };
 let lastReal = 0;
+// Ids already shown, oldest first. Past the limit the oldest is forgotten, never all at once:
+// clearing everything would let a reconnect replay recent messages.
+const SEEN_LIMIT = 2000;
 const seen = new Set();
+let seenOrder = [];
+function remember(id) {
+  seen.add(id);
+  seenOrder.push(id);
+  if (seenOrder.length > SEEN_LIMIT) for (const old of seenOrder.splice(0, seenOrder.length - SEEN_LIMIT)) seen.delete(old);
+}
+function forgetAll() {
+  seen.clear();
+  seenOrder = [];
+}
 const list = document.getElementById('list');
 
 function nameColor(hex, name) {
@@ -133,6 +146,17 @@ function nameColor(hex, name) {
     [r, g, b] = [r, g, b].map(v => Math.round(v + (255 - v) * k));
   }
   return `rgb(${r},${g},${b})`;
+}
+
+// Solo imágenes por http o https (como en featured.html).
+function safeUrl(u) {
+  if (typeof u !== 'string' || !u) return null;
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.href : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function el(tag, cls, text) {
@@ -161,9 +185,12 @@ function render(m) {
     const body = el('span', 'body');
     if (m.action) body.style.color = author.style.color;
     for (const p of m.parts) {
-      if (p.type === 'emote') {
+      const src = p.type === 'emote' ? safeUrl(p.url) : null;
+      if (p.type === 'emote' && !src) {
+        body.appendChild(document.createTextNode(p.name || ''));
+      } else if (p.type === 'emote') {
         const img = el('img', 'emote');
-        img.src = p.url;
+        img.src = src;
         img.alt = p.name;
         img.onerror = () => img.replaceWith(document.createTextNode(p.name));
         body.appendChild(img);
@@ -206,8 +233,7 @@ function add(m) {
   if (!config.platforms.includes(m.platform)) return;
   if (m.id) {
     if (seen.has(m.id)) return;
-    seen.add(m.id);
-    if (seen.size > 2000) seen.clear();
+    remember(m.id);
   }
   const row = render(m);
   if (config.layout === 'horizontal') {
@@ -322,7 +348,7 @@ function removeDeleted(d) {
 // over with it; the ticker only gets the last few so it does not replay a long backlog.
 function restore(messages) {
   list.textContent = '';
-  seen.clear();
+  forgetAll();
   const items = (Array.isArray(messages) ? messages : []).filter(m => m && typeof m === 'object');
   for (const m of config.layout === 'horizontal' ? items.slice(-3) : items) {
     if (m.channel !== 'demo') lastReal = Date.now();

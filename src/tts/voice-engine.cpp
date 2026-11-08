@@ -13,6 +13,12 @@ namespace tts {
 
 namespace {
 using SteadyClock = std::chrono::steady_clock;
+
+struct QueuedText {
+	QString text;
+	QString id; // chat message id, empty if unknown
+};
+
 constexpr uint64_t kNsPerSecond = 1000000000ULL;
 constexpr uint64_t kNsPerMs = 1000000ULL;
 } // namespace
@@ -25,7 +31,8 @@ struct VoiceEngine::Shared {
 
 	std::mutex mutex;
 	std::condition_variable wake;
-	BoundedQueue<QString> queue;
+	BoundedQueue<QueuedText> queue;
+	QString currentId; // id of the text being spoken
 	std::deque<PcmBuffer> pcm;
 	std::size_t pcmOffset = 0; // muestras ya entregadas del primer búfer
 	uint64_t generation = 0;
@@ -54,15 +61,34 @@ VoiceEngine::~VoiceEngine()
 	thread_.join();
 }
 
-std::size_t VoiceEngine::enqueue(const QString &text)
+std::size_t VoiceEngine::enqueue(const QString &text, const QString &id)
 {
 	std::size_t dropped;
 	{
 		std::lock_guard<std::mutex> lock(shared_->mutex);
-		dropped = shared_->queue.push(text);
+		dropped = shared_->queue.push(QueuedText{text, id});
 	}
 	shared_->wake.notify_all();
 	return dropped;
+}
+
+std::size_t VoiceEngine::cancel(const QSet<QString> &ids)
+{
+	if (ids.isEmpty())
+		return 0;
+	std::size_t cancelled;
+	{
+		std::lock_guard<std::mutex> lock(shared_->mutex);
+		cancelled = shared_->queue.removeIf(
+			[&ids](const QueuedText &item) { return !item.id.isEmpty() && ids.contains(item.id); });
+		if (!shared_->currentId.isEmpty() && ids.contains(shared_->currentId)) {
+			shared_->currentId.clear();
+			shared_->skip = true;
+			++cancelled;
+		}
+	}
+	shared_->wake.notify_all();
+	return cancelled;
 }
 
 void VoiceEngine::setVoice(const QString &voiceId, double rate)
@@ -117,6 +143,7 @@ void VoiceEngine::run()
 		s.pcmOffset = 0;
 		s.renderDone = false;
 		speaking = false;
+		s.currentId.clear();
 		lock.unlock();
 		if (backend)
 			backend->stop();
@@ -132,13 +159,14 @@ void VoiceEngine::run()
 		}
 
 		if (!speaking) {
-			QString text;
-			if (!s.queue.pop(text)) {
+			QueuedText next;
+			if (!s.queue.pop(next)) {
 				s.wake.wait(lock);
 				continue;
 			}
 			const uint64_t generation = ++s.generation;
-			SpeechRequest request{text, s.voiceId, s.rate};
+			s.currentId = next.id;
+			SpeechRequest request{next.text, s.voiceId, s.rate};
 			speaking = true;
 			firstChunkOfText = true;
 			s.renderDone = false;
@@ -175,14 +203,17 @@ void VoiceEngine::run()
 			}
 
 			lock.lock();
-			if (!backend)
+			if (!backend) {
 				speaking = false; // este sistema no tiene voz: el texto se pierde
+				s.currentId.clear();
+			}
 			continue;
 		}
 
 		if (s.pcm.empty()) {
 			if (s.renderDone) {
 				speaking = false;
+				s.currentId.clear();
 				s.renderDone = false;
 				s.wake.wait_for(lock, std::chrono::milliseconds(config_.gapMs), interrupted);
 			} else if (SteadyClock::now() - s.lastActivity >= stallTimeout) {
