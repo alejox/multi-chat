@@ -43,13 +43,16 @@ Hoy el dock solo muestra el chat; no hay forma de poner un comentario concreto e
 - [x] T3 Dock: clic para destacar/quitar, Esc, resaltado; hotkeys de OBS. Route: delegated (writer).
   - Accept: clic destaca, segundo clic o Esc quita, hotkeys registradas en Ajustes → Atajos.
   - Check: compilación macOS sin warnings; prueba manual.
-  - Evidence: cada bloque del dock guarda el id del mensaje (`QTextBlockUserData`); el clic (sin arrastrar, sin selección, fuera de enlaces y dentro del bloque) destaca o quita; Esc en el dock quita; el resaltado cambia solo los bloques afectados (no mueve el scroll). Atajos `multichat.clear_featured` y `multichat.reshow_featured` con `obs_hotkey_register_frontend`; los callbacks pasan al hilo de Qt con `QueuedConnection`; las teclas se guardan en `hotkeys.json` (carpeta de config del plugin) al guardar OBS y al salir, nunca al descargar (OBS ya liberó los atajos: `obs_shutdown` llama a `stop_hotkeys` antes de `free_module`). `cmake --build --preset macos`: BUILD SUCCEEDED, 0 warnings. Prueba manual: pendiente. Commit: este commit (`feat(dock): …`).
-- [ ] T4 README y compilación + instalación local en macOS. Route: delegated (writer).
+  - Evidence: cada bloque del dock guarda el id del mensaje (`QTextBlockUserData`); el clic (sin arrastrar, sin selección, fuera de enlaces y dentro del bloque) destaca o quita; Esc en el dock quita; el resaltado cambia solo los bloques afectados (no mueve el scroll). Atajos `multichat.clear_featured` y `multichat.reshow_featured` con `obs_hotkey_register_frontend`; los callbacks pasan al hilo de Qt con `QueuedConnection`; las teclas se guardan en `hotkeys.json` (carpeta de config del plugin) al guardar OBS y al salir, nunca al descargar (OBS ya liberó los atajos: `obs_shutdown` llama a `stop_hotkeys` antes de `free_module`). `cmake --build --preset macos`: BUILD SUCCEEDED, 0 warnings. Prueba manual: pendiente. Commit: `cc5d6d1`.
+- [x] T4 README y compilación + instalación local en macOS. Route: delegated (writer).
   - Accept: plugin instalado en `~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin`.
   - Check: OBS carga el plugin y aparece la fuente "Multichat (destacado)".
+  - Evidence: README con fila en Funciones y sección "Destacar un mensaje". `cmake --preset macos && cmake --build --preset macos`: BUILD SUCCEEDED, 0 warnings. Instalado con `ditto` en `~/Library/Application Support/obs-studio/plugins/obs-multichat.plugin` (reemplaza la 2.1.1 del 5 nov; copia de seguridad en el scratchpad de la sesión); `codesign -v` OK; el binario contiene `multichat_featured` y los ids de los atajos. OBS no estaba abierto. Carga en OBS y prueba manual: pendiente (usuario). Commit: este commit (`docs(featured): …`).
 
 ## Progress
 - Rama `feat/featured-messages` creada desde `main` (8edb0e5).
 
+- T1–T4 hechas en `feat/featured-messages` (4 commits). Sin pruebas automáticas: QtTest no configura en macOS (falta Qt6Test en `.deps`); no se añadieron tests (fuera de las superficies permitidas).
+
 ## Next step
-T1–T4 con un writer delegado.
+Prueba manual en OBS (lista en el informe del writer); luego decidir push/PR.
