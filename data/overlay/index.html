@@ -114,7 +114,7 @@ const FALLBACK = ['#FF6B6B', '#4FC3F7', '#FFD54F', '#81C784', '#BA68C8', '#FF8A6
 
 let config = { size: 22, fade: 0, max: 15, platforms: ['twitch', 'youtube', 'kick', 'tiktok', 'starvios'], icons: true, badges: true,
   background: false, style: 'solid', bgColor: '#000000', bgOpacity: 60, bgRadius: 9, bgBorderWidth: 0, bgBorderColor: '#ffffff',
-  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, clockDate: true, clockTime: true, clockSeconds: false, clockHour24: true, clockBar: true, speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, preview: true, streaming: false };
+  panel: false, panelColor: '#000000', panelOpacity: 50, panelRadius: 0, panelBorderWidth: 0, panelBorderColor: '#ffffff', align: 'bottom', layout: 'vertical', scroll: 'continuous', clock: false, clockDate: true, clockTime: true, clockSeconds: false, clockHour24: true, clockBar: true, speed: 120, spacing: 5, hspacing: 48, padY: 6, padX: 10, msgPadY: 5, msgPadX: 11, sample: false, streaming: false };
 let lastReal = 0;
 // Ids already shown, oldest first. Past the limit the oldest is forgotten, never all at once:
 // clearing everything would let a reconnect replay recent messages.
@@ -380,7 +380,7 @@ const SAMPLES = [
 ];
 let sample = 0;
 setInterval(() => {
-  if (!config.preview || config.streaming || Date.now() - lastReal < 30000) return;
+  if (!config.sample || config.streaming || Date.now() - lastReal < 30000) return;
   const index = sample++ % SAMPLES.length;
   const [platform, author, color, badges, fallback] = SAMPLES[index];
   const texts = Array.isArray(config.samples) ? config.samples : [];

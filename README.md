@@ -34,7 +34,7 @@ Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
 | 🛡️ **Moderación** | Si un moderador borra un mensaje, o banea o expulsa temporalmente a alguien, sus mensajes desaparecen del dock, del chat en pantalla y del destacado. Mira [Moderación y filtros](#-moderación-y-filtros). |
 | 🚫 **Filtros** | Oculta bots (Nightbot, StreamElements, Streamlabs… vienen de serie), comandos que empiezan por `!` y palabras bloqueadas, desde la pestaña **Filtros** de **Multichat: configurar chats**. |
 | 🔇 **Silenciar canal** | Clic en un canal del dock para silenciar sus mensajes en Multichat o volver a mostrarlos. No toca la plataforma. |
-| 🧪 **Mensajes de prueba** | Para ver el dock y colocar las fuentes en pantalla sin estar en directo. Nunca salen mientras transmites. |
+| 🧪 **Mensajes de prueba** | Un solo interruptor (en la rueda del dock y en Configurar) que llena el dock con un chat de prueba y hace que las fuentes en pantalla muestren mensajes y números de ejemplo mientras no hay chat. Nunca salen mientras transmites. |
 
 ## 📦 Instalar
 
@@ -134,7 +134,7 @@ La primera vez que abres OBS con el plugin, sin chats configurados, aparece el *
 
 ### ⭐ Destacar un mensaje
 
-1. Añade **Fuentes → + → Multichat (destacado)** a tu escena. Mientras no hay ninguno destacado muestra un mensaje de ejemplo para colocarla (nunca al transmitir).
+1. Añade **Fuentes → + → Multichat (destacado)** a tu escena. Con *Mensajes de prueba* activado muestra un mensaje de ejemplo mientras no hay ninguno destacado, para colocarla (nunca al transmitir).
 2. En el dock **Multichat**, haz clic en un mensaje: aparece en la fuente y se resalta en el dock. Otro clic en otro mensaje lo reemplaza.
 3. Para quitarlo: clic otra vez en el mensaje resaltado o **Esc** con el dock seleccionado.
 

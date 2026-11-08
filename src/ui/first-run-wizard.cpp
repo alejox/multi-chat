@@ -192,7 +192,7 @@ private:
 			ChatManager &m = ChatManager::instance();
 			QList<chat::ChatEntry> chats = m.chats();
 			chats << chat::ChatEntry{entry, true};
-			m.configure(chats, m.mode(), m.demo());
+			m.configure(chats, m.mode());
 			m.save();
 			updateAdded();
 		};
@@ -200,12 +200,8 @@ private:
 		added_ = wrapped(QString(), page);
 		layout->addWidget(added_);
 		auto *demo = new QCheckBox(ui::T("Wizard.Chat.Demo"), page);
-		demo->setChecked(ChatManager::instance().demo());
-		connect(demo, &QCheckBox::toggled, this, [](bool on) {
-			ChatManager &m = ChatManager::instance();
-			m.configure(m.chats(), m.mode(), on);
-			m.save();
-		});
+		demo->setChecked(ChatManager::instance().testMessages());
+		connect(demo, &QCheckBox::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
 		layout->addWidget(demo);
 		layout->addWidget(wrapped(ui::T("Wizard.Chat.Later"), page));
 		layout->addStretch(1);

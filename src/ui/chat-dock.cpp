@@ -624,7 +624,20 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 	button("text-bigger", "Dock.Bigger", [this] { changeFont(1); });
 	button("refresh", "Dock.Refresh", [] { ChatManager::instance().refresh(); });
 	button("clear", "Dock.Clear", [this] { clearWithUndo(); });
-	button("settings", "Dock.Settings", [this] { open_multichat_settings(this); });
+	// The gear opens a menu: settings and the switches that do not deserve a button.
+	QToolButton *gear = button("settings", "Dock.Settings", [] {});
+	auto *gearMenu = new QMenu(gear);
+	gearMenu->addAction(ui::T("Dock.Menu.Configure"), this, [this] { open_multichat_settings(this); });
+	QAction *testMessages = gearMenu->addAction(ui::T("Dock.Menu.TestMessages"));
+	testMessages->setCheckable(true);
+	testMessages->setChecked(ChatManager::instance().testMessages());
+	connect(testMessages, &QAction::toggled, this, [](bool on) { ChatManager::instance().setTestMessages(on); });
+	connect(&ChatManager::instance(), &ChatManager::testMessagesChanged, testMessages, [testMessages](bool on) {
+		if (testMessages->isChecked() != on)
+			testMessages->setChecked(on);
+	});
+	gear->setMenu(gearMenu);
+	gear->setPopupMode(QToolButton::InstantPopup);
 	root->addLayout(header);
 
 	banner_ = new QWidget(this);

@@ -405,7 +405,20 @@ SourcePlan planSources(const QList<ChatEntry> &entries, bool demo)
 	return plan;
 }
 
-// Mensajes de ejemplo para probar el dock y el overlay sin estar en directo.
+bool testMessagesEnabled(const QJsonObject &config)
+{
+	return config.value(QLatin1String("testMessages")).toBool(false);
+}
+
+bool adoptLegacyPreview(QJsonObject &config, bool legacyPreview)
+{
+	if (!legacyPreview || config.contains(QLatin1String("testMessages")))
+		return false;
+	config.insert(QLatin1String("testMessages"), true);
+	return true;
+}
+
+// Mensajes de ejemplo para probar el dock y las fuentes en pantalla sin estar en directo.
 namespace demo {
 
 class DemoConnector : public Connector {

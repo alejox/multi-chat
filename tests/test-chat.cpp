@@ -1388,6 +1388,29 @@ private slots:
 		QCOMPARE(planSources({}, false).sources.size(), size_t(0));
 	}
 
+	// One global "test messages" switch in config.json. Scenes saved by older versions carry a
+	// per-source "preview": the first one set by hand turns the switch on, once.
+	void testMessagesSwitchAndLegacyPreview()
+	{
+		QJsonObject cfg;
+		QVERIFY(!testMessagesEnabled(cfg)); // never decided: off
+		cfg.insert("testMessages", true);
+		QVERIFY(testMessagesEnabled(cfg));
+		cfg.insert("testMessages", false);
+		QVERIFY(!testMessagesEnabled(cfg));
+
+		QJsonObject fresh;
+		QVERIFY(!adoptLegacyPreview(fresh, false)); // a source with preview off decides nothing
+		QVERIFY(!fresh.contains("testMessages"));
+		QVERIFY(adoptLegacyPreview(fresh, true));
+		QVERIFY(testMessagesEnabled(fresh));
+		QVERIFY(!adoptLegacyPreview(fresh, true)); // already decided: no change
+
+		QJsonObject off{{"testMessages", false}};
+		QVERIFY(!adoptLegacyPreview(off, true)); // the user's choice wins over old scenes
+		QVERIFY(!testMessagesEnabled(off));
+	}
+
 	void twitchMessage()
 	{
 		const QString line = "@badge-info=subscriber/8;badges=broadcaster/1,subscriber/6;color=#0D4200;"
