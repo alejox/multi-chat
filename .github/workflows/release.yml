@@ -3,6 +3,7 @@ name: Publicar versión
 # Publica una Release con los zips de Windows y macOS, el .tar.gz de Linux y su SHA256SUMS. Se lanza:
 #   - solo, al subir a main un cambio de "version" en buildspec.json (si ese tag aún no existe);
 #   - al empujar un tag v<version>:  git tag v2.0.2 && git push origin v2.0.2
+#     (v<version>-beta.1, -rc.1… sale como pre-release: no queda como "Latest" ni la ve el actualizador)
 #   - a mano: Actions → Publicar versión → Run workflow (sobre la rama elegida).
 # En los tres casos el tag es v<version de buildspec.json>; si ya existe, no se publica nada.
 on:
@@ -21,22 +22,28 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.name }}
       publish: ${{ steps.tag.outputs.publish }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v5
       - name: Versión y tag
         id: tag
         run: |
           v="v$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")"
-          echo "name=$v" >> "$GITHUB_OUTPUT"
+          name="$v"
+          prerelease=false
+          publish=true
           if [ "$GITHUB_REF_TYPE" = tag ]; then
-            [ "$v" = "$GITHUB_REF_NAME" ] || { echo "El tag es $GITHUB_REF_NAME pero buildspec.json dice $v"; exit 1; }
-            echo "publish=true" >> "$GITHUB_OUTPUT"
+            # v<version> publishes a release; v<version>-<suffix> (e.g. -beta.1, -rc.1) a pre-release.
+            case "$GITHUB_REF_NAME" in
+              "$v") ;;
+              "$v"-?*) name="$GITHUB_REF_NAME"; prerelease=true ;;
+              *) echo "El tag es $GITHUB_REF_NAME pero buildspec.json dice $v"; exit 1 ;;
+            esac
           elif git ls-remote --exit-code --tags origin "refs/tags/$v" >/dev/null; then
             echo "Ya existe el tag $v: no se publica nada (sube la versión en buildspec.json)."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
+            publish=false
           fi
+          { echo "name=$name"; echo "prerelease=$prerelease"; echo "publish=$publish"; } >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
@@ -63,10 +70,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
           ls -la dist
-          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Multichat $TAG" --generate-notes
+          flags=()
+          [ "$PRERELEASE" = true ] && flags+=(--prerelease)
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Multichat $TAG" --generate-notes "${flags[@]}"
       - name: Actualizar alejoxcode
+        # The site shows the latest stable release, so a pre-release leaves it alone.
+        if: needs.prepare.outputs.prerelease != 'true'
         env:
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
         run: |
