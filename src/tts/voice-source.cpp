@@ -364,8 +364,14 @@ obs_source_t *createOutput()
 	obs_data_set_bool(settings, kOutputKey, true);
 	obs_source_t *source = obs_source_create(typeId, name.c_str(), settings, nullptr);
 	obs_data_release(settings);
-	if (source)
+	if (source) {
+		// OBS 33 replaced monitoring types with a single switch; older libobs (the Linux PPA) only has the type.
+#if LIBOBS_API_MAJOR_VER >= 33
 		obs_source_set_monitoring_enabled(source, true);
+#else
+		obs_source_set_monitoring_type(source, OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+#endif
+	}
 	return source;
 }
 
