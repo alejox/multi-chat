@@ -1,5 +1,5 @@
 /*
-Multichat para OBS
+AC Multichat
 Copyright (C) 2026 Alejandro (Alejoxgaming)
 
 This program is free software; you can redistribute it and/or modify
