@@ -58,7 +58,7 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: |
           ls -la dist
-          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Multichat $TAG" --generate-notes
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "AC Multichat $TAG" --generate-notes
       - name: Actualizar alejoxcode
         env:
           VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
