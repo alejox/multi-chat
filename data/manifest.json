@@ -1,10 +1,10 @@
 {
     "id": "com.alejoxgaming.obs-multichat",
     "name": "obs-multichat",
-    "display_name": "Multichat",
+    "display_name": "AC Multichat",
     "version": "2.1.1",
-    "description": "Los chats de Twitch, YouTube, Kick, TikTok y Starvios juntos en un dock y en tu escena, con espectadores y fecha y hora.",
-    "long_description": "Detecta en qué plataformas estás en vivo, une sus chats en un dock y en una fuente para la escena (vertical o en cinta horizontal), muestra los espectadores de cada canal y avisa cuando hay una versión nueva.",
+    "description": "Twitch, YouTube, Kick, TikTok and Starvios chats together in one dock and on your scene, with viewers, date and time, and text-to-speech.",
+    "long_description": "Detects which platforms you are live on, merges their chats in a dock and in a scene source (vertical or a horizontal ticker), shows the viewers of each channel, can read the chat aloud and tells you when there is a new version.",
     "urls": {
         "repository": "https://github.com/alejox/multi-chat",
         "website": "https://github.com/alejox/multi-chat",

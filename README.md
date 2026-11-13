@@ -1,49 +1,68 @@
 <div align="center">
 
-# 💬 Multichat para OBS
+# 💬 AC Multichat
 
-**Los chats de Twitch, YouTube, Kick, TikTok y Starvios juntos en un dock de OBS y en tu escena. Detecta cuándo haces multistream y conecta solo los chats de las plataformas donde estás en vivo.**
+**Twitch, YouTube, Kick, TikTok and Starvios chats together in one OBS dock and on your scene. It detects when you multistream and connects only the chats of the platforms where you're live.**
 
+[![Latest release](https://img.shields.io/github/v/release/alejox/multi-chat?label=release&color=6e56cf)](../../releases/latest)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-Ubuntu%2024.04%2B-E95420?logo=ubuntu&logoColor=white)
-![OBS](https://img.shields.io/badge/OBS-33-302E31?logo=obsstudio&logoColor=white)
+![OBS](https://img.shields.io/badge/OBS-33%2B-302E31?logo=obsstudio&logoColor=white)
+[![License](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
+
+**English** · [Español](README.es.md)
+
+![AC Multichat on-screen chat](docs/overlay-vertical.png)
+
+[**⬇️ Download**](../../releases/latest) &nbsp;·&nbsp; [Install](#-install) &nbsp;·&nbsp; [Features](#-features) &nbsp;·&nbsp; [FAQ](#-faq)
 
 </div>
 
 ---
 
-Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
+A native OBS Studio 33+ plugin: no Python, no accounts, no API keys, no browser extensions.
 
-## ✨ Funciones
+## ✨ Features
 
 | | |
 |---|---|
-| 🧩 **Dock "Multichat"** | Todos los mensajes juntos con el logo de cada plataforma, insignias (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, suscripciones y regalos de TikTok. |
-| 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
-| 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en vivo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
-| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat: configurar chats**. Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto. Para quitar uno, pulsa la ✕ a su derecha. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Se configura en sus Propiedades: disposición, velocidad, tamaño, desvanecer, máximo de mensajes, plataformas, fondo y alineación. |
-| 🕒 **Fuente "Multichat (fecha y hora)"** | Un recuadro aparte con la fecha y la hora (con o sin segundos, 24 h o 12 h, barra y fondo opcionales), a su tamaño justo. |
-| 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en los recuadros de espectadores y de fecha y hora. |
-| 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en vivo, y el total. En fila o en columna, con o sin el nombre del canal. |
-| 🔊 **Fuente "Multichat (voz)"** | Lee el chat en voz alta como una fuente de audio más, que llega a la emisión y se controla en el mezclador. |
-| 🙈 **Filtrar** | Clic en un canal del dock para ocultar o mostrar sus mensajes. |
-| 🧪 **Mensajes de prueba** | Para ver el dock y colocar el overlay sin estar en directo. Nunca salen mientras transmites. |
+| 🧩 **"Multichat" dock** | Every message together with each platform's logo, badges (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, subscriptions and TikTok gifts. |
+| 👁 **Viewers** | How many people are watching right now on each platform and in total, in the dock and in the chats window. Updated every 30 s. |
+| 📡 **Multistream detection** | When you press *Start Streaming* it checks which platforms you're live on and connects those chats. The dock shows **"Multistream detected"**. |
+| ➕ **Many chats** | Add as many channels as you want, several from the same platform too, from **Tools → Multichat: set up chats**. When you type or paste a channel, its profile picture appears so you can check it's the right one. |
+| 🎬 **"Multichat" source** | The chat on your scene with a transparent background. Vertical (a list of messages) or horizontal (a ticker scrolling right to left). Layout, speed, size, fade, max messages, platforms, background and alignment are set in its Properties. |
+| 👁 **"Multichat (viewers)" source** | A separate box with the logo and viewers of each live channel, plus the total. In a row or a column, with or without the channel name. |
+| 🕒 **"Multichat (date and time)" source** | A separate box with the date and time (with or without seconds, 24 h or 12 h, optional bar and background), sized to fit. |
+| 🔊 **"Multichat (voice)" source** | Reads the chat aloud with the system voices, as an audio source that reaches the stream and is controlled in the Audio Mixer. |
+| 🎨 **Background styles** | A background per message and one behind the whole chat, with color, opacity, rounding and border. Styles: Solid, Glass, Pill, macOS window, Minimal, Line, Synthwave, Neon city, Cyberpunk, Retro and Glitch. |
+| 🙈 **Filter** | Click a channel in the dock to hide or show its messages. |
+| 🧪 **Test messages** | To try the dock and place the overlay without being live. They never show while you stream. |
+| 🔄 **Updates** | OBS tells you when there's a new version and installs it for you after you accept. |
 
-## 📦 Instalar
+![Horizontal ticker with date and time](docs/overlay-horizontal.png)
 
-Requiere **OBS Studio 33 o superior** (Windows 10/11, macOS 13+ o Linux x86_64). Con una versión anterior de OBS, el plugin no carga y OBS avisa de que «no se han podido cargar» los plugins: actualiza OBS primero.
+## 📦 Install
 
-Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y **cierra OBS antes de instalar**.
+Requires **OBS Studio 33 or newer** (Windows 10/11, macOS 13+ or Linux x86_64). With an older OBS the plugin doesn't load and OBS says some plugins "failed to load": update OBS first.
 
-### Windows
+Download the file for your system from **[Releases](../../releases/latest)** and **close OBS before installing**.
 
-Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**, una carpeta por plugin (ya no dentro de `C:\Program Files\obs-studio`).
+| | Windows 10/11 | macOS 13+ | Linux x86_64 |
+|---|---|---|---|
+| **File** | `obs-multichat-<version>-windows-x64.zip` | `obs-multichat-<version>-macos.zip` | `obs-multichat-<version>-linux-x86_64.tar.gz` |
+| **You get** | the `obs-multichat` folder | `obs-multichat.plugin` | the `obs-multichat` folder |
+| **Copy it to** | `C:\ProgramData\obs-studio\plugins\` (accept the administrator prompt) | `~/Library/Application Support/obs-studio/plugins/` | `~/.config/obs-studio/plugins/` |
+| **Then** | Delete old copies, if any (see below) | Run the Terminal command below (once) | — |
 
-1. Descarga `obs-multichat-<versión>-windows-x64.zip` y descomprímelo (clic derecho → **Extraer todo**). Queda la carpeta `obs-multichat`.
-2. Abre `C:\ProgramData\obs-studio\plugins` (escríbelo en la barra del Explorador; `ProgramData` es una carpeta oculta). Si no existe la carpeta `plugins`, créala.
-3. Copia ahí la carpeta `obs-multichat` (si ya estaba, reemplázala) y acepta el permiso de administrador. Debe quedar así:
+<details>
+<summary><b>Windows step by step</b></summary>
+
+Since OBS 33, plugins go in **`C:\ProgramData\obs-studio\plugins`**, one folder per plugin (no longer inside `C:\Program Files\obs-studio`).
+
+1. Unzip `obs-multichat-<version>-windows-x64.zip` (right-click → **Extract All**). You get the `obs-multichat` folder.
+2. Open `C:\ProgramData\obs-studio\plugins` (type it in the Explorer address bar; `ProgramData` is hidden). Create the `plugins` folder if it doesn't exist.
+3. Copy the `obs-multichat` folder there (replace it if it was already there) and accept the administrator prompt. It must look like this:
 
    ```
    C:\ProgramData\obs-studio\plugins\obs-multichat\
@@ -54,137 +73,191 @@ Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**,
        └── overlay\
    ```
 
-4. Si instalaste una versión anterior en `C:\Program Files\obs-studio`, borra `obs-plugins\64bit\obs-multichat.dll` y la carpeta `data\obs-plugins\obs-multichat`: OBS 33 la marca como *Legacy* y OBS 34 ya no la carga.
-5. Abre OBS.
+4. If you installed an older version in `C:\Program Files\obs-studio`, delete `obs-plugins\64bit\obs-multichat.dll` and the `data\obs-plugins\obs-multichat` folder: OBS 33 marks that layout as *Legacy* and OBS 34 no longer loads it.
+5. Open OBS.
+</details>
 
-### macOS
+<details>
+<summary><b>macOS step by step</b></summary>
 
-1. Descarga `obs-multichat-<versión>-macos.zip` y descomprímelo: queda `obs-multichat.plugin`.
-2. Cópialo a `~/Library/Application Support/obs-studio/plugins/` (en el Finder: **Ir → Ir a la carpeta…**). Si ya había una versión, reemplázala.
-3. En la Terminal, una vez: `xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin`
-4. Abre OBS.
-
-### Linux
-
-Compilado en Ubuntu 24.04 para el OBS del [PPA oficial](https://launchpad.net/~obsproject/+archive/ubuntu/obs-studio) (`sudo add-apt-repository ppa:obsproject/obs-studio`); sirve en Ubuntu 24.04 o más nuevo y distribuciones derivadas (Linux Mint 22, Pop!_OS 24.04…). El overlay usa la fuente de navegador de OBS: el OBS del PPA la trae, el paquete `obs-studio` de los repositorios de Ubuntu no.
-
-1. Descarga `obs-multichat-<versión>-linux-x86_64.tar.gz`.
-2. Descomprímelo en la carpeta de plugins de tu usuario:
+1. Unzip `obs-multichat-<version>-macos.zip`: you get `obs-multichat.plugin`.
+2. Copy it to `~/Library/Application Support/obs-studio/plugins/` (in Finder: **Go → Go to Folder…**). Replace the old version if there is one.
+3. In Terminal, once:
 
    ```bash
-   mkdir -p ~/.config/obs-studio/plugins
-   tar -xzf obs-multichat-*-linux-x86_64.tar.gz -C ~/.config/obs-studio/plugins
+   xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin
    ```
 
-   Debe quedar así:
+4. Open OBS.
+</details>
 
-   ```
-   ~/.config/obs-studio/plugins/obs-multichat/
-   ├── bin/64bit/obs-multichat.so
-   └── data/
-       ├── manifest.json
-       ├── locale/
-       └── overlay/
-   ```
+<details>
+<summary><b>Linux step by step</b></summary>
 
-3. Abre OBS.
-
-### Actualizaciones automáticas
-
-Al abrir OBS, el plugin revisa si hay una versión nueva en las Releases de GitHub. Si la hay, muestra un aviso con **Actualizar ahora**, **Más tarde** u **Omitir esta versión** (y el dock **Multichat** lo recuerda con su botón). **Actualizar ahora** la descarga, la instala y pide reiniciar OBS. También se puede revisar a mano en **Herramientas → Multichat: buscar actualizaciones**.
-
-- **Windows:** se instala en `C:\ProgramData\obs-studio\plugins\obs-multichat`, que es de administrador: Windows pide permiso una vez para copiar el plugin. Si estaba en la carpeta de antes (`C:\Program Files\obs-studio`), queda en la nueva y se quita la copia de antes.
-- **macOS:** se reemplaza `obs-multichat.plugin` en su carpeta y se le quita la marca de "descargado de internet", así que macOS no vuelve a pedir permiso.
-- **Linux:** se reemplaza en `~/.config/obs-studio/plugins/obs-multichat`, sin pedir permisos (descarga con `curl` o, si no está, con `wget`).
-
-Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
-
-## 🎛️ Usarlo
-
-1. **Herramientas → Multichat: configurar chats**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube.
-2. **Docks → Multichat** para ver el chat dentro de OBS.
-3. Para mostrarlo en pantalla: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha.
-4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
-5. Para la fecha y la hora sueltas: **Fuentes → + → Multichat (fecha y hora)**.
-6. Para que lea el chat en voz alta: **Fuentes → + → Multichat (voz)**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
-
-### 🔊 Leer el chat en voz alta
-
-Funciona en Windows, macOS y Linux con las voces del sistema, sin servicios externos. En Linux usa **espeak-ng**: la voz es más robótica que las de Windows y macOS.
-
-1. Añade **Fuentes → + → Multichat (voz)** a tu escena.
-2. En sus **Propiedades**, activa *Leer el chat en voz alta*: viene desactivada. Ahí eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen, el máximo de caracteres por mensaje y las palabras bloqueadas.
-3. El volumen se controla en el **mezclador de audio**, como cualquier otra fuente. Es audio de OBS: llega a la emisión y a la grabación. Para oírlo tú, activa la monitorización en *Propiedades avanzadas de audio*.
-
-Qué se lee y qué no:
-
-- Solo mensajes nuevos, nunca el historial, y solo mientras la fuente está en la escena en emisión. Si sale de ella, se vacía la cola.
-- No se leen los emotes, los enlaces ni los emojis. Un mensaje que se queda sin letras ni números se omite.
-- Sí se leen los avisos del chat (suscripciones, regalos…). Un `/me` de Twitch se lee como «Ana saluda».
-- Un mensaje con una palabra bloqueada no se lee entero.
-- Se leen de uno en uno. Si la cola llega a 20 mensajes, se descarta el más antiguo para no acumular retraso.
-- El botón *Saltar el mensaje actual* corta el que se está leyendo. Al desactivar la fuente se vacía la cola y se detiene la voz.
-- Los *Mensajes de prueba* también se leen, para escuchar la voz sin estar en directo, pero nunca mientras transmites.
-
-Límites: el primer mensaje puede tardar unos segundos en sonar mientras el sistema carga la voz, y solo se quitan los enlaces que empiezan por `http://`, `https://` o `www.`, así que `ejemplo.com` se leería.
-
-### Cuándo se conecta cada chat
-
-| Modo | Comportamiento |
-|---|---|
-| **Automático** (por defecto) | Comprueba cada minuto qué canales están en vivo y conecta solo esos chats. Al empezar a transmitir lo comprueba cada 15 s durante 3 minutos. Si no se puede saber el estado de un canal, lo conecta mientras OBS esté transmitiendo. |
-| **Siempre conectado** | Conecta todos los chats aunque no estés en directo. En YouTube, TikTok y Starvios espera a que empiece el directo. |
-
-Funciona con cualquier forma de hacer multistream (Restream, *Multiple RTMP outputs*, Aitum Multistream…), porque consulta a cada plataforma directamente. Si el servicio de emisión de OBS es Restream, Castr o StreamYard, también se marca como multistream.
-
-### Notas por plataforma
-
-- **Twitch:** conexión IRC anónima, de solo lectura.
-- **YouTube:** lee el chat público del directo, sin clave de API. Con `@canal` busca solo el directo activo.
-- **Kick:** a veces Kick bloquea la consulta que da el ID del chat. Si el canal queda en error, añádelo con el ID: `micanal#123456`. Para verlo, abre `https://kick.com/api/v2/channels/micanal` en el navegador y busca `"chatroom":{"id":…}`.
-- **TikTok:** escribe tu usuario (`@micanal`) o pega la URL. TikTok exige firmar la conexión al chat, así que el plugin usa [Euler Stream](https://www.eulerstream.com), un servicio externo gratuito y sin cuenta que limita las conexiones por día. Si se pasa del límite, el chat queda en error y se reintenta a los 10 minutos. Muestra los comentarios y los regalos.
-- **Starvios:** escribe tu usuario (`micanal`) o pega la URL (`https://starvios.com/live/micanal`). No pide cuenta ni clave: el chat se lee de forma anónima y solo de lectura, como lo hace su web, y el plugin no cuenta como espectador. Los mensajes perdidos durante una reconexión se muestran, pero no se leen en voz alta. **Este conector no es oficial** y puede dejar de funcionar si Starvios cambia.
-
-YouTube, Kick, TikTok y Starvios no tienen una API pública oficial para leer el chat sin cuenta: si cambian su web, puede que haya que actualizar el plugin.
-
-## 🛠️ Compilar
-
-El plugin usa la [plantilla oficial de plugins de OBS](https://github.com/obsproject/obs-plugintemplate) actualizada a **OBS 33.0.0**: obs-deps y Qt 6.11 del `2026-10-23`, macOS 13+ universal, Windows x64. La configuración descarga las dependencias sola. En Linux usa el OBS, Qt 6, libcurl y espeak-ng del sistema.
+Built on Ubuntu 24.04 for the OBS from the [official PPA](https://launchpad.net/~obsproject/+archive/ubuntu/obs-studio) (`sudo add-apt-repository ppa:obsproject/obs-studio`); it works on Ubuntu 24.04 or newer and derivatives (Linux Mint 22, Pop!_OS 24.04…). The overlay uses the OBS Browser source: the PPA build has it, the `obs-studio` package from Ubuntu's own repositories doesn't.
 
 ```bash
-# macOS (Xcode 26.5+: OBS 33 exige el SDK de macOS 26.5)
+mkdir -p ~/.config/obs-studio/plugins
+tar -xzf obs-multichat-*-linux-x86_64.tar.gz -C ~/.config/obs-studio/plugins
+```
+
+It must look like this:
+
+```
+~/.config/obs-studio/plugins/obs-multichat/
+├── bin/64bit/obs-multichat.so
+└── data/
+    ├── manifest.json
+    ├── locale/
+    └── overlay/
+```
+
+The voice source uses **espeak-ng**, which Ubuntu desktop usually includes; if it's missing: `sudo apt install espeak-ng`.
+</details>
+
+> [!TIP]
+> If you used the older Python version (`obs_multichat.py`), remove it from **Tools → Scripts**.
+
+### Automatic updates
+
+When OBS opens, the plugin checks this repository's GitHub Releases for a new version. If there is one, it asks with **Update now**, **Later** or **Skip this version** (the **Multichat** dock reminds you with a button). **Update now** downloads it over HTTPS, installs it and asks you to restart OBS. You can also check by hand in **Tools → Multichat: check for updates**. Nothing is installed without your click.
+
+- **Windows:** installs into `C:\ProgramData\obs-studio\plugins\obs-multichat`, which belongs to the administrator: Windows asks for permission once to copy the plugin. A copy in the old folder (`C:\Program Files\obs-studio`) is moved to the new one.
+- **macOS:** replaces `obs-multichat.plugin` in its folder and clears the "downloaded from the internet" flag, so macOS doesn't ask again.
+- **Linux:** replaces `~/.config/obs-studio/plugins/obs-multichat`, with no permission prompt (downloads with `curl`, or `wget` if `curl` is missing).
+
+To see the installed version: **Tools → Plugin Manager** (OBS 33).
+
+## 🎛️ Use it
+
+1. **Tools → Multichat: set up chats**. Pick the platform, type the channel and press **Add**. You can also paste the channel URL or a YouTube live URL.
+2. **Docks → Multichat** to see the chat inside OBS.
+3. To show it on screen: **Sources → + → Multichat (on-screen chat)**. For the ticker, choose *Layout → Horizontal*. With *Fit to the canvas automatically* (on by default) it takes the whole canvas width at the height of one line; turn it off to set the size by hand. *Movement* can be continuous or per message (it moves with each message and stops). With *Show date and time at the end of the ticker*, the ticker ends with the date and time on the right.
+4. Viewers on screen: **Sources → + → Multichat (viewers)**.
+5. Date and time on their own: **Sources → + → Multichat (date and time)**.
+6. To read the chat aloud: **Sources → + → Multichat (voice)**. See [Read the chat aloud](#-read-the-chat-aloud).
+
+The plugin's interface is in English and Spanish (it follows the OBS language).
+
+### 🔊 Read the chat aloud
+
+Works on Windows, macOS and Linux with the system voices, with no external services. On Linux it uses **espeak-ng**: the voice is more robotic than on Windows and macOS.
+
+1. Add **Sources → + → Multichat (voice)** to your scene.
+2. In its **Properties**, turn on *Read chat aloud* (it starts off). There you choose the voice, the speed, whether the sender's name is read, which platforms are read, the maximum characters per message and blocked words.
+3. Control the volume in the **Audio Mixer** like any other source. It is OBS audio: it reaches the stream and the recording. To hear it yourself, turn on monitoring in *Advanced Audio Properties*.
+
+What is read and what isn't:
+
+- Only new messages, never the history, and only while the source is in the scene on program. If it leaves the scene, the queue is cleared.
+- Emotes, links and emojis are not read. A message left with no letters or numbers is skipped.
+- Chat notices (subscriptions, gifts…) are read. A Twitch `/me` is read as "Ana waves".
+- A message with a blocked word is not read at all.
+- Messages are read one at a time. If the queue reaches 20, the oldest is dropped so the delay doesn't grow.
+- *Skip current message* cuts the one being read. Disabling the source clears the queue and stops the voice.
+- *Test messages* are read too, so you can hear the voice without being live, but never while you stream.
+
+Limits: the first message can take a few seconds while the system loads the voice, and only links starting with `http://`, `https://` or `www.` are removed, so `example.com` would be read.
+
+### When each chat connects
+
+| Mode | Behavior |
+|---|---|
+| **Automatic** (default) | Checks every minute which channels are live and connects only those chats. When you start streaming it checks every 15 s for 3 minutes. If a channel's state can't be known, it connects while OBS is streaming. |
+| **Always connected** | Connects every chat even when you're not live. YouTube, TikTok and Starvios wait for the live to start. |
+
+It works with any way of multistreaming (Restream, *Multiple RTMP outputs*, Aitum Multistream…), because it asks each platform directly. If the OBS streaming service is Restream, Castr or StreamYard, it's also marked as multistream.
+
+### Platform notes
+
+- **Twitch:** anonymous, read-only IRC connection.
+- **YouTube:** reads the public live chat, no API key. With `@channel` it looks only for the active live.
+- **Kick:** Kick sometimes blocks the request that gives the chat ID. If the channel shows an error, add it with the ID: `mychannel#123456`. To find it, open `https://kick.com/api/v2/channels/mychannel` in the browser and look for `"chatroom":{"id":…}`.
+- **TikTok:** type your username (`@mychannel`) or paste the URL. TikTok requires the chat connection to be signed, so the plugin uses [Euler Stream](https://www.eulerstream.com), a free external service with no account that limits connections per day. Over the limit, the chat shows an error and retries after 10 minutes. Shows comments and gifts.
+- **Starvios:** type your username (`mychannel`) or paste the URL (`https://starvios.com/live/mychannel`). No account or key: the chat is read anonymously and read-only, the same way its website does, and the plugin doesn't count as a viewer. Messages missed during a reconnection are shown but not read aloud. **This connector is unofficial** and may stop working if Starvios changes.
+
+YouTube, Kick, TikTok and Starvios have no official public API to read the chat without an account: if they change their site, the plugin may need an update.
+
+## ❓ FAQ
+
+<details>
+<summary><b>OBS says the plugin "failed to load"</b></summary>
+
+You're on OBS 32 or older. Update OBS to 33 or newer. On Windows, also check the plugin is in `C:\ProgramData\obs-studio\plugins\obs-multichat\` and not in the old `C:\Program Files\obs-studio` folders.
+</details>
+
+<details>
+<summary><b>A chat stays in error</b></summary>
+
+**Tools → Multichat: set up chats** shows the reason under the channel. For Kick, add it with the chat ID (see [Platform notes](#platform-notes)). For TikTok, the free signing service may have reached its daily limit: it retries by itself after 10 minutes. The OBS log (**Help → Log Files**) has the `[obs-multichat]` lines.
+</details>
+
+<details>
+<summary><b>The chat doesn't connect when I'm not live</b></summary>
+
+That's the **Automatic** mode: it connects only the channels that are live. Switch to **Always connected** in **Tools → Multichat: set up chats**, or use *Test messages* to place the overlay.
+</details>
+
+<details>
+<summary><b>macOS says the plugin is damaged or blocks it</b></summary>
+
+Run the `xattr -cr …` command from the install steps. The plugin isn't signed with a paid Apple developer account.
+</details>
+
+## 🔒 Privacy
+
+- No accounts, no logins, no telemetry. Everything runs inside OBS on your computer; there's no server of ours.
+- To read the chats and viewer counts, the plugin talks directly and anonymously to each platform you add: Twitch (IRC and its public GraphQL), YouTube, Kick, TikTok and Starvios (its public Supabase endpoint). Emotes and profile pictures are loaded from the platforms' own image servers.
+- **TikTok only:** the room ID of the TikTok channel you add is sent to [Euler Stream](https://www.eulerstream.com) to sign the connection.
+- **Updates:** the plugin asks the GitHub API for this repository's latest release when OBS opens and, only if you accept, downloads it from GitHub.
+- The channels you add and your settings are saved in the OBS configuration folder on your computer.
+
+## 🛠️ For developers
+
+<details>
+<summary><b>Build, tests and project layout</b></summary>
+
+The plugin uses the [official OBS plugin template](https://github.com/obsproject/obs-plugintemplate) updated to **OBS 33.0.0**: obs-deps and Qt 6.11 from `2026-10-23`, macOS 13+ universal, Windows x64. Configuring downloads the dependencies by itself. On Linux it uses the system OBS, Qt 6, libcurl and espeak-ng.
+
+```bash
+# macOS (Xcode 26.5+: OBS 33 requires the macOS 26.5 SDK)
 cmake --preset macos && cmake --build --preset macos
 
 # Windows (Visual Studio 2022, SDK 10.0.26100)
 cmake --preset windows-x64
 cmake --build --preset windows-x64
 
-# Ubuntu 24.04 (con el OBS del PPA oficial)
+# Ubuntu 24.04 (with the OBS from the official PPA)
 sudo apt install obs-studio qt6-base-dev qt6-base-private-dev libcurl4-openssl-dev libespeak-ng-dev libsimde-dev ninja-build
 cmake --preset ubuntu-x86_64 && cmake --build --preset ubuntu-x86_64
 ```
 
-Pruebas de los parsers (sin OBS ni red, solo Qt 6 Core):
+Parser tests (no OBS or network, only Qt 6 Core):
 
 ```bash
 cmake -S tests -B build_tests && cmake --build build_tests && ctest --test-dir build_tests
 ```
 
-Cada push compila en GitHub Actions para Windows, macOS y Linux (`.github/workflows/build.yml`). Para publicar una versión, sube `version` en `buildspec.json` y en `data/manifest.json` (CI comprueba que coincidan) y súbelo a `main`: el flujo *Publicar versión* crea el tag `v<versión>` y la Release con los paquetes de los tres sistemas. También se puede empujar el tag a mano o lanzar el flujo desde Actions.
-
-### Estructura
+Every push builds on GitHub Actions for Windows, macOS and Linux (`.github/workflows/build.yml`). To publish a version, bump `version` in `buildspec.json` and in `data/manifest.json` (CI checks they match) and push it to `main`: the *Publicar versión* workflow creates the `v<version>` tag and the Release with the packages for the three systems.
 
 ```
-src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión
-src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats
-src/overlay-source.cpp     fuentes "Multichat", "Multichat (espectadores)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
-src/tts/                   fuente "Multichat (voz)": filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
-src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
-src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
-src/ui/                    dock, ventana de configuración, cachés de emotes y de perfiles
-src/updater.*              actualizaciones automáticas desde las Releases de GitHub
-data/overlay/              páginas del chat (index.html), los espectadores (viewers.html) y la fecha y hora (clock.html)
-data/locale/               textos en español e inglés
+src/plugin-main.cpp        plugin load, dock, menu and streaming events
+src/chat-manager.*         live / multistream detection and chat lifecycle
+src/overlay-source.cpp     "Multichat", "Multichat (viewers)" and "Multichat (date and time)" sources (private browser sources)
+src/tts/                   "Multichat (voice)" source: text filter, queue, real-time output and voice (AVSpeechSynthesizer on macOS, SAPI on Windows, espeak-ng on Linux)
+src/chat/                  connectors and parsers: twitch, youtube, kick, tiktok, starvios, demo
+src/net/                   system networking: WinHTTP (Windows), NSURLSession (macOS) and libcurl (Linux)
+src/ui/                    dock, settings window, emote and profile caches
+src/updater.*              automatic updates from GitHub Releases
+data/overlay/              chat (index.html), viewers (viewers.html) and date and time (clock.html) pages
+data/locale/               English and Spanish strings
 ```
 
-¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra. En Linux, libcurl (que OBS ya usa) hace HTTPS y la conexión TLS del WebSocket; el protocolo WebSocket va en `src/net/net-linux.cpp`.
+Why native networking and not QtNetwork? OBS 33 doesn't ship Qt's TLS plugins, so HTTPS through QtNetwork doesn't work inside OBS. WinHTTP and NSURLSession handle HTTPS and WebSocket with no extra dependencies. On Linux, libcurl (which OBS already uses) does HTTPS and the WebSocket TLS connection; the WebSocket protocol lives in `src/net/net-linux.cpp`.
+</details>
+
+## 📄 License
+
+GPL-2.0 or later, like every plugin that links against libobs — see [LICENSE](LICENSE).
+
+AC Multichat is an independent project, not affiliated with or endorsed by the OBS Project, Twitch, YouTube, Kick, TikTok or Starvios.
