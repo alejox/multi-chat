@@ -1,54 +1,73 @@
 <div align="center">
 
-# 💬 Multichat para OBS
+# 💬 AC Multichat
 
-**Los chats de Twitch, YouTube, Kick, TikTok y Starvios juntos en un dock de OBS y en tu escena. Detecta cuándo haces multistream y conecta solo los chats de las plataformas donde estás en directo.**
+**Twitch, YouTube, Kick, TikTok and Starvios chats together in one OBS dock and on your scene. It detects when you multistream and connects only the chats of the platforms where you're live.**
 
+[![Latest release](https://img.shields.io/github/v/release/alejox/multi-chat?label=release&color=6e56cf)](../../releases/latest)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?logo=windows&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-Ubuntu%2024.04%2B-E95420?logo=ubuntu&logoColor=white)
-![OBS](https://img.shields.io/badge/OBS-33-302E31?logo=obsstudio&logoColor=white)
+![OBS](https://img.shields.io/badge/OBS-33%2B-302E31?logo=obsstudio&logoColor=white)
+[![License](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
+
+**English** · [Español](README.es.md)
+
+![AC Multichat on-screen chat](docs/overlay-vertical.png)
+
+[**⬇️ Download**](../../releases/latest) &nbsp;·&nbsp; [Install](#-install) &nbsp;·&nbsp; [Features](#-features) &nbsp;·&nbsp; [FAQ](#-faq)
 
 </div>
 
 ---
 
-Plugin nativo para OBS Studio 33: no necesita Python, cuentas ni claves de API.
+A native OBS Studio 33+ plugin: no Python, no accounts, no API keys, no browser extensions.
 
-## ✨ Funciones
+## ✨ Features
 
 | | |
 |---|---|
-| 🧩 **Dock "Multichat"** | Todos los mensajes juntos con el logo de cada plataforma, insignias (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, suscripciones y regalos de TikTok. |
-| 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
-| 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en directo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
-| ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat…** (o la rueda del dock → *Configurar…*). Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Si no se pudo comprobar (sin conexión o la plataforma no respondió), lo dice y deja añadirlo con **Añadir**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van en el orden de lo que más se cambia (Estilo, Fondo, Diseño, Fecha y hora) y, con *Mostrar más opciones*, el resto. |
-| ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
-| 🕒 **Fecha y hora en el chat** | La fuente "Multichat" puede mostrar la fecha y la hora (con o sin segundos, 24 h o 12 h, barra opcional): al final de la cinta en horizontal, o encima o debajo de los mensajes en vertical. Para ponerlas en cualquier otro lugar de la escena, separadas del chat, está la fuente **Multichat (fecha y hora)**. |
-| 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, Ciudad neón, Cyberpunk, Retro y Glitch. También en el recuadro de espectadores y en la fecha y hora. |
-| 👁 **Fuente "Multichat (espectadores)"** | Un recuadro aparte con el logo y los espectadores de cada canal en directo, y el total. En fila o en columna, con o sin el nombre del canal. |
-| ⭐ **Mensaje destacado** | Clic en un mensaje del dock y aparece en grande en pantalla con la fuente **"Multichat (destacado)"**: logo de la plataforma, nombre con su color, insignias, emotes y monto de las donaciones. Entra y sale con una animación y se oculta solo al rato. Clic otra vez o Esc para quitarlo, también con atajos de teclado. |
-| 🔊 **Voz** | Lee el chat en voz alta en todas las escenas, con una casilla en la pestaña **Voz** de **Herramientas → Multichat…**. Aparece en el mezclador como «Multichat (voz)», llega a la emisión y tú también la oyes. También puede avisar con un sonido por mensaje (o sonido y lectura) para que te enteres sin mirar la pantalla. |
-| 🌐 **Español e inglés** | Todo sigue el idioma de OBS: menús, errores de conexión, mensajes de ejemplo en pantalla y los avisos que arma Multichat (regalos de TikTok; raids, canjes, suscripciones y regalos de Starvios). Los avisos de Twitch y YouTube llegan ya escritos por la plataforma. |
-| 🛡️ **Moderación** | Si un moderador borra un mensaje, o banea o expulsa temporalmente a alguien, sus mensajes desaparecen del dock, del chat en pantalla y del destacado. Mira [Moderación y filtros](#-moderación-y-filtros). |
-| 🚫 **Filtros** | Oculta bots (Nightbot, StreamElements, Streamlabs… vienen de serie), comandos que empiezan por `!` y palabras bloqueadas, desde la pestaña **Filtros** de **Herramientas → Multichat…**. |
-| 🔇 **Silenciar canal** | Clic en un canal del dock para silenciar sus mensajes en Multichat o volver a mostrarlos. No toca la plataforma. |
-| 🧪 **Mensajes de prueba** | Un solo interruptor (en la rueda del dock y en Configurar) que llena el dock con un chat de prueba y hace que las fuentes en pantalla muestren mensajes y números de ejemplo mientras no hay chat. Nunca salen mientras transmites. |
+| 🧩 **"Multichat" dock** | Every message together with each platform's logo, badges (MOD, VIP, SUB, HOST), emotes, Super Chats, bits, subscriptions and TikTok gifts. |
+| 👁 **Viewers** | How many people are watching right now on each platform and in total, in the dock and in the chats window. Updated every 30 s. |
+| 📡 **Multistream detection** | When you press *Start Streaming* it checks which platforms you're live on and connects those chats. The dock shows **"Multistream detected"**. |
+| ➕ **Many chats** | Add as many channels as you want, several from the same platform too, from **Tools → Multichat…** (or the dock's gear → *Settings…*). When you type or paste a channel, its profile picture appears so you can check it's the right one; if it doesn't exist, it says so and offers **Add anyway**. If it couldn't be checked (no connection or the platform didn't answer), it says so and still lets you **Add** it. Each chat can be paused without removing it and reordered by dragging (the dock follows that order). To remove one, click the ✕ on its right. |
+| 🎬 **"Multichat" source** | The chat on your scene with a transparent background. Vertical (a list of messages) or horizontal (a ticker scrolling right to left). Its Properties are ordered by what you change most (Style, Background, Layout, Date and time) and *Show more options* reveals the rest. |
+| ✨ **Presets and typography** | One click changes the look: Clean, Neon, Bubbles, Minimal single line, High contrast and Vertical 1080×1920. Font, weight, text and name color, outline, shadow and line height, plus custom CSS for advanced users. See [How the sources look](#-how-the-sources-look). |
+| 🕒 **Date and time in the chat** | The "Multichat" source can show the date and time (with or without seconds, 24 h or 12 h, optional bar): at the end of the ticker when horizontal, or above or below the messages when vertical. To put them anywhere else on the scene, apart from the chat, there's the **Multichat (date and time)** source. |
+| 🎨 **Background styles** | A background per message and one behind the whole chat, with color, opacity, rounding and border. Styles: Solid, Glass, Pill, macOS window, Minimal, Line, Synthwave, Neon city, Cyberpunk, Retro and Glitch. Also in the viewers box and the date and time. |
+| 👁 **"Multichat (viewers)" source** | A separate box with the logo and viewers of each live channel, plus the total. In a row or a column, with or without the channel name. |
+| ⭐ **Featured message** | Click a message in the dock and it shows large on screen with the **"Multichat (featured)"** source: platform logo, name in its color, badges, emotes and donation amount. It animates in and out and hides by itself after a while. Click it again or press Esc to remove it, also with hotkeys. |
+| 🔊 **Voice** | Reads the chat aloud in every scene, with a checkbox in the **Voice** tab of **Tools → Multichat…**. It shows in the Audio Mixer as "Multichat (voice)", reaches the stream and you hear it too. It can also play a sound per message (or sound and reading) so you notice without looking at the screen. |
+| 🌐 **English and Spanish** | Everything follows the OBS language: menus, connection errors, on-screen sample messages and the notices Multichat builds (TikTok gifts; Starvios raids, redemptions, subscriptions and gifts). Twitch and YouTube notices arrive already written by the platform. |
+| 🛡️ **Moderation** | If a moderator deletes a message, or bans or times out someone, their messages disappear from the dock, the on-screen chat and the featured message. See [Moderation and filters](#-moderation-and-filters). |
+| 🚫 **Filters** | Hide bots (Nightbot, StreamElements, Streamlabs… are included), commands starting with `!` and blocked words, from the **Filters** tab of **Tools → Multichat…**. |
+| 🔇 **Mute a channel** | Click a channel in the dock to mute its messages in Multichat or show them again. It doesn't touch the platform. |
+| 🧪 **Test messages** | One switch (in the dock's gear and in Settings) that fills the dock with a test chat and makes the on-screen sources show sample messages and numbers while there's no chat. They never show while you stream. |
+| 🔄 **Updates** | OBS tells you when there's a new version and installs it for you after you accept. |
 
-## 📦 Instalar
+![Horizontal ticker with date and time](docs/overlay-horizontal.png)
 
-Requiere **OBS Studio 33 o superior** (Windows 10/11, macOS 13+ o Linux x86_64). Con una versión anterior de OBS, el plugin no carga y OBS avisa de que «no se han podido cargar» los plugins: actualiza OBS primero.
+## 📦 Install
 
-Descarga el archivo de tu sistema desde **[Releases](../../releases/latest)** y **cierra OBS antes de instalar**.
+Requires **OBS Studio 33 or newer** (Windows 10/11, macOS 13+ or Linux x86_64). With an older OBS the plugin doesn't load and OBS says some plugins "failed to load": update OBS first.
 
-### Windows
+Download the file for your system from **[Releases](../../releases/latest)** and **close OBS before installing**.
 
-Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**, una carpeta por plugin (ya no dentro de `C:\Program Files\obs-studio`).
+| | Windows 10/11 | macOS 13+ | Linux x86_64 |
+|---|---|---|---|
+| **File** | `obs-multichat-<version>-windows-x64.zip` | `obs-multichat-<version>-macos.zip` | `obs-multichat-<version>-linux-x86_64.tar.gz` |
+| **You get** | the `obs-multichat` folder | `obs-multichat.plugin` | the `obs-multichat` folder |
+| **Copy it to** | `C:\ProgramData\obs-studio\plugins\` (accept the administrator prompt) | `~/Library/Application Support/obs-studio/plugins/` | `~/.config/obs-studio/plugins/` |
+| **Then** | Delete old copies, if any (see below) | Run the Terminal command below (once) | — |
 
-1. Descarga `obs-multichat-<versión>-windows-x64.zip` y descomprímelo (clic derecho → **Extraer todo**). Queda la carpeta `obs-multichat`.
-2. Abre `C:\ProgramData\obs-studio\plugins` (escríbelo en la barra del Explorador; `ProgramData` es una carpeta oculta). Si no existe la carpeta `plugins`, créala.
-3. Copia ahí la carpeta `obs-multichat` (si ya estaba, reemplázala) y acepta el permiso de administrador. Debe quedar así:
+<details>
+<summary><b>Windows step by step</b></summary>
+
+Since OBS 33, plugins go in **`C:\ProgramData\obs-studio\plugins`**, one folder per plugin (no longer inside `C:\Program Files\obs-studio`).
+
+1. Unzip `obs-multichat-<version>-windows-x64.zip` (right-click → **Extract All**). You get the `obs-multichat` folder.
+2. Open `C:\ProgramData\obs-studio\plugins` (type it in the Explorer address bar; `ProgramData` is hidden). Create the `plugins` folder if it doesn't exist.
+3. Copy the `obs-multichat` folder there (replace it if it was already there) and accept the administrator prompt. It must look like this:
 
    ```
    C:\ProgramData\obs-studio\plugins\obs-multichat\
@@ -59,238 +78,288 @@ Desde OBS 33 los plugins se instalan en **`C:\ProgramData\obs-studio\plugins`**,
        └── overlay\
    ```
 
-4. Si instalaste una versión anterior en `C:\Program Files\obs-studio`, borra `obs-plugins\64bit\obs-multichat.dll` y la carpeta `data\obs-plugins\obs-multichat`: OBS 33 la marca como *Legacy* y OBS 34 ya no la carga.
-5. Abre OBS.
+4. If you installed an older version in `C:\Program Files\obs-studio`, delete `obs-plugins\64bit\obs-multichat.dll` and the `data\obs-plugins\obs-multichat` folder: OBS 33 marks that layout as *Legacy* and OBS 34 no longer loads it.
+5. Open OBS.
+</details>
 
-### macOS
+<details>
+<summary><b>macOS step by step</b></summary>
 
-1. Descarga `obs-multichat-<versión>-macos.zip` y descomprímelo: queda `obs-multichat.plugin`.
-2. Cópialo a `~/Library/Application Support/obs-studio/plugins/` (en el Finder: **Ir → Ir a la carpeta…**). Si ya había una versión, reemplázala.
-3. En la Terminal, una vez: `xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin`
-4. Abre OBS.
-
-### Linux
-
-Compilado en Ubuntu 24.04 para el OBS del [PPA oficial](https://launchpad.net/~obsproject/+archive/ubuntu/obs-studio) (`sudo add-apt-repository ppa:obsproject/obs-studio`); sirve en Ubuntu 24.04 o más nuevo y distribuciones derivadas (Linux Mint 22, Pop!_OS 24.04…). Las fuentes en pantalla usan la fuente de navegador de OBS: el OBS del PPA la trae, el paquete `obs-studio` de los repositorios de Ubuntu no.
-
-1. Descarga `obs-multichat-<versión>-linux-x86_64.tar.gz`.
-2. Descomprímelo en la carpeta de plugins de tu usuario:
+1. Unzip `obs-multichat-<version>-macos.zip`: you get `obs-multichat.plugin`.
+2. Copy it to `~/Library/Application Support/obs-studio/plugins/` (in Finder: **Go → Go to Folder…**). Replace the old version if there is one.
+3. In Terminal, once:
 
    ```bash
-   mkdir -p ~/.config/obs-studio/plugins
-   tar -xzf obs-multichat-*-linux-x86_64.tar.gz -C ~/.config/obs-studio/plugins
+   xattr -cr ~/Library/Application\ Support/obs-studio/plugins/obs-multichat.plugin
    ```
 
-   Debe quedar así:
+4. Open OBS.
+</details>
 
-   ```
-   ~/.config/obs-studio/plugins/obs-multichat/
-   ├── bin/64bit/obs-multichat.so
-   └── data/
-       ├── manifest.json
-       ├── locale/
-       └── overlay/
-   ```
+<details>
+<summary><b>Linux step by step</b></summary>
 
-3. Abre OBS.
+Built on Ubuntu 24.04 for the OBS from the [official PPA](https://launchpad.net/~obsproject/+archive/ubuntu/obs-studio) (`sudo add-apt-repository ppa:obsproject/obs-studio`); it works on Ubuntu 24.04 or newer and derivatives (Linux Mint 22, Pop!_OS 24.04…). The overlay uses the OBS Browser source: the PPA build has it, the `obs-studio` package from Ubuntu's own repositories doesn't.
 
-### Actualizaciones automáticas
+```bash
+mkdir -p ~/.config/obs-studio/plugins
+tar -xzf obs-multichat-*-linux-x86_64.tar.gz -C ~/.config/obs-studio/plugins
+```
 
-Al abrir OBS, el plugin revisa si hay una versión nueva en las Releases de GitHub. Si la hay, muestra un aviso con **Actualizar ahora**, **Más tarde** u **Omitir esta versión** (y el dock **Multichat** lo recuerda con su botón). **Actualizar ahora** la descarga, comprueba su suma SHA-256, la instala y pide reiniciar OBS. También se puede revisar a mano con **Buscar actualizaciones**, en **Herramientas → Multichat…** o en la rueda del dock.
+It must look like this:
 
-Antes de instalar, el plugin compara el archivo descargado con la suma SHA-256 publicada en la Release: la que da GitHub para cada archivo y, si falta, el `SHA256SUMS` que se publica junto a los zips. Si no coincide o no se puede obtener, no instala nada y lo dice; la versión se puede descargar a mano desde la página.
+```
+~/.config/obs-studio/plugins/obs-multichat/
+├── bin/64bit/obs-multichat.so
+└── data/
+    ├── manifest.json
+    ├── locale/
+    └── overlay/
+```
 
-- **Windows:** se instala en `C:\ProgramData\obs-studio\plugins\obs-multichat`, que es de administrador: Windows pide permiso una vez para copiar el plugin. Si estaba en la carpeta de antes (`C:\Program Files\obs-studio`), queda en la nueva y se quita la copia de antes. Si la copia tarda más de 3 minutos (un antivirus lento, por ejemplo), el plugin avisa de que sigue en marcha en vez de darla por fallida. Pendiente antes de la próxima versión: el script elevado y los archivos extraídos quedan en la carpeta temporal del usuario entre la comprobación y el permiso de administrador.
-- **macOS:** se reemplaza `obs-multichat.plugin` en su carpeta y se le quita la marca de "descargado de internet", así que macOS no vuelve a pedir permiso.
-- **Linux:** se reemplaza en `~/.config/obs-studio/plugins/obs-multichat`, sin pedir permisos (descarga con `curl` o, si no está, con `wget`).
+The voice uses **espeak-ng**, which Ubuntu desktop usually includes; if it's missing: `sudo apt install espeak-ng`.
+</details>
 
-Para ver la versión instalada: **Herramientas → Gestor de plugins** (OBS 33).
 
-## 🎛️ Usarlo
+### Automatic updates
 
-La primera vez que abres OBS con el plugin, sin chats configurados, aparece el **asistente de inicio**: la plataforma viene elegida según tu servicio de emisión, añades tu canal, un botón pone el chat y el destacado en la escena que estás editando (sin duplicarlos si ya están), una casilla activa *Leer el chat en voz alta* y al terminar se abre el dock. Se puede saltar y volver a abrir con **Asistente de inicio**, en **Herramientas → Multichat…** o en la rueda del dock.
+When OBS opens, the plugin checks this repository's GitHub Releases for a new version. If there is one, it asks with **Update now**, **Later** or **Skip this version** (the **Multichat** dock reminds you with a button). **Update now** downloads it, checks its SHA-256 checksum, installs it and asks you to restart OBS. Nothing is installed without your click. You can also check by hand with **Check for updates**, in **Tools → Multichat…** or in the dock's gear.
 
-1. **Herramientas → Multichat…**. Elige la plataforma, escribe el canal y pulsa **Añadir**. También puedes pegar la URL del canal o de un directo de YouTube. Mientras busca el canal se ve una barra de carga; si el nombre tiene un formato que la plataforma no admite, lo dice debajo, y si el canal no existe, el botón pasa a **Añadir igualmente** (Intro nunca añade un canal no encontrado).
-   - **Pausar**: desmarca la casilla de un chat para desconectarlo sin perderlo; vuelve a marcarla para reconectarlo.
-   - **Ordenar**: arrastra los chats (o selecciona uno y pulsa **Alt+↑ / Alt+↓**). Los chips del dock siguen el mismo orden.
-   - **Quitar**: la ✕ de la fila o la tecla **Supr** con el chat seleccionado.
-2. **Docks → Multichat** para ver el chat dentro de OBS (el asistente lo abre al terminar).
-3. **Añadir fuentes a la escena** (en Configurar) pone de una vez el chat y el destacado en la escena que editas, solo los que falten. Para hacerlo a mano o para las demás fuentes: **Fuentes → + → Multichat (chat en pantalla)**. Para la cinta horizontal elige *Disposición → Horizontal*. Con *Ajustar al lienzo automáticamente* (activado por defecto) ocupa todo el ancho del lienzo con el alto justo de una línea; desactívalo para poner el tamaño a mano. El *Movimiento* puede ser continuo o por comentario (avanza con cada mensaje y se detiene). Con *Fecha y hora → Mostrar fecha y hora* la cinta termina con la fecha y la hora a la derecha; en vertical van encima o debajo de los mensajes (*Posición en vertical*).
-4. Para los espectadores en pantalla: **Fuentes → + → Multichat (espectadores)**.
-5. La fecha y la hora son una opción del chat (grupo **Fecha y hora** en sus Propiedades). Si las quieres en otro lugar, separadas del chat, usa **Fuentes → + → Multichat (fecha y hora)**.
-6. Para que lea el chat en voz alta: **Herramientas → Multichat… → Voz → Leer el chat en voz alta**. Mira [Leer el chat en voz alta](#-leer-el-chat-en-voz-alta).
-7. Para mostrar en grande un mensaje concreto: **Fuentes → + → Multichat (destacado)**. Mira [Destacar un mensaje](#-destacar-un-mensaje).
+Before installing, the plugin compares the downloaded file with the SHA-256 checksum published with the release: the one GitHub gives for each file and, if that's missing, the `SHA256SUMS` published next to the zips. If it doesn't match or can't be fetched, nothing is installed and it says so; you can still download the version by hand from the page.
 
-### 🧩 El dock
+- **Windows:** installs into `C:\ProgramData\obs-studio\plugins\obs-multichat`, which belongs to the administrator: Windows asks for permission once to copy the plugin. A copy in the old folder (`C:\Program Files\obs-studio`) is moved to the new one. If the copy takes more than 3 minutes (a slow antivirus, for example), the plugin says it's still running instead of reporting a failure.
+- **macOS:** replaces `obs-multichat.plugin` in its folder and clears the "downloaded from the internet" flag, so macOS doesn't ask again.
+- **Linux:** replaces `~/.config/obs-studio/plugins/obs-multichat`, with no permission prompt (downloads with `curl`, or `wget` if `curl` is missing).
 
-- **Leer con calma**: si subes para leer, la lista no se mueve aunque lleguen mensajes. Aparece la píldora **↓ N nuevos**; clic en ella o **Fin** para volver al final.
-- **Clic derecho en un mensaje**: *Destacar en pantalla* / *Quitar destacado*, *Ocultar mensaje*, *Ocultar usuario*, *Copiar mensaje* y *Copiar nombre* (texto plano).
-  - *Ocultar mensaje* lo quita del dock, del chat en pantalla y del destacado, igual que un borrado de moderación, pero solo en Multichat: no toca la plataforma. Funciona también con los mensajes de prueba.
-  - *Ocultar usuario* lo añade a **Filtros → Ocultar usuarios** y quita sus mensajes de ese chat.
-- **Buscar**: **Ctrl+F** (⌘F en macOS) o el botón de la lupa. Filtra por texto, emote o nombre, sin distinguir mayúsculas ni tildes, y dice cuántos coinciden. **Esc** cierra la búsqueda.
-- **Hora**: clic derecho → *Mostrar hora* añade la hora a cada mensaje (apagado por defecto; se recuerda).
-- **La rueda** (arriba a la derecha): *Configurar…*, *Mensajes de prueba*, *Mostrar hora*, *Tamaño del texto*, *Volver a detectar en qué plataformas estás en directo*, *Asistente de inicio* y *Buscar actualizaciones*.
-- **Vaciar el chat**: el botón de la papelera vacía el dock, el chat en pantalla y el destacado. Durante unos segundos aparece **Chat vaciado · Deshacer**; *Deshacer* devuelve los mensajes al dock y al chat en pantalla (en la cinta horizontal, solo los 3 últimos). Si vacías dos veces seguidas, *Deshacer* devuelve todo. La voz no los vuelve a leer.
-- **Tema**: los íconos y los colores se adaptan al tema de OBS, claro u oscuro.
+To see the installed version: **Tools → Plugin Manager** (OBS 33).
 
-### ⭐ Destacar un mensaje
+## 🎛️ Use it
 
-1. Añade **Fuentes → + → Multichat (destacado)** a tu escena. Con *Mensajes de prueba* activado muestra un mensaje de ejemplo mientras no hay ninguno destacado, para colocarla (nunca al transmitir).
-2. En el dock **Multichat**, haz clic en un mensaje: aparece en la fuente y se resalta en el dock. Otro clic en otro mensaje lo reemplaza.
-3. Para quitarlo: clic otra vez en el mensaje resaltado o **Esc** con el dock seleccionado.
+The first time you open OBS with the plugin and no chats set up, the **first-run assistant** appears: the platform is picked from your streaming service, you add your channel, one button puts the chat and the featured message in the scene you're editing (without duplicating them if they're already there), a checkbox turns on *Read chat aloud*, and finishing opens the dock. You can skip it and open it again with **First-run assistant**, in **Tools → Multichat…** or in the dock's gear.
 
-En sus **Propiedades** eliges la animación (deslizar, fundido, zoom o ninguna), la posición dentro de la fuente, el tamaño de letra, el ancho y el alto, el fondo con los mismos estilos que el chat y si se ven el logo y las insignias. Con *Se quita solo* (activado por defecto) se queda en pantalla 8 s más 60 ms por carácter, como mucho 30 s; desactívalo para dejarlo hasta que lo quites. El tiempo lo lleva el plugin, no la página: al vencer, el dock deja de resaltar el mensaje a la vez que desaparece de pantalla, y *volver a mostrar el último* sigue funcionando. Si tienes varias fuentes de destacado con tiempos distintos, manda la más corta de las que tengan *Se quita solo* activado; si ninguna lo tiene, el mensaje se queda hasta que lo quites.
+1. **Tools → Multichat…**. Pick the platform, type the channel and press **Add**. You can also paste the channel URL or a YouTube live URL. A loading bar shows while it looks up the channel; if the name has a format the platform doesn't allow, it says so below, and if the channel doesn't exist the button becomes **Add anyway** (Enter never adds a channel that wasn't found).
+   - **Pause**: untick a chat to disconnect it without losing it; tick it again to reconnect.
+   - **Reorder**: drag the chats (or select one and press **Alt+↑ / Alt+↓**). The dock's chips follow the same order.
+   - **Remove**: the ✕ on the row or the **Delete** key with the chat selected.
+2. **Docks → Multichat** to see the chat inside OBS (the assistant opens it when you finish).
+3. **Add sources to the scene** (in Settings) puts the chat and the featured message in the scene you're editing at once, only the missing ones. To do it by hand, or for the other sources: **Sources → + → Multichat (on-screen chat)**. For the ticker, choose *Layout → Horizontal*. With *Fit to the canvas automatically* (on by default) it takes the whole canvas width at the height of one line; turn it off to set the size by hand. *Movement* can be continuous or per message (it moves with each message and stops). With *Date and time → Show date and time* the ticker ends with the date and time on the right; when vertical they go above or below the messages (*Position (vertical)*).
+4. Viewers on screen: **Sources → + → Multichat (viewers)**.
+5. The date and time are a chat option (the **Date and time** group in its Properties). If you want them somewhere else, apart from the chat, use **Sources → + → Multichat (date and time)**.
+6. To read the chat aloud: **Tools → Multichat… → Voice → Read chat aloud**. See [Read the chat aloud](#-read-the-chat-aloud).
+7. To show one message large on screen: **Sources → + → Multichat (featured)**. See [Feature a message](#-feature-a-message).
 
-En **Ajustes → Atajos** hay dos atajos sin tecla asignada: *Multichat: quitar mensaje destacado* y *Multichat: volver a mostrar el último destacado*. Asígnales la tecla que quieras.
+### 🧩 The dock
 
-Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si aún no venció su tiempo. Limpiar el chat desde el dock también quita el destacado.
+- **Read at your pace**: if you scroll up to read, the list doesn't move when messages arrive. The **↓ N new** pill appears; click it or press **End** to go back to the bottom.
+- **Right-click a message**: *Feature on screen* / *Remove from screen*, *Hide message*, *Hide user*, *Copy message* and *Copy name* (plain text).
+  - *Hide message* removes it from the dock, the on-screen chat and the featured message, like a moderation delete, but only in Multichat: it doesn't touch the platform. It works with test messages too.
+  - *Hide user* adds them to **Filters → Hidden users** and removes their messages from that chat.
+- **Search**: **Ctrl+F** (⌘F on macOS) or the magnifier button. Filters by text, emote or name, ignoring case and accents, and says how many match. **Esc** closes the search.
+- **Time**: right-click → *Show time* adds the time to each message (off by default; remembered).
+- **The gear** (top right): *Settings…*, *Test messages*, *Show time*, *Text size*, *Check again which platforms you are live on*, *First-run assistant* and *Check for updates*.
+- **Clear chat**: the trash button clears the dock, the on-screen chat and the featured message. For a few seconds **Chat cleared · Undo** appears; *Undo* brings the messages back to the dock and the on-screen chat (in the horizontal ticker, only the last 3). If you clear twice in a row, *Undo* brings everything back. The voice doesn't read them again.
+- **Theme**: icons and colors follow the OBS theme, light or dark.
 
-### 🎨 Aspecto de las fuentes
+### ⭐ Feature a message
 
-Las Propiedades de las fuentes (chat, destacado, espectadores y fecha y hora) siguen el orden de lo que más se cambia:
+1. Add **Sources → + → Multichat (featured)** to your scene. With *Test messages* on it shows a sample message while nothing is featured, so you can place it (never while streaming).
+2. In the **Multichat** dock, click a message: it appears in the source and is highlighted in the dock. Clicking another message replaces it.
+3. To remove it: click the highlighted message again or press **Esc** with the dock focused.
 
-1. **Estilo**: preajuste, tamaño de letra, fuente, grosor y colores del texto y del nombre. El color del contorno y el color y desenfoque de la sombra solo aparecen si los usas.
-2. **Fondo**: en el chat, el *Estilo del fondo* (común a los dos), *Detrás de cada mensaje* (color, opacidad, redondeo y borde según el estilo, y relleno de cada mensaje) y *Detrás de todo el chat* (el fondo general, con su color, opacidad, redondeo y borde). En las demás, el fondo del recuadro con su estilo. Cada parte solo muestra sus controles con su casilla activada.
-3. **Diseño**: vertical u horizontal, tamaño o ajustar al lienzo, apilado y velocidad (chat); posición y tamaño (destacado); fila o columna, total y nombres (espectadores).
-4. **Fecha y hora** (chat): la casilla y, al activarla, sus opciones.
-5. **Más opciones**, plegadas de serie con la casilla **Mostrar más opciones** justo encima: plataformas, iconos e insignias, animación y *Se quita solo* (destacado), desaparecer después de, máximo de mensajes, espacios, márgenes, interlineado y CSS personalizado.
+In its **Properties** you choose the animation (slide in, fade, zoom or none), the position inside the source, the font size, the width and height, the background with the same styles as the chat, and whether the logo and badges show. With *Goes away on its own* (on by default) it stays on screen 8 s plus 60 ms per character, 30 s at most; turn it off to keep it until you remove it. The plugin keeps the time, not the page: when it runs out, the dock stops highlighting the message as it leaves the screen, and *show the last one again* still works. If you have several featured sources with different times, the shortest of those with *Goes away on its own* on wins; if none has it on, the message stays until you remove it.
 
-Las escenas guardadas siguen igual: no cambió ninguna opción existente, solo dónde se ve.
+**Settings → Hotkeys** has two hotkeys with no key assigned: *Multichat: remove featured message* and *Multichat: show the last featured message again*. Give them any key you like.
 
-- **Preajuste** (arriba, en *Estilo*): elige uno y se ajustan varias opciones a la vez; puedes seguir tocando todo. Si cambias algo de lo que puso el preajuste, la lista vuelve a *Personalizado*.
+If the source's page reloads, the featured message comes back only if its time hasn't run out. Clearing the chat from the dock also removes the featured message.
 
-  | Preajuste | Cómo se ve |
+### 🎨 How the sources look
+
+The Properties of the sources (chat, featured, viewers and date and time) follow the order of what you change most:
+
+1. **Style**: preset, font size, font, weight and text and name colors. The outline color and the shadow color and blur only show if you use them.
+2. **Background**: in the chat, the *Background style* (shared by both), *Behind each message* (color, opacity, rounding and border depending on the style, plus each message's padding) and *Behind the whole chat* (the general background, with its color, opacity, rounding and border). In the others, the box background with its style. Each part only shows its controls when its checkbox is on.
+3. **Layout**: vertical or horizontal, size or fit to the canvas, stacking and speed (chat); position and size (featured); row or column, total and names (viewers).
+4. **Date and time** (chat): the checkbox and, once on, its options.
+5. **More options**, folded by default with the **Show more options** checkbox right above: platforms, icons and badges, animation and *Goes away on its own* (featured), disappear after, maximum messages, spacing, margins, line height and custom CSS.
+
+Saved scenes stay the same: no existing option changed, only where it shows.
+
+- **Preset** (at the top, in *Style*): pick one and several options change at once; you can still change everything. If you change something the preset set, the list goes back to *Custom*.
+
+  | Preset | How it looks |
   |---|---|
-  | Limpio | Texto blanco con sombra suave, sin recuadros. |
-  | Neón | Recuadros synthwave, nombres del color de la plataforma y brillo magenta. |
-  | Burbujas | Burbujas oscuras muy redondeadas, sin sombra y con más aire. |
-  | Minimal en una línea | En el chat, la cinta horizontal ajustada al lienzo sobre una franja oscura con la fecha y la hora. En las demás, recuadro negro mate. |
-  | Alto contraste | Recuadros negros opacos con borde blanco, texto en negrita y nombres amarillos. |
-  | Vertical 1080×1920 | Burbujas de cristal grandes para un lienzo vertical (chat de 1000×1400). |
+  | Clean | White text with a soft shadow, no boxes. |
+  | Neon | Synthwave boxes, names in the platform color and a magenta glow. |
+  | Bubbles | Very rounded dark bubbles, no shadow and more space. |
+  | Minimal single line | In the chat, the horizontal ticker fitted to the canvas on a dark strip with the date and time. In the others, a matte black box. |
+  | High contrast | Opaque black boxes with a white border, bold text and yellow names. |
+  | Vertical 1080×1920 | Big glass bubbles for a vertical canvas (a 1000×1400 chat). |
 
-- **Estilo**: fuente (las instaladas en el equipo; si falta, se usa la del sistema), grosor, color del texto, color del nombre (el del usuario, el de la plataforma o uno fijo; chat y destacado), contorno y sombra (*Automática*, como antes: solo sin fondo; *Siempre*; *Nunca*) con su color y desenfoque. El interlineado (chat y destacado) está en *Más opciones*.
-- **Más opciones → CSS personalizado**: CSS que se añade a la página después de los estilos del plugin (hasta 20 KB). Solo CSS: nunca se ejecuta código. Por ejemplo `.author { text-transform: uppercase; }`.
+- **Style**: font (the ones installed on the computer; if it's missing, the system font is used), weight, text color, name color (the user's, the platform's or a fixed one; chat and featured), outline and shadow (*Automatic*, as before: only without a background; *Always*; *Never*) with their color and blur. Line height (chat and featured) is in *More options*.
+- **More options → Custom CSS**: CSS added to the page after the plugin's styles (up to 20 KB). Only CSS: no code is ever run. For example `.author { text-transform: uppercase; }`.
 
-### 🛡 Moderación y filtros
+### 🛡 Moderation and filters
 
-Cuando los moderadores de una plataforma borran un mensaje o banean a alguien, Multichat lo quita del dock (sin mover la lista si estás leyendo más arriba), del chat en pantalla (con su animación de salida) y del mensaje destacado. El borrado solo afecta al canal donde ocurrió: nunca a los mensajes de otro chat.
+When a platform's moderators delete a message or ban someone, Multichat removes it from the dock (without moving the list if you're reading further up), from the on-screen chat (with its exit animation) and from the featured message. A delete only affects the channel where it happened: never messages from another chat.
 
-| Plataforma | Mensaje borrado | Ban o expulsión temporal | Vaciar el chat |
+| Platform | Deleted message | Ban or timeout | Chat cleared |
 |---|---|---|---|
 | Twitch | ✅ | ✅ | ✅ |
-| YouTube | ✅ | ✅ (mensajes ocultados del autor) | — |
+| YouTube | ✅ | ✅ (the author's hidden messages) | — |
 | Kick | ✅ | ✅ | ✅ |
 | Starvios | ✅ | — | — |
 | TikTok | — | — | — |
 
-TikTok no envía, en lo que lee Multichat, ningún aviso de borrado que se pueda relacionar con los mensajes ya mostrados. Starvios solo avisa de mensajes borrados.
+TikTok doesn't send, in what Multichat reads, any delete notice that can be matched to messages already shown. Starvios only reports deleted messages.
 
-En **Herramientas → Multichat… → Filtros** puedes:
+In **Tools → Multichat… → Filters** you can set:
 
-- **Ocultar usuarios**: uno por línea. Vienen los bots más comunes (Nightbot, StreamElements, Streamlabs, Moobot, Fossabot, Wizebot, Botrix); el botón *Añadir bots conocidos* los recupera si los borraste.
-- **Ocultar comandos**: los mensajes que empiezan por `!` (activado de serie). Las suscripciones, Super Chats, bits y regalos se muestran siempre.
-- **Palabras bloqueadas**: una palabra o frase por línea. Se compara la palabra entera, sin distinguir mayúsculas ni tildes: *tonto* oculta «TÓNTO» pero no «tontería».
+- **Hidden users**: one per line. The most common bots are included (Nightbot, StreamElements, Streamlabs, Moobot, Fossabot, Wizebot, Botrix); the *Add known bots* button brings them back if you deleted them.
+- **Commands**: messages starting with `!` (on by default). Subscriptions, Super Chats, bits and gifts are always shown.
+- **Blocked words**: one word or phrase per line. Whole words are compared, ignoring case and accents: *cat* hides "CAT" but not "category".
 
-Los filtros se guardan al momento y se aplican a los mensajes que llegan a partir de ahí; los mensajes ocultos tampoco se leen en voz alta.
+Filters are saved right away and apply to messages that arrive from then on; hidden messages aren't read aloud either.
 
-### 🔊 Leer el chat en voz alta
+### 🔊 Read the chat aloud
 
-Funciona en Windows, macOS y Linux con las voces del sistema, sin servicios externos. En Linux usa **espeak-ng**: la voz es más robótica que las de Windows y macOS.
+Works on Windows, macOS and Linux with the system voices, with no external services. On Linux it uses **espeak-ng**: the voice is more robotic than on Windows and macOS.
 
-1. Abre **Herramientas → Multichat…**, pestaña **Voz**, y marca **Leer el chat en voz alta** (también está en el asistente de inicio). Ahí eliges la voz, la velocidad, si se lee el nombre de quien escribe, qué plataformas se leen y el máximo de caracteres por mensaje. No hay que añadir ninguna fuente: suena en todas las escenas.
-2. Al activarla aparece **Multichat (voz)** en el **mezclador de audio**. Ahí se ajustan el volumen, el silencio, la monitorización y los filtros de audio, como en cualquier otro audio, y se guardan entre sesiones. La primera vez viene en *Monitorizar y emitir*: llega a la emisión y a la grabación y tú también la oyes. Al desmarcar la casilla desaparece del mezclador.
-3. Las palabras bloqueadas, los usuarios ocultos y los comandos son los de la pestaña **Filtros**: lo que ocultan no se muestra ni se lee.
+1. Open **Tools → Multichat…**, **Voice** tab, and tick **Read chat aloud** (it's also in the first-run assistant). There you choose the voice, the speed, whether the sender's name is read, which platforms are read and the maximum characters per message. You don't need to add any source: it plays in every scene.
+2. Once on, **Multichat (voice)** appears in the **Audio Mixer**. Volume, mute, monitoring and audio filters are set there like any other audio, and they're kept between sessions. The first time it's on *Monitor and Output*: it reaches the stream and the recording and you hear it too. Unticking the checkbox removes it from the mixer.
+3. Blocked words, hidden users and commands are the ones in the **Filters** tab: what they hide isn't shown or read.
 
-Si vienes de una versión anterior: la primera vez se toman los ajustes de la primera fuente de voz de tus escenas que hubieras cambiado (activada o no, como estuviera) y las palabras bloqueadas de todas ellas pasan, sin repetir, a la pestaña **Filtros**. Esas fuentes antiguas siguen cargando pero ya no leen nada; puedes eliminarlas.
+If you come from an older version: the first time, it takes the settings of the first voice source in your scenes that you had changed (on or off, as it was), and the blocked words of all of them move, without repeats, to the **Filters** tab. Those old sources still load but no longer read anything; you can delete them.
 
-Qué se lee y qué no:
+What is read and what isn't:
 
-- Solo mensajes nuevos, nunca el historial.
-- No se leen los emotes, los enlaces ni los emojis. Un mensaje que se queda sin letras ni números se omite.
-- Sí se leen los avisos del chat (suscripciones, regalos…). Un `/me` de Twitch se lee como «Ana saluda».
-- Un mensaje oculto por los filtros (por ejemplo, con una palabra bloqueada) no se lee.
-- Si un mensaje se borra (moderación de la plataforma u *Ocultar mensaje* en el dock) antes de leerse, sale de la cola; si se estaba leyendo, se corta.
-- Se leen de uno en uno. Si la cola llega a 20 mensajes, se descarta el más antiguo para no acumular retraso.
-- **Al llegar un mensaje** elige qué hace la voz: *Leerlo en voz alta* (lo de siempre), *Avisar con un sonido* (un aviso corto por mensaje, sin leer, para enterarte sin mirar la pantalla) o *Sonido y luego leerlo*. El aviso viene integrado; puedes poner un WAV propio (PCM de 16 bits, hasta 10 s) y limitar cuántos suenan con *Mínimo entre dos avisos* (por defecto 1,5 s; en el modo mixto solo limita el sonido). Las plataformas elegidas y los filtros valen para los tres modos, y un mensaje borrado antes de sonar no suena (tampoco los que quedaban en cola de alguien expulsado o silenciado en ese chat).
-- El botón *Saltar el mensaje actual* corta el que se está leyendo. Al desmarcar *Leer el chat en voz alta* se vacía la cola y se detiene la voz.
-- Los *Mensajes de prueba* también se leen, para escuchar la voz sin estar en directo, pero nunca mientras transmites.
+- Only new messages, never the history.
+- Emotes, links and emojis are not read. A message left with no letters or numbers is skipped.
+- Chat notices (subscriptions, gifts…) are read. A Twitch `/me` is read as "Ana waves".
+- A message hidden by the filters (for example, with a blocked word) isn't read.
+- If a message is deleted (platform moderation or *Hide message* in the dock) before it's read, it leaves the queue; if it was being read, it's cut.
+- Messages are read one at a time. If the queue reaches 20, the oldest is dropped so the delay doesn't grow.
+- **When a message arrives** chooses what the voice does: *Read it aloud* (as always), *Play a notification sound* (a short sound per message, no reading, so you notice without looking at the screen) or *Sound, then read it*. The sound is built in; you can use your own WAV (16-bit PCM, up to 10 s) and limit how many play with *Minimum time between sounds* (1.5 s by default; in the mixed mode it only limits the sound). The chosen platforms and the filters apply to all three modes, and a message deleted before its sound doesn't play (nor do the queued ones from someone banned or timed out in that chat).
+- *Skip current message* cuts the one being read. Unticking *Read chat aloud* clears the queue and stops the voice.
+- *Test messages* are read too, so you can hear the voice without being live, but never while you stream.
 
-Límites: el primer mensaje puede tardar unos segundos en sonar mientras el sistema carga la voz, y solo se quitan los enlaces que empiezan por `http://`, `https://` o `www.`, así que `ejemplo.com` se leería.
+Limits: the first message can take a few seconds while the system loads the voice, and only links starting with `http://`, `https://` or `www.` are removed, so `example.com` would be read.
 
-### Cuándo se conecta cada chat
+### When each chat connects
 
-| Modo | Comportamiento |
+| Mode | Behavior |
 |---|---|
-| **Automático** (por defecto) | Comprueba cada minuto qué canales están en directo y conecta solo esos chats. Al empezar a transmitir lo comprueba cada 15 s durante 3 minutos. Si no se puede saber el estado de un canal, lo conecta mientras OBS esté transmitiendo. |
-| **Siempre conectado** | Conecta todos los chats aunque no estés en directo. En YouTube, TikTok y Starvios espera a que empiece el directo. |
+| **Automatic** (default) | Checks every minute which channels are live and connects only those chats. When you start streaming it checks every 15 s for 3 minutes. If a channel's state can't be known, it connects while OBS is streaming. |
+| **Always connected** | Connects every chat even when you're not live. YouTube, TikTok and Starvios wait for the live to start. |
 
-Los chats pausados no se conectan en ningún modo.
+Paused chats don't connect in either mode.
 
-Funciona con cualquier forma de hacer multistream (Restream, *Multiple RTMP outputs*, Aitum Multistream…), porque consulta a cada plataforma directamente. Si el servicio de emisión de OBS es Restream, Castr o StreamYard, también se marca como multistream.
+It works with any way of multistreaming (Restream, *Multiple RTMP outputs*, Aitum Multistream…), because it asks each platform directly. If the OBS streaming service is Restream, Castr or StreamYard, it's also marked as multistream.
 
-### Notas por plataforma
+### Platform notes
 
-- **Twitch:** conexión IRC anónima, de solo lectura.
-- **YouTube:** lee el chat público del directo, sin clave de API. Con `@canal` busca solo el directo activo.
-- **Kick:** a veces Kick bloquea la consulta que da el ID del chat. Si el canal queda en error, añádelo con el ID: `micanal#123456`. Para verlo, abre `https://kick.com/api/v2/channels/micanal` en el navegador y busca `"chatroom":{"id":…}`.
-- **TikTok:** escribe tu usuario (`@micanal`) o pega la URL. TikTok exige firmar la conexión al chat, así que el plugin usa [Euler Stream](https://www.eulerstream.com), un servicio externo gratuito y sin cuenta que limita las conexiones por día. Si se pasa del límite, el chat queda en error y se reintenta a los 10 minutos. Muestra los comentarios y los regalos.
-- **Starvios:** escribe tu usuario (`micanal`) o pega la URL (`https://starvios.com/live/micanal`). No pide cuenta ni clave: el chat se lee de forma anónima y solo de lectura, como lo hace su web, y el plugin no cuenta como espectador. Los mensajes perdidos durante una reconexión se muestran, pero no se leen en voz alta. **Este conector no es oficial** y puede dejar de funcionar si Starvios cambia.
+- **Twitch:** anonymous, read-only IRC connection.
+- **YouTube:** reads the public live chat, no API key. With `@channel` it looks only for the active live.
+- **Kick:** Kick sometimes blocks the request that gives the chat ID. If the channel shows an error, add it with the ID: `mychannel#123456`. To find it, open `https://kick.com/api/v2/channels/mychannel` in the browser and look for `"chatroom":{"id":…}`.
+- **TikTok:** type your username (`@mychannel`) or paste the URL. TikTok requires the chat connection to be signed, so the plugin uses [Euler Stream](https://www.eulerstream.com), a free external service with no account that limits connections per day. Over the limit, the chat shows an error and retries after 10 minutes. Shows comments and gifts.
+- **Starvios:** type your username (`mychannel`) or paste the URL (`https://starvios.com/live/mychannel`). No account or key: the chat is read anonymously and read-only, the same way its website does, and the plugin doesn't count as a viewer. Messages missed during a reconnection are shown but not read aloud. **This connector is unofficial** and may stop working if Starvios changes.
 
-YouTube, Kick, TikTok y Starvios no tienen una API pública oficial para leer el chat sin cuenta: si cambian su web, puede que haya que actualizar el plugin.
+YouTube, Kick, TikTok and Starvios have no official public API to read the chat without an account: if they change their site, the plugin may need an update.
 
-## 🛠️ Compilar
+## ❓ FAQ
 
-El plugin usa la [plantilla oficial de plugins de OBS](https://github.com/obsproject/obs-plugintemplate) actualizada a **OBS 33.0.0**: obs-deps y Qt 6.11 del `2026-10-23`, macOS 13+ universal, Windows x64. La configuración descarga las dependencias sola. En Linux usa el OBS, Qt 6, libcurl y espeak-ng del sistema.
+<details>
+<summary><b>OBS says the plugin "failed to load"</b></summary>
+
+You're on OBS 32 or older. Update OBS to 33 or newer. On Windows, also check the plugin is in `C:\ProgramData\obs-studio\plugins\obs-multichat\` and not in the old `C:\Program Files\obs-studio` folders.
+</details>
+
+<details>
+<summary><b>A chat stays in error</b></summary>
+
+**Tools → Multichat…** shows the reason under the channel. For Kick, add it with the chat ID (see [Platform notes](#platform-notes)). For TikTok, the free signing service may have reached its daily limit: it retries by itself after 10 minutes. The OBS log (**Help → Log Files**) has the `[obs-multichat]` lines.
+</details>
+
+<details>
+<summary><b>The chat doesn't connect when I'm not live</b></summary>
+
+That's the **Automatic** mode: it connects only the channels that are live. Switch to **Always connected** in **Tools → Multichat…**, or use *Test messages* to place the overlay.
+</details>
+
+<details>
+<summary><b>macOS says the plugin is damaged or blocks it</b></summary>
+
+Run the `xattr -cr …` command from the install steps. The plugin isn't signed with a paid Apple developer account.
+</details>
+
+## 🔒 Privacy
+
+- No accounts, no logins, no telemetry. Everything runs inside OBS on your computer; there's no server of ours.
+- To read the chats and viewer counts, the plugin talks directly and anonymously to each platform you add: Twitch (IRC and its public GraphQL), YouTube, Kick, TikTok and Starvios (its public Supabase endpoint). Emotes and profile pictures are loaded from the platforms' own image servers.
+- **TikTok only:** the room ID of the TikTok channel you add is sent to [Euler Stream](https://www.eulerstream.com) to sign the connection.
+- **Updates:** the plugin asks the GitHub API for this repository's latest release when OBS opens and, only if you accept, downloads it from GitHub.
+- The channels you add and your settings are saved in the OBS configuration folder on your computer.
+
+## 🛠️ For developers
+
+<details>
+<summary><b>Build, tests and project layout</b></summary>
+
+The plugin uses the [official OBS plugin template](https://github.com/obsproject/obs-plugintemplate) updated to **OBS 33.0.0**: obs-deps and Qt 6.11 from `2026-10-23`, macOS 13+ universal, Windows x64. Configuring downloads the dependencies by itself. On Linux it uses the system OBS, Qt 6, libcurl and espeak-ng.
 
 ```bash
-# macOS (Xcode 26.5+: OBS 33 exige el SDK de macOS 26.5)
+# macOS (Xcode 26.5+: OBS 33 requires the macOS 26.5 SDK)
 cmake --preset macos && cmake --build --preset macos
 
 # Windows (Visual Studio 2022, SDK 10.0.26100)
 cmake --preset windows-x64
 cmake --build --preset windows-x64
 
-# Ubuntu 24.04 (con el OBS del PPA oficial)
+# Ubuntu 24.04 (with the OBS from the official PPA)
 sudo apt install obs-studio qt6-base-dev qt6-base-private-dev libcurl4-openssl-dev libespeak-ng-dev libsimde-dev ninja-build
 cmake --preset ubuntu-x86_64 && cmake --build --preset ubuntu-x86_64
 ```
 
-Pruebas de los parsers (sin OBS ni red, solo Qt 6 Core):
+Tests (no OBS or network):
 
 ```bash
 cmake -S tests -B build_tests && cmake --build build_tests && ctest --test-dir build_tests
 ```
 
-Cada push compila en GitHub Actions para Windows, macOS y Linux (`.github/workflows/build.yml`). Para publicar una versión, sube `version` en `buildspec.json` y en `data/manifest.json` (CI comprueba que coincidan) y súbelo a `main`: el flujo *Publicar versión* crea el tag `v<versión>` y la Release con los paquetes de los tres sistemas. También se puede empujar el tag a mano o lanzar el flujo desde Actions.
-
-### Estructura
+Every push builds on GitHub Actions for Windows, macOS and Linux (`.github/workflows/build.yml`). To publish a version, bump `version` in `buildspec.json` and in `data/manifest.json` (CI checks they match) and push it to `main`: the *Publicar versión* workflow creates the `v<version>` tag and the Release with the packages for the three systems. You can also push the tag by hand or run the workflow from Actions.
 
 ```
-src/plugin-main.cpp        carga del plugin, dock, menú y eventos de emisión; conecta el manager con OBS
-src/chat-manager.*         detección en vivo / multistream y ciclo de vida de los chats (sin OBS: recibe config, traductor y log)
-src/chat-history.*         historial reciente, borrados y "deshacer limpiar"
-src/featured-state.*       mensaje destacado: actual, último, copia para deshacer y tiempo en pantalla
-src/config-store.*         config.json (con "version") y guardado atómico de los JSON del plugin
-src/i18n.*                 textos traducidos (i18n::tr) de data/locale
-src/platforms-registry.hpp plataformas: id, nombre, color y orden (data/overlay/icons.js lleva una copia comprobada por las pruebas)
-src/overlay/               fuentes "Multichat", "Multichat (espectadores)", "Multichat (destacado)" y "Multichat (fecha y hora)" (fuentes de navegador privadas)
-  source.cpp               callbacks de OBS y registro de las fuentes
-  properties.cpp           ventana de propiedades
-  config.cpp               ajustes → configuración que recibe cada página
-  viewers-layout.cpp       tamaño de los recuadros (medido siempre en el hilo de la interfaz) y ajuste de la cinta al lienzo
-  box-measure.*            medida pura de los recuadros de espectadores y reloj con QFont (sin OBS, con pruebas en tests/test-box-measure.cpp)
-  wiring.cpp               estado compartido y reparto de los eventos del manager a las páginas
-src/overlay-presets.*      valores por defecto, preajustes y saneado de CSS/colores/fuentes (sin OBS, con pruebas en tests/test-overlay.cpp)
-src/tts/                   voz: ajustes globales y migración (voice-settings), salida propia "Multichat (voz)" en un canal de salida libre (voice-source; las fuentes v0 y v2 guardadas en escenas cargan en silencio), filtro de texto, cola, envío a ritmo real y voz (AVSpeechSynthesizer en macOS, SAPI en Windows, espeak-ng en Linux)
-src/chat/                  conectores y parsers: twitch, youtube, kick, tiktok, starvios, demo
-src/net/                   red del sistema: WinHTTP (Windows), NSURLSession (macOS) y libcurl (Linux)
-src/ui/                    dock (chat-dock, chat-view, dock-prefs), ventana de configuración (settings-dialog, channel-input, chat-list), asistente de inicio, cachés de emotes y de perfiles
-data/icons/                íconos SVG monocromos del dock (se tiñen con el color del tema)
-src/updater.*              actualizaciones automáticas desde las Releases de GitHub: consulta, descarga y comprobación SHA-256
-src/updater/               instaladores por sistema (install-win/-mac/-linux.cpp, solo se compila el del sistema), copy-tree.cpp y el script de PowerShell (install-script-win.hpp)
-data/overlay/              páginas del chat (index.html), el destacado (featured.html), los espectadores (viewers.html) y la fecha y hora (clock.html); icons.js y overlay.js son el código compartido
-data/locale/               textos en español e inglés (también los avisos del chat y los errores de conexión, según el idioma de OBS)
-tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts), overlay (test-overlay), medida de recuadros (test-box-measure, QtGui sin pantalla), manager (test-manager) y JS de las páginas (overlay-js.test.js, con node si está instalado)
+src/plugin-main.cpp        plugin load, dock, menu and streaming events; connects the manager to OBS
+src/chat-manager.*         live / multistream detection and chat lifecycle (no OBS: gets config, translator and log)
+src/chat-history.*         recent history, deletes and "undo clear"
+src/featured-state.*       featured message: current, last, undo copy and time on screen
+src/config-store.*         config.json (with "version") and atomic saving of the plugin's JSON files
+src/i18n.*                 translated strings (i18n::tr) from data/locale
+src/platforms-registry.hpp platforms: id, name, color and order (data/overlay/icons.js has a copy checked by the tests)
+src/overlay/               "Multichat", "Multichat (viewers)", "Multichat (featured)" and "Multichat (date and time)" sources (private browser sources)
+  source.cpp               OBS callbacks and source registration
+  properties.cpp           properties window
+  config.cpp               settings → configuration sent to each page
+  viewers-layout.cpp       box sizes (always measured on the UI thread) and fitting the ticker to the canvas
+  box-measure.*            pure measuring of the viewers and clock boxes with QFont (no OBS, tested in tests/test-box-measure.cpp)
+  wiring.cpp               shared state and routing of the manager's events to the pages
+src/overlay-presets.*      defaults, presets and sanitizing of CSS/colors/fonts (no OBS, tested in tests/test-overlay.cpp)
+src/tts/                   voice: global settings and migration (voice-settings), plugin-owned "Multichat (voice)" output on a free output channel (voice-source; v0 and v2 sources saved in scenes load silently), text filter, queue, real-time output and voice (AVSpeechSynthesizer on macOS, SAPI on Windows, espeak-ng on Linux)
+src/chat/                  connectors and parsers: twitch, youtube, kick, tiktok, starvios, demo
+src/net/                   system networking: WinHTTP (Windows), NSURLSession (macOS) and libcurl (Linux)
+src/ui/                    dock (chat-dock, chat-view, dock-prefs), settings window (settings-dialog, channel-input, chat-list), first-run assistant, emote and profile caches
+data/icons/                monochrome SVG icons for the dock (tinted with the theme color)
+src/updater.*              automatic updates from GitHub Releases: lookup, download and SHA-256 check
+src/updater/               per-system installers (install-win/-mac/-linux.cpp, only the system's one is built), copy-tree.cpp and the PowerShell script (install-script-win.hpp)
+data/overlay/              chat (index.html), featured (featured.html), viewers (viewers.html) and date and time (clock.html) pages; icons.js and overlay.js are the shared code
+data/locale/               English and Spanish strings (also chat notices and connection errors, following the OBS language)
+tests/                     tests without OBS: parsers (test-chat), voice (test-tts), overlay (test-overlay), box measuring (test-box-measure, headless QtGui), manager (test-manager) and the pages' JS (overlay-js.test.js, with node if installed)
 ```
 
-¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra. En Linux, libcurl (que OBS ya usa) hace HTTPS y la conexión TLS del WebSocket; el protocolo WebSocket va en `src/net/net-linux.cpp`.
+Why native networking and not QtNetwork? OBS 33 doesn't ship Qt's TLS plugins, so HTTPS through QtNetwork doesn't work inside OBS. WinHTTP and NSURLSession handle HTTPS and WebSocket with no extra dependencies. On Linux, libcurl (which OBS already uses) does HTTPS and the WebSocket TLS connection; the WebSocket protocol lives in `src/net/net-linux.cpp`.
+</details>
+
+## 📄 License
+
+GPL-2.0 or later, like every plugin that links against libobs — see [LICENSE](LICENSE).
+
+AC Multichat is an independent project, not affiliated with or endorsed by the OBS Project, Twitch, YouTube, Kick, TikTok or Starvios.

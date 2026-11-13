@@ -75,7 +75,7 @@ jobs:
           ls -la dist
           flags=()
           [ "$PRERELEASE" = true ] && flags+=(--prerelease)
-          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Multichat $TAG" --generate-notes "${flags[@]}"
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "AC Multichat $TAG" --generate-notes "${flags[@]}"
       - name: Actualizar alejoxcode
         # The site shows the latest stable release, so a pre-release leaves it alone.
         if: needs.prepare.outputs.prerelease != 'true'
