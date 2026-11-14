@@ -22,6 +22,11 @@ public:
 	const QJsonObject &last() const { return last_; }
 
 	void show(const QJsonObject &message, qint64 now);
+	// Paused, the message never hides on its own; resuming keeps counting from where it stopped.
+	// A new featured message starts unpaused.
+	bool paused() const { return pausedSince_ != 0; }
+	// False if nothing changed (nothing featured, or already in that state).
+	bool setPaused(bool paused, qint64 now);
 	// Removes the message on screen. False if there was none.
 	bool hide(qint64 now);
 
@@ -46,5 +51,7 @@ private:
 	QJsonObject last_;
 	QJsonObject stashedLast_;
 	qint64 changedAt_ = 0;
+	qint64 pausedSince_ = 0; // 0 = the timer runs
+	qint64 pausedTotal_ = 0; // ms paused while this message was on screen
 	QHash<QString, chat::FeaturedHidePolicy> policies_; // by featured source id
 };

@@ -96,6 +96,32 @@ ChatView::ChatView(QWidget *parent) : QTextBrowser(parent)
 			     "border: none; border-radius: 10px; padding: 2px 10px; font-weight: bold; }");
 	pill_->hide();
 	connect(pill_, &QToolButton::clicked, this, &ChatView::scrollToBottom);
+
+	// El destacado en pantalla, arriba de la lista: pausa para dejarlo sin tiempo y quitar.
+	featuredBar_ = new QWidget(this);
+	featuredBar_->setObjectName("multichatFeaturedBar");
+	featuredBar_->setAttribute(Qt::WA_StyledBackground);
+	featuredBar_->setStyleSheet("#multichatFeaturedBar { background-color: palette(highlight); border-radius: 10px; }"
+				    "#multichatFeaturedBar QLabel { color: palette(highlighted-text); font-weight: bold; }"
+				    "#multichatFeaturedBar QToolButton { color: palette(highlighted-text); font-weight: bold;"
+				    " border: 1px solid palette(highlighted-text); border-radius: 8px; padding: 1px 8px; }");
+	auto *barLayout = new QHBoxLayout(featuredBar_);
+	barLayout->setContentsMargins(10, 3, 4, 3);
+	barLayout->setSpacing(6);
+	featuredLabel_ = new QLabel(featuredBar_);
+	featuredPause_ = new QToolButton(featuredBar_);
+	featuredPause_->setCheckable(true);
+	featuredPause_->setCursor(Qt::PointingHandCursor);
+	auto *remove = new QToolButton(featuredBar_);
+	remove->setText(i18n::tr("Dock.Featured.Remove"));
+	remove->setToolTip(i18n::tr("Dock.Featured.RemoveTip"));
+	remove->setCursor(Qt::PointingHandCursor);
+	barLayout->addWidget(featuredLabel_, 1);
+	barLayout->addWidget(featuredPause_);
+	barLayout->addWidget(remove);
+	featuredBar_->hide();
+	connect(featuredPause_, &QToolButton::clicked, this, [this](bool on) { emit featuredPauseClicked(on); });
+	connect(remove, &QToolButton::clicked, this, &ChatView::featuredRemoveClicked);
 	connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] {
 		if (unread_ > 0 && isAtBottom()) {
 			unread_ = 0;
@@ -138,6 +164,34 @@ void ChatView::resizeEvent(QResizeEvent *event)
 	QTextBrowser::resizeEvent(event);
 	if (pill_->isVisible())
 		updatePill();
+	if (featuredBar_->isVisible())
+		placeFeaturedBar();
+}
+
+void ChatView::setFeaturedBar(const QJsonObject &message, bool paused)
+{
+	if (message.isEmpty()) {
+		featuredBar_->hide();
+		return;
+	}
+	const QString author = message.value("author").toString();
+	featuredLabel_->setText(
+		fontMetrics().elidedText(i18n::tr(paused ? "Dock.Featured.Paused" : "Dock.Featured.Label").arg(author),
+					 Qt::ElideRight, 160));
+	featuredPause_->setChecked(paused);
+	featuredPause_->setText(i18n::tr(paused ? "Dock.Featured.Resume" : "Dock.Featured.Pause"));
+	featuredPause_->setToolTip(i18n::tr(paused ? "Dock.Featured.ResumeTip" : "Dock.Featured.PauseTip"));
+	placeFeaturedBar();
+	featuredBar_->show();
+	featuredBar_->raise();
+}
+
+void ChatView::placeFeaturedBar()
+{
+	const QRect area = viewport()->geometry();
+	featuredBar_->setMaximumWidth(std::max(120, area.width() - 12));
+	featuredBar_->adjustSize();
+	featuredBar_->move(area.center().x() - featuredBar_->width() / 2, area.top() + 6);
 }
 
 // An emote or badge image arrived: relayout only the messages that use it, keeping the view

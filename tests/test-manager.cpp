@@ -636,6 +636,27 @@ private slots:
 		QCOMPARE(f.last().value("id").toString(), QString("1"));
 	}
 
+	void featuredPauseKeepsItUntilRemovedAndResumesWhereItStopped()
+	{
+		FeaturedState f;
+		QVERIFY(!f.setPaused(true, 0)); // nothing featured
+		f.setPolicy("x", chat::FeaturedHidePolicy{true, 10, 0, 30});
+		f.show(chatMessage("1", "ana", "hola"), 1000);
+		QVERIFY(f.setPaused(true, 3000));
+		QVERIFY(f.paused());
+		QVERIFY(!f.setPaused(true, 3500));
+		QVERIFY(!f.remainingMs(60000)); // paused: never hides on its own
+		QVERIFY(f.setPaused(false, 7000));
+		QCOMPARE(*f.remainingMs(7000), qint64(8000)); // 2 s had run before the pause
+		f.setPaused(true, 8000);
+		f.show(chatMessage("2", "beto", "hey"), 9000); // a new one starts unpaused
+		QVERIFY(!f.paused());
+		QCOMPARE(*f.remainingMs(9000), qint64(10000));
+		f.setPaused(true, 9500);
+		QVERIFY(f.hide(9600));
+		QVERIFY(!f.paused());
+	}
+
 	void configStoreWritesTheVersion()
 	{
 		ConfigStore store(configPath());

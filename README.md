@@ -34,7 +34,7 @@ A native OBS Studio 33+ plugin: no Python, no accounts, no API keys, no browser 
 | 🎬 **"Multichat" source** | The chat on your scene with a transparent background. Vertical (a list of messages) or horizontal (a ticker scrolling right to left). Its Properties are ordered by what you change most (Style, Background, Layout, Date and time) and *Show more options* reveals the rest. |
 | ✨ **Presets and typography** | One click changes the look: Clean, Neon, Bubbles, Minimal single line, High contrast and Vertical 1080×1920. Font, weight, text and name color, outline, shadow and line height, plus custom CSS for advanced users. See [How the sources look](#-how-the-sources-look). |
 | 🕒 **Date and time in the chat** | The "Multichat" source can show the date and time (with or without seconds, 24 h or 12 h, optional bar): at the end of the ticker when horizontal, or above or below the messages when vertical. To put them anywhere else on the scene, apart from the chat, there's the **Multichat (date and time)** source. |
-| 🎨 **Background styles** | A background per message and one behind the whole chat, with color, opacity, rounding and border. Styles: Solid, Glass, Pill, macOS window, Minimal, Line, Synthwave, Neon city, Cyberpunk, Retro and Glitch. Also in the viewers box and the date and time. |
+| 🎨 **Background styles** | A background per message and one behind the whole chat, with color, opacity, rounding and border. Styles: Solid, Glass, Pill, macOS window, Minimal, Line, Synthwave, GTA 6 (Vice City), Neon city, Cyberpunk, Retro and Glitch. Also in the viewers box and the date and time. |
 | 👁 **"Multichat (viewers)" source** | A separate box with the logo and viewers of each live channel, plus the total. In a row or a column, with or without the channel name. |
 | ⭐ **Featured message** | Click a message in the dock and it shows large on screen with the **"Multichat (featured)"** source: platform logo, name in its color, badges, emotes and donation amount. It animates in and out and hides by itself after a while. Click it again or press Esc to remove it, also with hotkeys. |
 | 🔊 **Voice** | Reads the chat aloud in every scene, with a checkbox in the **Voice** tab of **Tools → Multichat…**. It shows in the Audio Mixer as "Multichat (voice)", reaches the stream and you hear it too. It can also play a sound per message (or sound and reading) so you notice without looking at the screen. |
@@ -164,11 +164,12 @@ The first time you open OBS with the plugin and no chats set up, the **first-run
 
 1. Add **Sources → + → Multichat (featured)** to your scene. With *Test messages* on it shows a sample message while nothing is featured, so you can place it (never while streaming).
 2. In the **Multichat** dock, click a message: it appears in the source and is highlighted in the dock. Clicking another message replaces it.
-3. To remove it: click the highlighted message again or press **Esc** with the dock focused.
+3. While it's on screen, a bar at the top of the dock list shows it with two buttons: **⏸ Pause** keeps it on screen with no time limit until you remove it (**▶ Resume** starts counting again from where it stopped), and **✕ Remove** takes it off.
+4. To remove it: **✕ Remove**, click the highlighted message again or press **Esc** with the dock focused.
 
 In its **Properties** you choose the animation (slide in, fade, zoom or none), the position inside the source, the font size, the width and height, the background with the same styles as the chat, and whether the logo and badges show. With *Goes away on its own* (on by default) it stays on screen 8 s plus 60 ms per character, 30 s at most; turn it off to keep it until you remove it. The plugin keeps the time, not the page: when it runs out, the dock stops highlighting the message as it leaves the screen, and *show the last one again* still works. If you have several featured sources with different times, the shortest of those with *Goes away on its own* on wins; if none has it on, the message stays until you remove it.
 
-**Settings → Hotkeys** has two hotkeys with no key assigned: *Multichat: remove featured message* and *Multichat: show the last featured message again*. Give them any key you like.
+**Settings → Hotkeys** has three hotkeys with no key assigned: *Multichat: remove featured message*, *Multichat: show the last featured message again* and *Multichat: pause or resume the featured message timer*. Give them any key you like.
 
 If the source's page reloads, the featured message comes back only if its time hasn't run out. Clearing the chat from the dock also removes the featured message.
 

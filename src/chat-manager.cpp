@@ -294,16 +294,30 @@ void ChatManager::feature(const QJsonObject &message)
 		clearFeatured();
 		return;
 	}
+	const bool wasPaused = featured_.paused();
 	featured_.show(message, now());
 	armFeaturedTimer();
 	emit featuredChanged(featured_.current());
+	if (wasPaused)
+		emit featuredPausedChanged(false);
 }
 
 void ChatManager::clearFeatured()
 {
 	featuredTimer_.stop();
+	const bool wasPaused = featured_.paused();
 	if (featured_.hide(now()))
 		emit featuredChanged(featured_.current());
+	if (wasPaused)
+		emit featuredPausedChanged(false);
+}
+
+void ChatManager::setFeaturedPaused(bool paused)
+{
+	if (!featured_.setPaused(paused, now()))
+		return;
+	armFeaturedTimer();
+	emit featuredPausedChanged(paused);
 }
 
 void ChatManager::armFeaturedTimer()
