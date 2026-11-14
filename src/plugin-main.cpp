@@ -45,6 +45,7 @@ namespace {
 
 obs_hotkey_id clearFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
 obs_hotkey_id reshowFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
+obs_hotkey_id pauseFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
 
 QString configPath(const char *file)
 {
@@ -87,6 +88,16 @@ void on_reshow_featured(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
 			&ChatManager::instance(), [] { ChatManager::instance().reshowLast(); }, Qt::QueuedConnection);
 }
 
+// Pausa o reanuda el tiempo del destacado.
+void on_pause_featured(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
+{
+	if (pressed)
+		QMetaObject::invokeMethod(
+			&ChatManager::instance(),
+			[] { ChatManager::instance().setFeaturedPaused(!ChatManager::instance().featuredPaused()); },
+			Qt::QueuedConnection);
+}
+
 void loadHotkey(obs_data_t *data, const char *key, obs_hotkey_id id)
 {
 	if (obs_data_array_t *bindings = obs_data_get_array(data, key)) {
@@ -114,10 +125,14 @@ void registerHotkeys()
 	reshowFeaturedHotkey = obs_hotkey_register_frontend("multichat.reshow_featured",
 							     obs_module_text("Hotkey.ReshowFeatured"), on_reshow_featured,
 							     nullptr);
+	pauseFeaturedHotkey = obs_hotkey_register_frontend("multichat.pause_featured",
+							    obs_module_text("Hotkey.PauseFeatured"), on_pause_featured,
+							    nullptr);
 	obs_data_t *data = obs_data_create_from_json_file_safe(hotkeysPath().toUtf8().constData(), "bak");
 	if (data) {
 		loadHotkey(data, "clear_featured", clearFeaturedHotkey);
 		loadHotkey(data, "reshow_featured", reshowFeaturedHotkey);
+		loadHotkey(data, "pause_featured", pauseFeaturedHotkey);
 		obs_data_release(data);
 	}
 }
@@ -129,7 +144,8 @@ void saveHotkeys()
 	obs_data_t *data = obs_data_create();
 	// Sin los atajos no se escribe nada: así no se borran las teclas guardadas.
 	if (!saveHotkey(data, "clear_featured", clearFeaturedHotkey) ||
-	    !saveHotkey(data, "reshow_featured", reshowFeaturedHotkey)) {
+	    !saveHotkey(data, "reshow_featured", reshowFeaturedHotkey) ||
+	    !saveHotkey(data, "pause_featured", pauseFeaturedHotkey)) {
 		obs_data_release(data);
 		return;
 	}
@@ -148,7 +164,8 @@ void unregisterHotkeys()
 		return;
 	obs_hotkey_unregister(clearFeaturedHotkey);
 	obs_hotkey_unregister(reshowFeaturedHotkey);
-	clearFeaturedHotkey = reshowFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
+	obs_hotkey_unregister(pauseFeaturedHotkey);
+	clearFeaturedHotkey = reshowFeaturedHotkey = pauseFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
 }
 
 // OBS guarda la colección de escenas al cambiar los ajustes (también los atajos) y al salir:

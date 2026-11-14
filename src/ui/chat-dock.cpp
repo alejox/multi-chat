@@ -256,8 +256,17 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 
 	// Clic en un mensaje: lo destaca (reemplaza al anterior); clic en el destacado: lo quita.
 	view_->setFeatured(manager.featured().value("id").toString());
-	connect(&manager, &ChatManager::featuredChanged, view_,
-		[this](const QJsonObject &m) { view_->setFeatured(m.value("id").toString()); });
+	view_->setFeaturedBar(manager.featured(), manager.featuredPaused());
+	connect(&manager, &ChatManager::featuredChanged, view_, [this](const QJsonObject &m) {
+		view_->setFeatured(m.value("id").toString());
+		view_->setFeaturedBar(m, ChatManager::instance().featuredPaused());
+	});
+	connect(&manager, &ChatManager::featuredPausedChanged, view_, [this](bool paused) {
+		view_->setFeaturedBar(ChatManager::instance().featured(), paused);
+	});
+	connect(view_, &ChatView::featuredPauseClicked, this,
+		[](bool paused) { ChatManager::instance().setFeaturedPaused(paused); });
+	connect(view_, &ChatView::featuredRemoveClicked, this, [] { ChatManager::instance().clearFeatured(); });
 	connect(view_, &ChatView::messageClicked, this, [](const QJsonObject &m) {
 		ChatManager &mgr = ChatManager::instance();
 		const QString id = m.value("id").toString();

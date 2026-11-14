@@ -129,6 +129,9 @@ public:
 	void clearFeatured();
 	// Vuelve a destacar el último mensaje destacado (aunque ya se haya quitado).
 	void reshowLast();
+	// Pausa: el destacado se queda en pantalla hasta que se quite (ver FeaturedState::setPaused).
+	bool featuredPaused() const { return featured_.paused(); }
+	void setFeaturedPaused(bool paused);
 	// Auto-hide: each featured source reports its policy (on create/update) and withdraws it
 	// when destroyed; the manager hides the message after the shortest enabled duration, so the
 	// dock, the hotkeys and every page stay in sync. Callable from any thread.
@@ -152,6 +155,7 @@ signals:
 	void voiceSettingsChanged();
 	// Cambió el destacado; vacío = se quitó.
 	void featuredChanged(const QJsonObject &message);
+	void featuredPausedChanged(bool paused);
 
 private:
 	qint64 now() const;

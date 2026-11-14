@@ -8,6 +8,7 @@
 #include <QSet>
 #include <QTextBrowser>
 
+class QLabel;
 class QToolButton;
 
 // Vista de mensajes. Los emotes se descargan aparte y se pintan cuando llegan.
@@ -25,6 +26,8 @@ public:
 	void removeMessages(const QJsonObject &deletion);
 	// Resalta el mensaje destacado (id vacío: ninguno).
 	void setFeatured(const QString &id);
+	// Barra arriba de la lista con el destacado: su autor, pausa (sin tiempo) y quitar. Vacío la oculta.
+	void setFeaturedBar(const QJsonObject &message, bool paused);
 	// Jumps to the newest message and hides the "new messages" pill.
 	void scrollToBottom();
 	// Shows only the messages matching the query (chat::matchesSearch); empty shows all.
@@ -40,6 +43,9 @@ signals:
 	void menuRequested(const QJsonObject &message, const QPoint &globalPos);
 	// Messages were added, removed or rebuilt.
 	void contentChanged();
+	// Botones de la barra del destacado.
+	void featuredPauseClicked(bool paused);
+	void featuredRemoveClicked();
 
 protected:
 	QVariant loadResource(int type, const QUrl &name) override;
@@ -58,6 +64,7 @@ private:
 	bool isAtBottom() const;
 	void imageReady(const QString &url);
 	void updatePill();
+	void placeFeaturedBar();
 	QColor featuredColor() const;
 	QString messageIdAt(const QPoint &pos) const;
 	QJsonObject messageAt(const QPoint &pos) const;
@@ -70,6 +77,9 @@ private:
 	bool timestamps_ = false;
 	int emoteSize_ = 22;
 	QToolButton *pill_ = nullptr; // "↓ N new" while scrolled up
+	QWidget *featuredBar_ = nullptr;
+	QLabel *featuredLabel_ = nullptr;
+	QToolButton *featuredPause_ = nullptr;
 	int unread_ = 0;
 	bool rebuilding_ = false;
 };

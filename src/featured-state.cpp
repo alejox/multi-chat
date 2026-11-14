@@ -1,10 +1,27 @@
 #include "featured-state.hpp"
 
+#include <algorithm>
+
 void FeaturedState::show(const QJsonObject &message, qint64 now)
 {
 	current_ = message;
 	last_ = message;
 	changedAt_ = now;
+	pausedSince_ = 0;
+	pausedTotal_ = 0;
+}
+
+bool FeaturedState::setPaused(bool paused, qint64 now)
+{
+	if (current_.isEmpty() || paused == this->paused())
+		return false;
+	if (paused) {
+		pausedSince_ = std::max<qint64>(now, 1);
+	} else {
+		pausedTotal_ += now - pausedSince_;
+		pausedSince_ = 0;
+	}
+	return true;
 }
 
 bool FeaturedState::hide(qint64 now)
@@ -13,6 +30,8 @@ bool FeaturedState::hide(qint64 now)
 		return false;
 	current_ = QJsonObject();
 	changedAt_ = now;
+	pausedSince_ = 0;
+	pausedTotal_ = 0;
 	return true;
 }
 
@@ -51,10 +70,10 @@ void FeaturedState::removePolicy(const QString &sourceId)
 
 std::optional<qint64> FeaturedState::remainingMs(qint64 now) const
 {
-	if (current_.isEmpty())
+	if (current_.isEmpty() || paused())
 		return std::nullopt;
 	const int duration = chat::featuredDurationMs(chat::featuredTextLength(current_), policies_.values());
 	if (duration < 0)
 		return std::nullopt;
-	return changedAt_ + duration - now;
+	return changedAt_ + pausedTotal_ + duration - now;
 }
