@@ -37,7 +37,7 @@ void addStyleList(obs_properties_t *props)
 {
 	obs_property_t *style = obs_properties_add_list(props, "style", obs_module_text("Style"),
 							OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
-	for (const char *id : {"solid", "glass", "pill", "macos", "minimal", "line", "synthwave", "neoncity", "cyber",
+	for (const char *id : {"solid", "glass", "pill", "macos", "minimal", "line", "synthwave", "vice", "neoncity", "cyber",
 			       "retro", "glitch"})
 		obs_property_list_add_string(style, obs_module_text(("Style." + std::string(id)).c_str()), id);
 	obs_property_set_long_description(style, obs_module_text("Style.Help"));
