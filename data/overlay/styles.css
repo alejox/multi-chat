@@ -1,3 +1,7 @@
+/* Letras del estilo Vice (las mismas de las tarjetas de music-now-playing). Sin conexión se usan
+   las del sistema. */
+@import url("https://fonts.googleapis.com/css2?family=Teko:wght@500;600&family=Saira+Semi+Condensed:wght@600;700&display=swap");
+
 /* Estilos de fondo compartidos por index.html (chat), viewers.html y clock.html.
    Se eligen con data-style en <html>. Cada página define sus variables:
      --bg-rgb/--bg-alpha/--bg-radius/--bg-bw/--bg-brgb      fondo de cada mensaje o recuadro
@@ -110,3 +114,34 @@ body.bg .msg, body.bg #clock, body.bg #box { --s-rgb: var(--bg-rgb); --s-alpha: 
   94% { translate: 3px 0; clip-path: inset(60% 0 8% 0); }
   96% { translate: -1px 0; }
 }
+
+/* Vice: tarjeta ciruela oscura con borde rosa que brilla, nombres en rosa espaciados como el
+   "NOW PLAYING" de music-now-playing y una barra degradada de rosa a naranja abajo, como la de
+   progreso. La barra va dentro del relleno de abajo: no cambia el alto (la cinta lo calcula). */
+[data-style="vice"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: linear-gradient(160deg, rgba(46, 16, 44, var(--s-alpha)), rgba(22, 9, 24, var(--s-alpha)));
+  border: 1.5px solid rgba(255, 92, 170, 0.8);
+  box-shadow: 0 0 12px rgba(255, 60, 160, 0.38), inset 0 0 16px rgba(255, 60, 160, 0.14);
+  text-shadow: none;
+  font-family: "Saira Semi Condensed", "Bahnschrift SemiCondensed", "Arial Narrow", "Segoe UI", sans-serif;
+}
+[data-style="vice"] :is(body.bg .msg, body.bg #clock, body.bg #box)::after {
+  inset: auto 0.7em 2px; height: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, #ff2f92, #ff5f6d 55%, #ff9a3c);
+  box-shadow: 0 0 6px rgba(255, 70, 140, 0.6);
+}
+[data-style="vice"] #panel::after {
+  inset: auto 14px 8px; height: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, #ff2f92, #ff5f6d 55%, #ff9a3c);
+}
+[data-style="vice"] body.bg .author {
+  color: #ff4fa3 !important; text-transform: uppercase; letter-spacing: 0.08em;
+  text-shadow: 0 0 8px rgba(255, 64, 160, 0.65);
+}
+[data-style="vice"] body.bg .body { font-weight: 700; color: #fff; }
+[data-style="vice"] body.bg .sys { color: rgba(255, 255, 255, 0.72); }
+[data-style="vice"] :is(#clock-text, #text, #box .item) {
+  font-family: "Teko", "Bahnschrift Condensed", "Arial Narrow", sans-serif; font-weight: 600; letter-spacing: 0.04em;
+}
+[data-style="vice"] body.bg :is(#clock, #box) .bar { background: linear-gradient(to bottom, #ff2f92, #ff9a3c); box-shadow: 0 0 6px rgba(255, 70, 140, 0.7); }
+[data-style="vice"] body.bg #box .total { border-color: rgba(255, 92, 170, 0.6); }
