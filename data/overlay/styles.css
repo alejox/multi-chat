@@ -1,3 +1,7 @@
+/* Letras del estilo GTA 6 (las mismas de music-now-playing). Sin conexión se usan
+   las del sistema. */
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=Saira+Semi+Condensed:wght@600;700&display=swap");
+
 /* Estilos de fondo compartidos por index.html (chat), viewers.html y clock.html.
    Se eligen con data-style en <html>. Cada página define sus variables:
      --bg-rgb/--bg-alpha/--bg-radius/--bg-bw/--bg-brgb      fondo de cada mensaje o recuadro
@@ -121,3 +125,35 @@ body.ts-off, body.ts-off * { text-shadow: none !important; }
 /* The stroke is drawn under the fill (paint-order), so it is doubled to show the chosen width. */
 body.outline { -webkit-text-stroke: calc(var(--ow) * 2) var(--oc); paint-order: stroke fill; }
 body.outline :is(.badge, .amount) { -webkit-text-stroke: 0; }
+
+/* GTA 6 (Vice City), como en music-now-playing: tarjeta ciruela oscura con borde y brillo rosa
+   de neón, nombres en rosa espaciados como su "NOW PLAYING", números en letra condensada (Anton)
+   y la barra rosa → naranja abajo, como la de progreso. La barra va dentro del relleno de abajo:
+   no cambia el alto (la cinta lo calcula). */
+[data-style="vice"] :is(body.bg .msg, body.bg #clock, body.bg #box, #panel) {
+  background: linear-gradient(120deg, rgba(48, 14, 40, var(--s-alpha)), rgba(26, 10, 26, var(--s-alpha)));
+  border: 1.5px solid rgba(255, 92, 170, 0.75);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 0 14px rgba(255, 60, 160, 0.45), inset 0 0 18px rgba(255, 60, 160, 0.12);
+  text-shadow: none;
+  font-family: "Saira Semi Condensed", "Bahnschrift SemiCondensed", "Arial Narrow", "Segoe UI", sans-serif;
+}
+[data-style="vice"] :is(body.bg .msg, body.bg #clock, body.bg #box)::after {
+  inset: auto 0.7em 2px; height: 3px; border-radius: 3px;
+  background: linear-gradient(90deg, #ff3d9a, #ff8a3d);
+}
+[data-style="vice"] #panel::after {
+  inset: auto 14px 8px; height: 4px; border-radius: 3px;
+  background: linear-gradient(90deg, #ff3d9a, #ff8a3d);
+}
+[data-style="vice"] body.bg .author {
+  color: #ff4fa3 !important; text-transform: uppercase; letter-spacing: 0.14em;
+}
+[data-style="vice"] body.bg .body { font-weight: 700; color: #fff; }
+[data-style="vice"] body.bg .sys { color: rgba(255, 255, 255, 0.62); }
+[data-style="vice"] :is(#clock-text, #text, #box .item) {
+  font-family: "Anton", "Bebas Neue", "Impact", "Arial Narrow", sans-serif; font-weight: 400;
+  letter-spacing: 0.03em; text-transform: uppercase;
+}
+[data-style="vice"] body.bg :is(#clock, #box) .bar { background: linear-gradient(to top, #ff3d9a, #ff8a3d); box-shadow: none; }
+[data-style="vice"] body.bg #box .total { border-color: rgba(255, 92, 170, 0.6); }
+[data-style="vice"] body.bg #box .name { font-family: "Saira Semi Condensed", "Arial Narrow", sans-serif; color: #ff4fa3; letter-spacing: 0.14em; }
