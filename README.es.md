@@ -106,6 +106,15 @@ Compilado en Ubuntu 24.04 para el OBS del [PPA oficial](https://launchpad.net/~o
 
 3. Abre OBS.
 
+**OBS de Flathub (Flatpak):** la carpeta de plugins es otra. Descomprímelo así:
+
+```bash
+mkdir -p ~/.var/app/com.obsproject.Studio/config/obs-studio/plugins
+tar -xzf obs-multichat-*-linux-x86_64.tar.gz -C ~/.var/app/com.obsproject.Studio/config/obs-studio/plugins
+```
+
+El Flatpak de OBS no trae espeak-ng: ahí funciona todo menos leer el chat en voz alta.
+
 La voz usa **espeak-ng**, que Ubuntu de escritorio suele traer; si falta: `sudo apt install espeak-ng`.
 
 ### Actualizaciones automáticas
