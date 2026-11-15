@@ -160,7 +160,6 @@ obs_properties_t *addGroup(obs_properties_t *props, const char *name, const char
 void addAdvancedSwitch(obs_properties_t *props);
 void addPlatforms(obs_properties_t *props);
 void addStyleGroup(obs_properties_t *props, Kind kind, int maxFontSize);
-void addBoxBackgroundGroup(obs_properties_t *props);
 obs_properties_t *ov_properties(void *);
 obs_properties_t *vw_properties(void *);
 obs_properties_t *ck_properties(void *);

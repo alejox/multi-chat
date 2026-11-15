@@ -113,7 +113,12 @@ void sendFloatConfig(OverlaySource *s)
 	QJsonObject config = configOf(s);
 	config.insert("streaming", streaming.load());
 	config.insert("sample", sampleMessages.load());
-	config.insert("layout", layout);
+	// layout = "disposición|fecha y hora" (ver floating-window.cpp); "same" deja lo de la fuente.
+	const QString ownLayout = layout.section('|', 0, 0), ownClock = layout.section('|', 1, 1);
+	if (ownLayout != QLatin1String("same"))
+		config.insert("layout", ownLayout);
+	if (ownClock != QLatin1String("same"))
+		config.insert("clock", ownClock == QLatin1String("show"));
 	sendTo(own, QJsonObject{{"type", "config"}, {"config", config}});
 	obs_source_release(own);
 }

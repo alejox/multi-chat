@@ -31,7 +31,7 @@ A native OBS Studio 33+ plugin: no Python, no accounts, no API keys, no browser 
 | 👁 **Viewers** | How many people are watching right now on each platform and in total, in the dock and in the chats window. Updated every 30 s. |
 | 📡 **Multistream detection** | When you press *Start Streaming* it checks which platforms you're live on and connects those chats. The dock shows **"Multistream detected"**. |
 | ➕ **Many chats** | Add as many channels as you want, several from the same platform too, from **Tools → Multichat…** (or the dock's gear → *Settings…*). When you type or paste a channel, its profile picture appears so you can check it's the right one; if it doesn't exist, it says so and offers **Add anyway**. If it couldn't be checked (no connection or the platform didn't answer), it says so and still lets you **Add** it. Each chat can be paused without removing it and reordered by dragging (the dock follows that order). To remove one, click the ✕ on its right. |
-| 🎬 **"Multichat" source** | The chat on your scene with a transparent background. Vertical (a list of messages) or horizontal (a ticker scrolling right to left). Its Properties are ordered by what you change most (Style, Background, Layout, Date and time) and *Show more options* reveals the rest. |
+| 🎬 **"Multichat" source** | The chat on your scene with a transparent background. Vertical (a list of messages) or horizontal (a ticker scrolling right to left). Its Properties are ordered by what you change most (Style, Text, Layout, Date and time, Floating window) and *Show more options* reveals the rest. |
 | ✨ **Presets and typography** | One click changes the look: Clean, Neon, Bubbles, Minimal single line, High contrast and Vertical 1080×1920. Font, weight, text and name color, outline, shadow and line height, plus custom CSS for advanced users. See [How the sources look](#-how-the-sources-look). |
 | 🕒 **Date and time in the chat** | The "Multichat" source can show the date and time (with or without seconds, 24 h or 12 h, optional bar): at the end of the ticker when horizontal, or above or below the messages when vertical. To put them anywhere else on the scene, apart from the chat, there's the **Multichat (date and time)** source. |
 | 🎨 **Background styles** | A background per message and one behind the whole chat, with color, opacity, rounding and border. Styles: Solid, Glass, Pill, macOS window, Minimal, Line, Synthwave, GTA 6 (Vice City), Neon city, Cyberpunk, Retro and Glitch. Also in the viewers box and the date and time. |
@@ -187,11 +187,12 @@ If the source's page reloads, the featured message comes back only if its time h
 
 The Properties of the sources (chat, featured, viewers and date and time) follow the order of what you change most:
 
-1. **Style**: preset, font size, font, weight and text and name colors. The outline color and the shadow color and blur only show if you use them.
-2. **Background**: in the chat, the *Background style* (shared by both), *Behind each message* (color, opacity, rounding and border depending on the style, plus each message's padding) and *Behind the whole chat* (the general background, with its color, opacity, rounding and border). In the others, the box background with its style. Each part only shows its controls when its checkbox is on.
+1. **Style**: the preset and everything about the background. In the chat, the *Background style* (shared by both), *Behind each message* (color, opacity, rounding and border depending on the style, plus each message's padding) and *Behind the whole chat* (the general background). In the others, the box background with its style. Each part only shows its controls when its checkbox is on.
+2. **Text**: font size, font, weight and text and name colors. The outline color and the shadow color and blur only show if you use them.
 3. **Layout**: vertical or horizontal, size or fit to the canvas, stacking and speed (chat); position and size (featured); row or column, total and names (viewers).
 4. **Date and time** (chat): the checkbox and, once on, its options.
-5. **More options**, folded by default with the **Show more options** checkbox right above: platforms, icons and badges, animation and *Goes away on its own* (featured), disappear after, maximum messages, spacing, margins, line height and custom CSS.
+5. **Floating window (single monitor)**: the checkbox and, once on, its options. See [Floating window](#-floating-window-single-monitor).
+6. **More options**, folded by default with the **Show more options** checkbox right above: platforms, icons and badges, animation and *Goes away on its own* (featured), disappear after, maximum messages, spacing, margins, line height and custom CSS.
 
 Saved scenes stay the same: no existing option changed, only where it shows.
 
@@ -236,6 +237,7 @@ Filters are saved right away and apply to messages that arrive from then on; hid
 To see the chat while you play on a single monitor, open the Properties of any Multichat source (chat, viewers, date and time or featured) and, in **Floating window (single monitor)**, tick **Also show in a floating window**. A separate window opens outside OBS, transparent and always on top, with exactly what that source shows: the same styles, layout and options.
 
 - **Layout in the window** (chat source): *Same as the source*, *Vertical* or *Horizontal*. The window can be vertical while the scene uses the ticker, or the other way round; with its own layout, the chat adapts to the window size.
+- **Date and time in the window** (chat source): *Same as the source*, *Show* or *Hide*, without changing the source.
 - **Move it** by dragging it, and **resize it** from its edges. It reopens where you left it.
 - **Right-click** it for *Clicks go through the window*, the opacity and *Close the floating window*.
 - With **Clicks go through the window** on, the mouse goes to the game. To move the window again, untick it in the Properties or use the hotkey *Multichat: floating window, clicks go through or not* (**Settings → Hotkeys**).

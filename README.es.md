@@ -31,7 +31,7 @@ Plugin nativo para OBS Studio 33 o superior: no necesita Python, cuentas, claves
 | 👁 **Espectadores** | Cuántas personas te ven ahora en cada plataforma y el total, en el dock y en la ventana de chats. Se actualiza cada 30 s. |
 | 📡 **Detección de multistream** | Al pulsar *Iniciar transmisión* comprueba en qué plataformas estás en directo y conecta esos chats. El dock avisa con **"Multistream detectado"**. |
 | ➕ **Varios chats** | Añade todos los canales que quieras, también varios de la misma plataforma, desde **Herramientas → Multichat…** (o la rueda del dock → *Configurar…*). Al escribir o pegar el canal aparece su foto de perfil para confirmar que es el correcto; si no existe, avisa y pide **Añadir igualmente**. Si no se pudo comprobar (sin conexión o la plataforma no respondió), lo dice y deja añadirlo con **Añadir**. Cada chat se puede pausar sin quitarlo y reordenar arrastrando (el dock sigue ese orden). Para quitar uno, pulsa la ✕ a su derecha. |
-| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van en el orden de lo que más se cambia (Estilo, Fondo, Diseño, Fecha y hora) y, con *Mostrar más opciones*, el resto. |
+| 🎬 **Fuente "Multichat"** | El chat en tu escena, con fondo transparente. En vertical (lista de mensajes) u horizontal (una cinta que pasa de derecha a izquierda). Sus Propiedades van en el orden de lo que más se cambia (Estilo, Texto, Diseño, Fecha y hora, Ventana flotante) y, con *Mostrar más opciones*, el resto. |
 | ✨ **Preajustes y tipografía** | Un clic para cambiar el aspecto: Limpio, Neón, Burbujas, Minimal en una línea, Alto contraste y Vertical 1080×1920. Fuente, grosor, color del texto y del nombre, contorno, sombra e interlineado, y CSS propio para usuarios avanzados. Mira [Aspecto de las fuentes](#-aspecto-de-las-fuentes). |
 | 🕒 **Fecha y hora en el chat** | La fuente "Multichat" puede mostrar la fecha y la hora (con o sin segundos, 24 h o 12 h, barra opcional): al final de la cinta en horizontal, o encima o debajo de los mensajes en vertical. Para ponerlas en cualquier otro lugar de la escena, separadas del chat, está la fuente **Multichat (fecha y hora)**. |
 | 🎨 **Estilos de fondo** | Fondo por mensaje y fondo general (detrás de todo el chat), con color, opacidad, redondeo y borde. Estilos: Sólido, Cristal, Píldora, Ventana macOS, Minimal, Línea, Synthwave, GTA 6 (Vice City), Ciudad neón, Cyberpunk, Retro y Glitch. También en el recuadro de espectadores y en la fecha y hora. |
@@ -173,11 +173,12 @@ Si la página de la fuente se recarga, el destacado vuelve a aparecer solo si a�
 
 Las Propiedades de las fuentes (chat, destacado, espectadores y fecha y hora) siguen el orden de lo que más se cambia:
 
-1. **Estilo**: preajuste, tamaño de letra, fuente, grosor y colores del texto y del nombre. El color del contorno y el color y desenfoque de la sombra solo aparecen si los usas.
-2. **Fondo**: en el chat, el *Estilo del fondo* (común a los dos), *Detrás de cada mensaje* (color, opacidad, redondeo y borde según el estilo, y relleno de cada mensaje) y *Detrás de todo el chat* (el fondo general, con su color, opacidad, redondeo y borde). En las demás, el fondo del recuadro con su estilo. Cada parte solo muestra sus controles con su casilla activada.
+1. **Estilo**: el preajuste y todo lo del fondo. En el chat, el *Estilo del fondo* (común a los dos), *Detrás de cada mensaje* (color, opacidad, redondeo y borde según el estilo, y relleno de cada mensaje) y *Detrás de todo el chat* (el fondo general). En las demás, el fondo del recuadro con su estilo. Cada parte solo muestra sus controles con su casilla activada.
+2. **Texto**: tamaño de letra, fuente, grosor y colores del texto y del nombre. El color del contorno y el color y desenfoque de la sombra solo aparecen si los usas.
 3. **Diseño**: vertical u horizontal, tamaño o ajustar al lienzo, apilado y velocidad (chat); posición y tamaño (destacado); fila o columna, total y nombres (espectadores).
 4. **Fecha y hora** (chat): la casilla y, al activarla, sus opciones.
-5. **Más opciones**, plegadas de serie con la casilla **Mostrar más opciones** justo encima: plataformas, iconos e insignias, animación y *Se quita solo* (destacado), desaparecer después de, máximo de mensajes, espacios, márgenes, interlineado y CSS personalizado.
+5. **Ventana flotante (un solo monitor)**: la casilla y, al activarla, sus opciones. Mira [Ventana flotante](#-ventana-flotante-un-solo-monitor).
+6. **Más opciones**, plegadas de serie con la casilla **Mostrar más opciones** justo encima: plataformas, iconos e insignias, animación y *Se quita solo* (destacado), desaparecer después de, máximo de mensajes, espacios, márgenes, interlineado y CSS personalizado.
 
 Las escenas guardadas siguen igual: no cambió ninguna opción existente, solo dónde se ve.
 
@@ -222,6 +223,7 @@ Los filtros se guardan al momento y se aplican a los mensajes que llegan a parti
 Para ver el chat mientras juegas con un solo monitor, abre las Propiedades de cualquier fuente Multichat (chat, espectadores, fecha y hora o destacado) y, en **Ventana flotante (un solo monitor)**, marca **Mostrar también en una ventana flotante**. Se abre una ventana aparte, fuera de OBS, transparente y siempre encima, con lo mismo que muestra esa fuente: los mismos estilos, disposición y opciones.
 
 - **Disposición en la ventana** (fuente de chat): *La misma de la fuente*, *Vertical* u *Horizontal*. Así la ventana puede ir en vertical aunque en la escena uses la cinta, o al revés; con disposición propia, el chat se adapta al tamaño de la ventana.
+- **Fecha y hora en la ventana** (fuente de chat): *Igual que en la fuente*, *Mostrar* u *Ocultar*, sin cambiar la fuente.
 - **Muévela** arrastrándola y **cambia su tamaño** desde los bordes. Se vuelve a abrir donde la dejaste.
 - **Clic derecho** en ella: *Los clics atraviesan la ventana*, la opacidad y *Cerrar la ventana flotante*.
 - Con **Los clics atraviesan la ventana**, el ratón va al juego. Para volver a moverla, desmárcala en las Propiedades o usa el atajo *Multichat: ventana flotante, los clics la atraviesan o no* (**Ajustes → Atajos**).

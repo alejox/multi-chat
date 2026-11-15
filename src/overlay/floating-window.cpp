@@ -147,7 +147,10 @@ void syncOwnBrowser(obs_weak_source_t *weak, State &st, const QSize &window)
 	if (auto *s = static_cast<OverlaySource *>(obs_obj_get_data(source))) {
 		const QJsonObject config = overlay_source::configOf(s);
 		const int w = std::max(80, window.width());
-		const int h = st.layout == QLatin1String("horizontal") ? int(overlay_source::tickerHeight(config))
+		QString layout = st.layout.section('|', 0, 0);
+		if (layout == QLatin1String("same"))
+			layout = config.value("layout").toString();
+		const int h = layout == QLatin1String("horizontal") ? int(overlay_source::tickerHeight(config))
 									 : std::max(40, window.height());
 		obs_data_t *bs = overlay_source::browserSettings(s);
 		obs_data_set_int(bs, "width", w);
@@ -204,9 +207,9 @@ public:
 			QSize size(int(std::max(1u, obs_source_get_width(source))),
 				   int(std::max(1u, obs_source_get_height(source))));
 			size.scale(screen.width() / 3, screen.height() * 2 / 3, Qt::KeepAspectRatio);
-			if (state_->layout == QLatin1String("horizontal"))
+			if (state_->layout.startsWith(QLatin1String("horizontal")))
 				size = QSize(screen.width() / 2, 80);
-			else if (state_->layout == QLatin1String("vertical"))
+			else if (state_->layout.startsWith(QLatin1String("vertical")))
 				size = QSize(420, std::min(600, screen.height() * 2 / 3));
 			resize(size);
 			move(screen.right() - size.width() - 24, screen.bottom() - size.height() - 24);
@@ -423,6 +426,7 @@ struct Options {
 	bool clickThrough = false;
 	int opacity = 100;
 	QString layout = QStringLiteral("same");
+	QString clock = QStringLiteral("same");
 };
 
 Options readOptions(obs_data_t *settings)
@@ -434,6 +438,9 @@ Options readOptions(obs_data_t *settings)
 	const QString layout = QString::fromUtf8(obs_data_get_string(settings, "float_layout"));
 	if (layout == QLatin1String("vertical") || layout == QLatin1String("horizontal"))
 		o.layout = layout;
+	const QString clock = QString::fromUtf8(obs_data_get_string(settings, "float_clock"));
+	if (clock == QLatin1String("show") || clock == QLatin1String("hide"))
+		o.clock = clock;
 	return o;
 }
 
@@ -452,7 +459,10 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 	if (!s->browser)
 		return;
 	// Solo el chat tiene disposición; cambiarla abre la ventana de nuevo con otra página.
-	const QString layout = s->kind == overlay_source::Kind::Chat ? o.layout : QStringLiteral("same");
+	// "disposición|fecha y hora": con las dos en "same" la ventana copia la imagen de la fuente;
+	// si no, tiene su propia página con esos cambios.
+	const QString kShared = QStringLiteral("same|same");
+	const QString layout = s->kind == overlay_source::Kind::Chat ? o.layout + QLatin1Char('|') + o.clock : kShared;
 	if (st && st->layout != layout) {
 		if (auto *window = static_cast<FloatingWindow *>(st->window.data()))
 			window->saveGeometry();
@@ -463,7 +473,7 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 		st = std::make_shared<State>();
 		st->layout = layout;
 		st->browser = s->browser;
-		if (layout != QLatin1String("same")) {
+		if (layout != kShared) {
 			obs_data_t *bs = overlay_source::browserSettings(s);
 			st->own = obs_source_create_private("browser_source", "multichat-float", bs);
 			obs_data_release(bs);
@@ -510,6 +520,12 @@ void addProperties(obs_properties_t *props, bool chat)
 		obs_property_list_add_string(layout, obs_module_text("Source.Layout.Vertical"), "vertical");
 		obs_property_list_add_string(layout, obs_module_text("Source.Layout.Horizontal"), "horizontal");
 		obs_property_set_long_description(layout, obs_module_text("Float.Layout.Help"));
+		obs_property_t *clock = obs_properties_add_list(group, "float_clock", obs_module_text("Float.Clock"),
+								OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+		obs_property_list_add_string(clock, obs_module_text("Float.Clock.Same"), "same");
+		obs_property_list_add_string(clock, obs_module_text("Float.Clock.Show"), "show");
+		obs_property_list_add_string(clock, obs_module_text("Float.Clock.Hide"), "hide");
+		obs_property_set_long_description(clock, obs_module_text("Float.Clock.Help"));
 	}
 	obs_property_t *only = obs_properties_add_bool(group, "float_only", obs_module_text("Float.Only"));
 	obs_property_set_long_description(only, obs_module_text("Float.Only.Help"));
@@ -521,11 +537,21 @@ void addProperties(obs_properties_t *props, bool chat)
 	obs_property_int_set_suffix(opacity, " %");
 }
 
+// Las opciones de la ventana solo se ven con la ventana activada.
+void showProperties(obs_properties_t *props, obs_data_t *settings)
+{
+	const bool on = obs_data_get_bool(settings, "float_window");
+	for (const char *key : {"float_layout", "float_clock", "float_only", "float_clickthrough", "float_opacity"})
+		if (obs_property_t *p = obs_properties_get(props, key))
+			obs_property_set_visible(p, on);
+}
+
 void defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "float_window", false);
 	obs_data_set_default_bool(settings, "float_only", false);
 	obs_data_set_default_string(settings, "float_layout", "same");
+	obs_data_set_default_string(settings, "float_clock", "same");
 	obs_data_set_default_bool(settings, "float_clickthrough", false);
 	obs_data_set_default_int(settings, "float_opacity", 100);
 }

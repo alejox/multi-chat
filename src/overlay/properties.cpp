@@ -148,6 +148,7 @@ bool box_changed(obs_properties_t *props, obs_property_t *, obs_data_t *settings
 	obs_property_set_visible(obs_properties_get(props, "style"), obs_data_get_bool(settings, "background"));
 	showTextStyle(props, settings);
 	showAdvancedGroups(props, settings);
+	floating::showProperties(props, settings);
 	return true;
 }
 
@@ -183,12 +184,13 @@ bool ov_layout_changed(obs_properties_t *props, obs_property_t *, obs_data_t *se
 	obs_property_set_visible(obs_properties_get(props, "max"), !horizontal);
 	showBoxStyle(props, settings, "", obs_data_get_bool(settings, "background"));
 	showBoxStyle(props, settings, "panel_", obs_data_get_bool(settings, "panel"));
-	obs_property_set_visible(obs_properties_get(props, "style"),
-				 obs_data_get_bool(settings, "background") || obs_data_get_bool(settings, "panel"));
+	// The style list stays visible in the chat: it sits above both background checkboxes.
+	obs_property_set_visible(obs_properties_get(props, "style"), true);
 	for (const char *key : {"msg_pad_y", "msg_pad_x"})
 		obs_property_set_visible(obs_properties_get(props, key), obs_data_get_bool(settings, "background"));
 	showTextStyle(props, settings);
 	showAdvancedGroups(props, settings);
+	floating::showProperties(props, settings);
 	return true;
 }
 
@@ -224,7 +226,7 @@ void addCustomCss(obs_properties_t *props)
 bool changesVisibility(const char *name)
 {
 	for (const char *key : {"layout", "fit_canvas", "clock", "style", "background", "panel", "auto_hide",
-				"name_mode", "outline_width", "text_shadow", "advanced"})
+				"name_mode", "outline_width", "text_shadow", "advanced", "float_window"})
 		if (strcmp(name, key) == 0)
 			return true;
 	return false;
@@ -323,22 +325,23 @@ obs_properties_t *ov_properties(void *)
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
 
+	// Style: the preset and everything about the backgrounds (the style list applies to
+	// whichever is on, then the box behind each message and the panel behind the whole chat,
+	// each shown with its checkbox). Text has its own group right after.
 	obs_properties_t *style = addGroup(props, "group_style", "Group.Style");
 	addPreset(style);
-	obs_property_t *size =
-		obs_properties_add_int_slider(style, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
-	obs_property_int_set_suffix(size, " px");
-	addTextStyle(style, Kind::Chat);
+	addStyleList(style);
+	obs_properties_add_bool(style, "background", obs_module_text("Source.Background"));
+	addBoxStyle(style, "");
+	addPadding(style, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
+	obs_properties_add_bool(style, "panel", obs_module_text("Source.Panel"));
+	addBoxStyle(style, "panel_");
 
-	// Both backgrounds in one place: the style list applies to whichever is on, then the box
-	// behind each message and the panel behind the whole chat, each shown with its checkbox.
-	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	addStyleList(background);
-	obs_properties_add_bool(background, "background", obs_module_text("Source.Background"));
-	addBoxStyle(background, "");
-	addPadding(background, "msg_pad_y", "msg_pad_x", "Source.MsgPadY", "Source.MsgPadX");
-	obs_properties_add_bool(background, "panel", obs_module_text("Source.Panel"));
-	addBoxStyle(background, "panel_");
+	obs_properties_t *textGroup = addGroup(props, "group_text", "Group.Text");
+	obs_property_t *size =
+		obs_properties_add_int_slider(textGroup, "font_size", obs_module_text("Source.FontSize"), 10, 72, 1);
+	obs_property_int_set_suffix(size, " px");
+	addTextStyle(textGroup, Kind::Chat);
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	obs_property_t *layout = obs_properties_add_list(design, "layout", obs_module_text("Source.Layout"),
@@ -381,6 +384,7 @@ obs_properties_t *ov_properties(void *)
 
 	// More options: platforms, icons and badges, disappearing, limits, spacing, margins, line
 	// height and custom CSS.
+	floating::addProperties(props, true);
 	addAdvancedSwitch(props);
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	addPlatforms(advanced);
@@ -399,30 +403,26 @@ obs_properties_t *ov_properties(void *)
 	addPadding(advanced, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
 	addLineHeight(advanced, Kind::Chat);
 	addCustomCss(advanced);
-	floating::addProperties(props, true);
 	hookAll(props, Kind::Chat);
 	return props;
 }
 
-// The Style group of the box sources (featured, viewers, clock): preset, font size and text.
+// The Style and Text groups of the box sources (featured, viewers, clock): the preset and the
+// box background first, then the font size and the text options.
 void addStyleGroup(obs_properties_t *props, Kind kind, int maxFontSize)
 {
 	obs_properties_t *style = addGroup(props, "group_style", "Group.Style");
 	addPreset(style);
+	obs_properties_add_bool(style, "background", obs_module_text("Viewers.Background"));
+	addStyleList(style);
+	addBoxStyle(style, "");
+
+	obs_properties_t *textGroup = addGroup(props, "group_text", "Group.Text");
 	const int minFontSize = kind == Kind::Featured ? 12 : 10;
-	obs_property_t *size = obs_properties_add_int_slider(style, "font_size", obs_module_text("Source.FontSize"),
+	obs_property_t *size = obs_properties_add_int_slider(textGroup, "font_size", obs_module_text("Source.FontSize"),
 							     minFontSize, maxFontSize, 1);
 	obs_property_int_set_suffix(size, " px");
-	addTextStyle(style, kind);
-}
-
-// The Background group of the box sources: its checkbox, the style list and the box controls.
-void addBoxBackgroundGroup(obs_properties_t *props)
-{
-	obs_properties_t *background = addGroup(props, "group_background", "Group.Background");
-	obs_properties_add_bool(background, "background", obs_module_text("Viewers.Background"));
-	addStyleList(background);
-	addBoxStyle(background, "");
+	addTextStyle(textGroup, kind);
 }
 
 obs_properties_t *vw_properties(void *)
@@ -430,7 +430,6 @@ obs_properties_t *vw_properties(void *)
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_button2(props, "chats", obs_module_text("Source.Chats"), ov_open_settings, nullptr);
 	addStyleGroup(props, Kind::Viewers, 120);
-	addBoxBackgroundGroup(props);
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	obs_property_t *layout = obs_properties_add_list(design, "layout", obs_module_text("Viewers.Layout"),
@@ -440,12 +439,12 @@ obs_properties_t *vw_properties(void *)
 	obs_properties_add_bool(design, "total", obs_module_text("Viewers.Total"));
 	obs_properties_add_bool(design, "names", obs_module_text("Viewers.Names"));
 
+	floating::addProperties(props);
 	addAdvancedSwitch(props);
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	addPlatforms(advanced);
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addCustomCss(advanced);
-	floating::addProperties(props);
 	hookAll(props, Kind::Viewers);
 	return props;
 }
@@ -455,7 +454,6 @@ obs_properties_t *ck_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 	addStyleGroup(props, Kind::Clock, 160);
-	addBoxBackgroundGroup(props);
 
 	obs_properties_t *clock = addGroup(props, "group_clock", "Group.Clock");
 	obs_properties_add_bool(clock, "date", obs_module_text("Clock.Date"));
@@ -464,11 +462,11 @@ obs_properties_t *ck_properties(void *)
 	obs_properties_add_bool(clock, "hour24", obs_module_text("Clock.Hour24"));
 	obs_properties_add_bool(clock, "bar", obs_module_text("Clock.Bar"));
 
+	floating::addProperties(props);
 	addAdvancedSwitch(props);
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addCustomCss(advanced);
-	floating::addProperties(props);
 	hookAll(props, Kind::Clock);
 	return props;
 }
@@ -486,7 +484,6 @@ obs_properties_t *fe_properties(void *)
 {
 	obs_properties_t *props = obs_properties_create();
 	addStyleGroup(props, Kind::Featured, 120);
-	addBoxBackgroundGroup(props);
 
 	obs_properties_t *design = addGroup(props, "group_layout", "Group.Layout");
 	obs_property_t *valign = obs_properties_add_list(design, "valign", obs_module_text("Featured.VAlign"),
@@ -501,6 +498,7 @@ obs_properties_t *fe_properties(void *)
 	obs_properties_add_int(design, "height", obs_module_text("Source.Height"), 100, 4096, 1);
 
 	// More options: icons and badges, animation and auto-hide, padding, line height and CSS.
+	floating::addProperties(props);
 	addAdvancedSwitch(props);
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	obs_properties_add_bool(advanced, "icons", obs_module_text("Source.Icons"));
@@ -522,7 +520,6 @@ obs_properties_t *fe_properties(void *)
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addLineHeight(advanced, Kind::Featured);
 	addCustomCss(advanced);
-	floating::addProperties(props);
 	hookAll(props, Kind::Featured);
 	return props;
 }
