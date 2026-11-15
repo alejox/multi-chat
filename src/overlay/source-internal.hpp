@@ -61,6 +61,8 @@ struct OverlaySource {
 	// Ventana flotante (floating-window.cpp); vacío si está cerrada.
 	std::mutex floatingMutex;
 	std::shared_ptr<floating::State> floating;
+	// "Solo en la ventana flotante": la fuente no se dibuja en la escena (lo lee el hilo de gráficos).
+	std::atomic<bool> floatOnly{false};
 };
 
 // ---- Shared state (defined in wiring.cpp) ----

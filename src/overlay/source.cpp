@@ -137,7 +137,8 @@ uint32_t ov_height(void *data)
 void ov_render(void *data, gs_effect_t *)
 {
 	auto *s = static_cast<OverlaySource *>(data);
-	if (s->browser)
+	// Solo en la ventana flotante: la escena (vista previa, emisión y grabación) no lo muestra.
+	if (s->browser && !s->floatOnly)
 		obs_source_video_render(s->browser);
 }
 

@@ -230,7 +230,7 @@ To see the chat while you play on a single monitor, open the Properties of any M
 - **Right-click** it for *Clicks go through the window*, the opacity and *Close the floating window*.
 - With **Clicks go through the window** on, the mouse goes to the game. To move the window again, untick it in the Properties or use the hotkey *Multichat: floating window, clicks go through or not* (**Settings → Hotkeys**).
 - It shows over games in **windowed** or **borderless fullscreen** mode. In exclusive fullscreen no window can show on top: that's how the system works.
-- The source doesn't need to be visible in the scene you stream.
+- The source doesn't need to be visible in the scene you stream. With **Only in the floating window (hidden in OBS and on stream)** it isn't drawn in the scene at all: not in the preview, the stream or the recording. Only you see it, in the window.
 
 ### 🔊 Read the chat aloud
 
