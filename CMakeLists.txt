@@ -142,7 +142,8 @@ elseif(OS_MACOS)
     PRIVATE "$<LINK_LIBRARY:FRAMEWORK,Foundation.framework>" "$<LINK_LIBRARY:FRAMEWORK,AVFoundation.framework>"
   )
 else()
-  # En Linux, Qt sí trae TLS, pero libcurl ya la tiene cualquier OBS. La voz usa espeak-ng.
+  # En Linux, Qt sí trae TLS, pero libcurl ya la tiene cualquier OBS. La voz usa espeak-ng, que se
+  # carga al usarla (dlopen): aquí solo hacen falta sus cabeceras.
   find_package(CURL REQUIRED)
   find_package(PkgConfig REQUIRED)
   pkg_check_modules(ESPEAK_NG REQUIRED IMPORTED_TARGET espeak-ng)
@@ -151,7 +152,8 @@ else()
     PRIVATE src/net/net-linux.cpp src/tts/speech-backend-linux.cpp src/tts/voice-source.cpp src/tts/voice-source.hpp
             src/updater/install-linux.cpp src/updater/copy-tree.cpp
   )
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl PkgConfig::ESPEAK_NG)
+  target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${ESPEAK_NG_INCLUDE_DIRS})
+  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE CURL::libcurl ${CMAKE_DL_LIBS})
 endif()
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

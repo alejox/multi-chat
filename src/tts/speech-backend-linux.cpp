@@ -1,5 +1,7 @@
 // Voz en Linux con espeak-ng: la síntesis va a un búfer propio vía callback (AUDIO_OUTPUT_RETRIEVAL)
 // en lugar de a los altavoces, y ese PCM llega a OBS como cualquier otra fuente de audio.
+// La librería se carga al usarla (dlopen): sin ella (el OBS de Flathub no la trae) el plugin
+// carga igual y solo falta la voz.
 
 #include "speech-backend.hpp"
 
@@ -7,15 +9,54 @@
 
 #include <QString>
 
+#include <dlfcn.h>
+
 #include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <type_traits>
 #include <vector>
 
 namespace tts {
 
 namespace {
+
+// Las funciones de espeak-ng que se usan, buscadas en la librería al cargarla.
+struct Espeak {
+	decltype(&::espeak_Initialize) initialize = nullptr;
+	decltype(&::espeak_SetSynthCallback) setSynthCallback = nullptr;
+	decltype(&::espeak_SetVoiceByName) setVoiceByName = nullptr;
+	decltype(&::espeak_SetParameter) setParameter = nullptr;
+	decltype(&::espeak_Synth) synth = nullptr;
+	decltype(&::espeak_Synchronize) synchronize = nullptr;
+	decltype(&::espeak_ListVoices) listVoices = nullptr;
+};
+Espeak g_espeak;
+
+// Con g_espeakMutex tomado. False si la librería no está o le falta alguna función.
+bool loadEspeak()
+{
+	void *lib = dlopen("libespeak-ng.so.1", RTLD_NOW | RTLD_LOCAL);
+	if (!lib)
+		lib = dlopen("libespeak-ng.so", RTLD_NOW | RTLD_LOCAL);
+	if (!lib)
+		return false;
+	const auto get = [lib](auto &fn, const char *name) {
+		fn = reinterpret_cast<std::remove_reference_t<decltype(fn)>>(dlsym(lib, name));
+		return fn != nullptr;
+	};
+	Espeak e;
+	if (!get(e.initialize, "espeak_Initialize") || !get(e.setSynthCallback, "espeak_SetSynthCallback") ||
+	    !get(e.setVoiceByName, "espeak_SetVoiceByName") || !get(e.setParameter, "espeak_SetParameter") ||
+	    !get(e.synth, "espeak_Synth") || !get(e.synchronize, "espeak_Synchronize") ||
+	    !get(e.listVoices, "espeak_ListVoices")) {
+		dlclose(lib);
+		return false;
+	}
+	g_espeak = e; // la librería queda cargada hasta que OBS cierra
+	return true;
+}
 
 // espeak-ng no es reentrante: un candado global serializa todo su uso (síntesis y listado de
 // voces), que además ocurre en hilos distintos (motor y diálogo de propiedades).
@@ -40,9 +81,11 @@ int ensureEspeak()
 	if (g_espeakTried)
 		return g_espeakSampleRate;
 	g_espeakTried = true;
-	g_espeakSampleRate = espeak_Initialize(AUDIO_OUTPUT_RETRIEVAL, 0, nullptr, 0);
+	if (!loadEspeak())
+		return 0;
+	g_espeakSampleRate = g_espeak.initialize(AUDIO_OUTPUT_RETRIEVAL, 0, nullptr, 0);
 	if (g_espeakSampleRate > 0)
-		espeak_SetSynthCallback(captureCallback);
+		g_espeak.setSynthCallback(captureCallback);
 	return g_espeakSampleRate;
 }
 
@@ -61,19 +104,19 @@ public:
 			std::lock_guard<std::mutex> lock(g_espeakMutex);
 			const QByteArray voiceId = request.voiceId.toUtf8();
 			if (!voiceId.isEmpty())
-				espeak_SetVoiceByName(voiceId.constData());
+				g_espeak.setVoiceByName(voiceId.constData());
 
 			// rate 0..1 (0.5 normal) → palabras por minuto de espeak-ng, con 175 como velocidad normal.
 			const double r = std::clamp(request.rate, 0.0, 1.0);
 			const int wpm = r < 0.5 ? int(80.0 + r * 2.0 * (175.0 - 80.0))
 						: int(175.0 + (r - 0.5) * 2.0 * (450.0 - 175.0));
-			espeak_SetParameter(espeakRATE, wpm, 0);
+			g_espeak.setParameter(espeakRATE, wpm, 0);
 
 			g_capture.clear();
 			const QByteArray text = request.text.toUtf8();
-			espeak_Synth(text.constData(), text.size() + 1, 0, POS_CHARACTER, 0, espeakCHARS_UTF8, nullptr,
-				     nullptr);
-			espeak_Synchronize();
+			g_espeak.synth(text.constData(), text.size() + 1, 0, POS_CHARACTER, 0, espeakCHARS_UTF8, nullptr,
+				       nullptr);
+			g_espeak.synchronize();
 
 			buffer.sampleRate = static_cast<uint32_t>(sampleRate);
 			buffer.channels = 1;
@@ -106,7 +149,7 @@ std::vector<VoiceInfo> availableVoices()
 	if (ensureEspeak() <= 0)
 		return voices;
 	std::lock_guard<std::mutex> lock(g_espeakMutex);
-	const espeak_VOICE **list = espeak_ListVoices(nullptr);
+	const espeak_VOICE **list = g_espeak.listVoices(nullptr);
 	for (int i = 0; list && list[i]; ++i) {
 		if (!list[i]->identifier || !list[i]->name)
 			continue;

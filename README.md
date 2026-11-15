@@ -118,6 +118,15 @@ It must look like this:
     └── overlay/
 ```
 
+**OBS from Flathub (Flatpak):** the plugins folder is a different one. Extract it like this:
+
+```bash
+mkdir -p ~/.var/app/com.obsproject.Studio/config/obs-studio/plugins
+tar -xzf obs-multichat-*-linux-x86_64.tar.gz -C ~/.var/app/com.obsproject.Studio/config/obs-studio/plugins
+```
+
+The OBS Flatpak doesn't include espeak-ng: everything works there except reading the chat aloud.
+
 The voice uses **espeak-ng**, which Ubuntu desktop usually includes; if it's missing: `sudo apt install espeak-ng`.
 </details>
 
