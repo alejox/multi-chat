@@ -41,6 +41,7 @@ Plugin nativo para OBS Studio 33 o superior: no necesita Python, cuentas, claves
 | 🌐 **Español e inglés** | Todo sigue el idioma de OBS: menús, errores de conexión, mensajes de ejemplo en pantalla y los avisos que arma Multichat (regalos de TikTok; raids, canjes, suscripciones y regalos de Starvios). Los avisos de Twitch y YouTube llegan ya escritos por la plataforma. |
 | 🛡️ **Moderación** | Si un moderador borra un mensaje, o banea o expulsa temporalmente a alguien, sus mensajes desaparecen del dock, del chat en pantalla y del destacado. Mira [Moderación y filtros](#-moderación-y-filtros). |
 | 🚫 **Filtros** | Oculta bots (Nightbot, StreamElements, Streamlabs… vienen de serie), comandos que empiezan por `!` y palabras bloqueadas, desde la pestaña **Filtros** de **Herramientas → Multichat…**. |
+| 🪟 **Ventana flotante** | El chat (o cualquier fuente Multichat) en una ventana aparte, transparente y siempre encima, para verlo mientras juegas con un solo monitor. Mira [Ventana flotante](#-ventana-flotante-un-solo-monitor). |
 | 🔇 **Silenciar canal** | Clic en un canal del dock para silenciar sus mensajes en Multichat o volver a mostrarlos. No toca la plataforma. |
 | 🧪 **Mensajes de prueba** | Un solo interruptor (en la rueda del dock y en Configurar) que llena el dock con un chat de prueba y hace que las fuentes en pantalla muestren mensajes y números de ejemplo mientras no hay chat. Nunca salen mientras transmites. |
 | 🔄 **Actualizaciones** | OBS avisa cuando hay una versión nueva y la instala si aceptas. |
@@ -206,6 +207,16 @@ En **Herramientas → Multichat… → Filtros** puedes:
 - **Palabras bloqueadas**: una palabra o frase por línea. Se compara la palabra entera, sin distinguir mayúsculas ni tildes: *tonto* oculta «TÓNTO» pero no «tontería».
 
 Los filtros se guardan al momento y se aplican a los mensajes que llegan a partir de ahí; los mensajes ocultos tampoco se leen en voz alta.
+
+### 🪟 Ventana flotante (un solo monitor)
+
+Para ver el chat mientras juegas con un solo monitor, abre las Propiedades de cualquier fuente Multichat (chat, espectadores, fecha y hora o destacado) y, en **Ventana flotante (un solo monitor)**, marca **Mostrar también en una ventana flotante**. Se abre una ventana aparte, fuera de OBS, transparente y siempre encima, con lo mismo que muestra esa fuente: los mismos estilos, disposición y opciones.
+
+- **Muévela** arrastrándola y **cambia su tamaño** desde los bordes. Se vuelve a abrir donde la dejaste.
+- **Clic derecho** en ella: *Los clics atraviesan la ventana*, la opacidad y *Cerrar la ventana flotante*.
+- Con **Los clics atraviesan la ventana**, el ratón va al juego. Para volver a moverla, desmárcala en las Propiedades o usa el atajo *Multichat: ventana flotante, los clics la atraviesan o no* (**Ajustes → Atajos**).
+- Se ve sobre juegos **en ventana** o en **pantalla completa sin bordes**. En pantalla completa exclusiva ninguna ventana puede verse encima: así funciona el sistema.
+- No hace falta que la fuente se vea en la escena que transmites.
 
 ### 🔊 Leer el chat en voz alta
 

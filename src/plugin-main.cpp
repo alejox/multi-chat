@@ -27,6 +27,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include "chat-manager.hpp"
 #include "i18n.hpp"
+#include "overlay/floating-window.hpp"
 #include "overlay/overlay-source.hpp"
 #include "ui/chat-dock.hpp"
 #include "ui/first-run-wizard.hpp"
@@ -46,6 +47,7 @@ namespace {
 obs_hotkey_id clearFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
 obs_hotkey_id reshowFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
 obs_hotkey_id pauseFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
+obs_hotkey_id floatClickHotkey = OBS_INVALID_HOTKEY_ID;
 
 QString configPath(const char *file)
 {
@@ -98,6 +100,15 @@ void on_pause_featured(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
 			Qt::QueuedConnection);
 }
 
+// Ventanas flotantes: los clics las atraviesan o no (con los clics atravesando no hay otra forma
+// de volver a tocarlas sin abrir las propiedades).
+void on_float_clickthrough(void *, obs_hotkey_id, obs_hotkey_t *, bool pressed)
+{
+	if (pressed)
+		QMetaObject::invokeMethod(
+			&ChatManager::instance(), [] { floating::toggleClickThroughAll(); }, Qt::QueuedConnection);
+}
+
 void loadHotkey(obs_data_t *data, const char *key, obs_hotkey_id id)
 {
 	if (obs_data_array_t *bindings = obs_data_get_array(data, key)) {
@@ -128,11 +139,15 @@ void registerHotkeys()
 	pauseFeaturedHotkey = obs_hotkey_register_frontend("multichat.pause_featured",
 							    obs_module_text("Hotkey.PauseFeatured"), on_pause_featured,
 							    nullptr);
+	floatClickHotkey = obs_hotkey_register_frontend("multichat.float_clickthrough",
+							 obs_module_text("Hotkey.FloatClickThrough"),
+							 on_float_clickthrough, nullptr);
 	obs_data_t *data = obs_data_create_from_json_file_safe(hotkeysPath().toUtf8().constData(), "bak");
 	if (data) {
 		loadHotkey(data, "clear_featured", clearFeaturedHotkey);
 		loadHotkey(data, "reshow_featured", reshowFeaturedHotkey);
 		loadHotkey(data, "pause_featured", pauseFeaturedHotkey);
+		loadHotkey(data, "float_clickthrough", floatClickHotkey);
 		obs_data_release(data);
 	}
 }
@@ -145,7 +160,8 @@ void saveHotkeys()
 	// Sin los atajos no se escribe nada: así no se borran las teclas guardadas.
 	if (!saveHotkey(data, "clear_featured", clearFeaturedHotkey) ||
 	    !saveHotkey(data, "reshow_featured", reshowFeaturedHotkey) ||
-	    !saveHotkey(data, "pause_featured", pauseFeaturedHotkey)) {
+	    !saveHotkey(data, "pause_featured", pauseFeaturedHotkey) ||
+	    !saveHotkey(data, "float_clickthrough", floatClickHotkey)) {
 		obs_data_release(data);
 		return;
 	}
@@ -165,7 +181,8 @@ void unregisterHotkeys()
 	obs_hotkey_unregister(clearFeaturedHotkey);
 	obs_hotkey_unregister(reshowFeaturedHotkey);
 	obs_hotkey_unregister(pauseFeaturedHotkey);
-	clearFeaturedHotkey = reshowFeaturedHotkey = pauseFeaturedHotkey = OBS_INVALID_HOTKEY_ID;
+	obs_hotkey_unregister(floatClickHotkey);
+	clearFeaturedHotkey = reshowFeaturedHotkey = pauseFeaturedHotkey = floatClickHotkey = OBS_INVALID_HOTKEY_ID;
 }
 
 // OBS guarda la colección de escenas al cambiar los ajustes (también los atajos) y al salir:

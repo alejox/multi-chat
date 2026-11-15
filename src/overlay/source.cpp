@@ -4,6 +4,7 @@
 // espectadores y el mensaje destacado les llegan con javascript_event.
 
 #include "source-internal.hpp"
+#include "floating-window.hpp"
 
 namespace overlay_source {
 
@@ -36,6 +37,7 @@ void *create(obs_data_t *settings, obs_source_t *source, Kind kind)
 	refresh(s);
 	if (kind == Kind::Featured)
 		sendFeatured(s);
+	floating::apply(s, settings);
 	return s;
 }
 
@@ -68,6 +70,7 @@ void ov_destroy(void *data)
 	}
 	if (s->kind == Kind::Featured)
 		ChatManager::instance().removeFeaturedAutoHide(featuredSourceId(s));
+	floating::close(s); // antes de soltar la fuente de navegador que pinta
 	obs_source_release(s->browser);
 	delete s;
 }
@@ -84,16 +87,19 @@ void ov_update(void *data, obs_data_t *settings)
 		fitAllScenes(s);
 	sendConfig(s);
 	refresh(s);
+	floating::apply(s, settings);
 }
 
 void ov_defaults(obs_data_t *settings)
 {
 	applyDefaults(settings, Kind::Chat);
+	floating::defaults(settings);
 }
 
 void vw_defaults(obs_data_t *settings)
 {
 	applyDefaults(settings, Kind::Viewers);
+	floating::defaults(settings);
 }
 
 const char *ck_get_name(void *)
@@ -104,6 +110,7 @@ const char *ck_get_name(void *)
 void ck_defaults(obs_data_t *settings)
 {
 	applyDefaults(settings, Kind::Clock);
+	floating::defaults(settings);
 }
 
 const char *fe_get_name(void *)
@@ -114,6 +121,7 @@ const char *fe_get_name(void *)
 void fe_defaults(obs_data_t *settings)
 {
 	applyDefaults(settings, Kind::Featured);
+	floating::defaults(settings);
 }
 
 uint32_t ov_width(void *data)
