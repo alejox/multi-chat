@@ -15,17 +15,39 @@ std::atomic<bool> streaming{false};
 // ChatManager::testMessages(): the pages show sample messages while there is no chat.
 std::atomic<bool> sampleMessages{false};
 
-void send(OverlaySource *s, const QJsonObject &payload)
+namespace {
+
+void sendTo(obs_source_t *browser, const QJsonObject &payload)
 {
-	if (!s->browser)
-		return;
 	const QByteArray json = QJsonDocument(payload).toJson(QJsonDocument::Compact);
 	calldata_t cd;
 	calldata_init(&cd);
 	calldata_set_string(&cd, "eventName", "multichat");
 	calldata_set_string(&cd, "jsonString", json.constData());
-	proc_handler_call(obs_source_get_proc_handler(s->browser), "javascript_event", &cd);
+	proc_handler_call(obs_source_get_proc_handler(browser), "javascript_event", &cd);
 	calldata_free(&cd);
+}
+
+// La fuente de navegador propia de la ventana flotante (con una referencia), o nullptr.
+obs_source_t *floatBrowserRef(OverlaySource *s, QString *layout = nullptr)
+{
+	std::lock_guard<std::mutex> lock(s->floatingMutex);
+	if (layout)
+		*layout = s->floatLayout;
+	return s->floatBrowser ? obs_source_get_ref(s->floatBrowser) : nullptr;
+}
+
+} // namespace
+
+// A la página de la fuente y, si la ventana flotante tiene la suya, también a esa.
+void send(OverlaySource *s, const QJsonObject &payload)
+{
+	if (s->browser)
+		sendTo(s->browser, payload);
+	if (obs_source_t *own = floatBrowserRef(s)) {
+		sendTo(own, payload);
+		obs_source_release(own);
+	}
 }
 
 // Últimos canales conocidos (live y espectadores), para las fuentes de espectadores.
@@ -76,7 +98,24 @@ void sendConfig(OverlaySource *s)
 	QJsonObject config = configOf(s);
 	config.insert("streaming", streaming.load());
 	config.insert("sample", sampleMessages.load());
-	send(s, QJsonObject{{"type", "config"}, {"config", config}});
+	if (s->browser)
+		sendTo(s->browser, QJsonObject{{"type", "config"}, {"config", config}});
+	sendFloatConfig(s);
+}
+
+// La página de la ventana flotante recibe la misma configuración con su propia disposición.
+void sendFloatConfig(OverlaySource *s)
+{
+	QString layout;
+	obs_source_t *own = floatBrowserRef(s, &layout);
+	if (!own)
+		return;
+	QJsonObject config = configOf(s);
+	config.insert("streaming", streaming.load());
+	config.insert("sample", sampleMessages.load());
+	config.insert("layout", layout);
+	sendTo(own, QJsonObject{{"type", "config"}, {"config", config}});
+	obs_source_release(own);
 }
 
 // Forwards the chat manager's events to the pages and resends the config every few seconds.

@@ -20,7 +20,8 @@ namespace floating {
 
 struct State;
 
-void addProperties(obs_properties_t *props);
+// chat: la fuente de chat puede elegir una disposición propia para la ventana.
+void addProperties(obs_properties_t *props, bool chat = false);
 void defaults(obs_data_t *settings);
 // Abre, cierra o ajusta la ventana según los ajustes. Desde cualquier hilo.
 void apply(overlay_source::OverlaySource *s, obs_data_t *settings);

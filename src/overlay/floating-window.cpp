@@ -52,7 +52,9 @@ class FloatingWindow;
 
 // Lo comparten la fuente, el hilo de gráficos (pinta en tex y copia a frame) y la ventana.
 struct State {
-	obs_source_t *browser = nullptr; // de la fuente; vive hasta después de close()
+	obs_source_t *browser = nullptr; // la que se pinta: la de la fuente o la propia
+	obs_source_t *own = nullptr;     // propia, con disposición distinta a la de la fuente
+	QString layout;                  // "same", "vertical" u "horizontal"
 	bool showing = false;
 
 	std::mutex frameMutex;
@@ -133,6 +135,30 @@ void renderFrame(void *param, uint32_t, uint32_t)
 	st->next ^= 1;
 }
 
+// Con disposición propia, la página tiene el tamaño de la ventana: en vertical, todo; en
+// horizontal, su ancho y el alto de una línea. Hilo de la interfaz.
+void syncOwnBrowser(obs_weak_source_t *weak, State &st, const QSize &window)
+{
+	if (!st.own)
+		return;
+	obs_source_t *source = obs_weak_source_get_source(weak);
+	if (!source)
+		return;
+	if (auto *s = static_cast<OverlaySource *>(obs_obj_get_data(source))) {
+		const QJsonObject config = overlay_source::configOf(s);
+		const int w = std::max(80, window.width());
+		const int h = st.layout == QLatin1String("horizontal") ? int(overlay_source::tickerHeight(config))
+									 : std::max(40, window.height());
+		obs_data_t *bs = overlay_source::browserSettings(s);
+		obs_data_set_int(bs, "width", w);
+		obs_data_set_int(bs, "height", h);
+		obs_source_update(st.own, bs);
+		obs_data_release(bs);
+		overlay_source::sendFloatConfig(s);
+	}
+	obs_source_release(source);
+}
+
 QString text(const char *key)
 {
 	return QString::fromUtf8(obs_module_text(key));
@@ -178,6 +204,10 @@ public:
 			QSize size(int(std::max(1u, obs_source_get_width(source))),
 				   int(std::max(1u, obs_source_get_height(source))));
 			size.scale(screen.width() / 3, screen.height() * 2 / 3, Qt::KeepAspectRatio);
+			if (state_->layout == QLatin1String("horizontal"))
+				size = QSize(screen.width() / 2, 80);
+			else if (state_->layout == QLatin1String("vertical"))
+				size = QSize(420, std::min(600, screen.height() * 2 / 3));
 			resize(size);
 			move(screen.right() - size.width() - 24, screen.bottom() - size.height() - 24);
 		}
@@ -199,6 +229,9 @@ public:
 		save_.setSingleShot(true);
 		save_.setInterval(500);
 		connect(&save_, &QTimer::timeout, this, [this] { saveGeometry(); });
+		fit_.setSingleShot(true);
+		fit_.setInterval(200);
+		connect(&fit_, &QTimer::timeout, this, [this] { syncOwnBrowser(weak_, *state_, size()); });
 		// Recién abierta se ve su borde unos segundos, para encontrarla aunque no haya mensajes.
 		outlineUntil_ = os_gettime_ns() + 4'000'000'000ULL;
 		QTimer::singleShot(4100, this, [this] { update(); });
@@ -338,6 +371,24 @@ protected:
 	{
 		QWidget::resizeEvent(event);
 		save_.start();
+		fit_.start();
+	}
+
+public:
+	// Se guarda en los ajustes de la fuente (sin actualizarla): vuelve a abrirse en el mismo lugar.
+	void saveGeometry()
+	{
+		obs_source_t *src = obs_weak_source_get_source(weak_);
+		if (!src)
+			return;
+		obs_data_t *settings = obs_source_get_settings(src);
+		const QRect g = geometry();
+		obs_data_set_int(settings, "float_x", g.x());
+		obs_data_set_int(settings, "float_y", g.y());
+		obs_data_set_int(settings, "float_w", g.width());
+		obs_data_set_int(settings, "float_h", g.height());
+		obs_data_release(settings);
+		obs_source_release(src);
 	}
 
 private:
@@ -355,28 +406,13 @@ private:
 		return e;
 	}
 
-	// Se guarda en los ajustes de la fuente (sin actualizarla): vuelve a abrirse en el mismo lugar.
-	void saveGeometry()
-	{
-		obs_source_t *src = obs_weak_source_get_source(weak_);
-		if (!src)
-			return;
-		obs_data_t *settings = obs_source_get_settings(src);
-		const QRect g = geometry();
-		obs_data_set_int(settings, "float_x", g.x());
-		obs_data_set_int(settings, "float_y", g.y());
-		obs_data_set_int(settings, "float_w", g.width());
-		obs_data_set_int(settings, "float_h", g.height());
-		obs_data_release(settings);
-		obs_source_release(src);
-	}
-
 	std::shared_ptr<State> state_;
 	obs_weak_source_t *weak_;
 	QImage frame_;
 	quint64 shown_ = 0;
 	QTimer poll_;
 	QTimer save_;
+	QTimer fit_;
 	bool clickThrough_ = false;
 	bool hover_ = false;
 	uint64_t outlineUntil_ = 0;
@@ -386,6 +422,7 @@ struct Options {
 	bool enabled = false;
 	bool clickThrough = false;
 	int opacity = 100;
+	QString layout = QStringLiteral("same");
 };
 
 Options readOptions(obs_data_t *settings)
@@ -394,6 +431,9 @@ Options readOptions(obs_data_t *settings)
 	o.enabled = obs_data_get_bool(settings, "float_window");
 	o.clickThrough = obs_data_get_bool(settings, "float_clickthrough");
 	o.opacity = int(obs_data_get_int(settings, "float_opacity"));
+	const QString layout = QString::fromUtf8(obs_data_get_string(settings, "float_layout"));
+	if (layout == QLatin1String("vertical") || layout == QLatin1String("horizontal"))
+		o.layout = layout;
 	return o;
 }
 
@@ -411,11 +451,27 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 	}
 	if (!s->browser)
 		return;
+	// Solo el chat tiene disposición; cambiarla abre la ventana de nuevo con otra página.
+	const QString layout = s->kind == overlay_source::Kind::Chat ? o.layout : QStringLiteral("same");
+	if (st && st->layout != layout) {
+		if (auto *window = static_cast<FloatingWindow *>(st->window.data()))
+			window->saveGeometry();
+		close(s);
+		st.reset();
+	}
 	if (!st) {
 		st = std::make_shared<State>();
+		st->layout = layout;
 		st->browser = s->browser;
+		if (layout != QLatin1String("same")) {
+			obs_data_t *bs = overlay_source::browserSettings(s);
+			st->own = obs_source_create_private("browser_source", "multichat-float", bs);
+			obs_data_release(bs);
+			if (st->own)
+				st->browser = st->own;
+		}
 		// La fuente de navegador se pausa si nadie la muestra: la ventana cuenta como mostrarla.
-		obs_source_inc_showing(s->browser);
+		obs_source_inc_showing(st->browser);
 		st->showing = true;
 		obs_data_t *settings = obs_source_get_settings(source);
 		st->window = new FloatingWindow(st, source, settings);
@@ -423,8 +479,17 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 		{
 			std::lock_guard<std::mutex> lock(s->floatingMutex);
 			s->floating = st;
+			s->floatBrowser = st->own;
+			s->floatLayout = layout;
 		}
 		obs_add_main_render_callback(renderFrame, st.get());
+	}
+	// La página propia sigue el tamaño de la ventana y los ajustes de la fuente (el alto de la
+	// cinta depende del tamaño de letra).
+	if (st->own && st->window) {
+		obs_weak_source_t *weak = obs_source_get_weak_source(source);
+		syncOwnBrowser(weak, *st, st->window->size());
+		obs_weak_source_release(weak);
 	}
 	if (auto *window = static_cast<FloatingWindow *>(st->window.data()))
 		window->setOptions(o.clickThrough, o.opacity);
@@ -432,12 +497,20 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 
 } // namespace
 
-void addProperties(obs_properties_t *props)
+void addProperties(obs_properties_t *props, bool chat)
 {
 	obs_properties_t *group = obs_properties_create();
 	obs_properties_add_group(props, "group_float", obs_module_text("Group.Float"), OBS_GROUP_NORMAL, group);
 	obs_property_t *on = obs_properties_add_bool(group, "float_window", obs_module_text("Float.Show"));
 	obs_property_set_long_description(on, obs_module_text("Float.Show.Help"));
+	if (chat) {
+		obs_property_t *layout = obs_properties_add_list(group, "float_layout", obs_module_text("Float.Layout"),
+								 OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+		obs_property_list_add_string(layout, obs_module_text("Float.Layout.Same"), "same");
+		obs_property_list_add_string(layout, obs_module_text("Source.Layout.Vertical"), "vertical");
+		obs_property_list_add_string(layout, obs_module_text("Source.Layout.Horizontal"), "horizontal");
+		obs_property_set_long_description(layout, obs_module_text("Float.Layout.Help"));
+	}
 	obs_property_t *only = obs_properties_add_bool(group, "float_only", obs_module_text("Float.Only"));
 	obs_property_set_long_description(only, obs_module_text("Float.Only.Help"));
 	obs_property_t *through =
@@ -452,6 +525,7 @@ void defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "float_window", false);
 	obs_data_set_default_bool(settings, "float_only", false);
+	obs_data_set_default_string(settings, "float_layout", "same");
 	obs_data_set_default_bool(settings, "float_clickthrough", false);
 	obs_data_set_default_int(settings, "float_opacity", 100);
 }
@@ -487,6 +561,7 @@ void close(OverlaySource *s)
 	{
 		std::lock_guard<std::mutex> lock(s->floatingMutex);
 		st.swap(s->floating);
+		s->floatBrowser = nullptr; // desde aquí nadie más le manda mensajes
 	}
 	if (!st)
 		return;
@@ -495,6 +570,8 @@ void close(OverlaySource *s)
 	if (st->showing && st->browser)
 		obs_source_dec_showing(st->browser);
 	st->browser = nullptr;
+	obs_source_release(st->own);
+	st->own = nullptr;
 	obs_enter_graphics();
 	gs_texrender_destroy(st->tex);
 	gs_stagesurface_destroy(st->stage[0]);

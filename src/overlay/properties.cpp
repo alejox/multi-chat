@@ -399,7 +399,7 @@ obs_properties_t *ov_properties(void *)
 	addPadding(advanced, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
 	addLineHeight(advanced, Kind::Chat);
 	addCustomCss(advanced);
-	floating::addProperties(props);
+	floating::addProperties(props, true);
 	hookAll(props, Kind::Chat);
 	return props;
 }
