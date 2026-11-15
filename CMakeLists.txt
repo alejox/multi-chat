@@ -135,11 +135,12 @@ elseif(OS_MACOS)
   target_sources(
     ${CMAKE_PROJECT_NAME}
     PRIVATE src/net/net-mac.mm src/tts/speech-backend-mac.mm src/tts/voice-source.cpp src/tts/voice-source.hpp
-            src/updater/install-mac.cpp src/updater/copy-tree.cpp
+            src/updater/install-mac.cpp src/updater/copy-tree.cpp src/overlay/floating-capture-mac.mm
   )
   target_link_libraries(
     ${CMAKE_PROJECT_NAME}
     PRIVATE "$<LINK_LIBRARY:FRAMEWORK,Foundation.framework>" "$<LINK_LIBRARY:FRAMEWORK,AVFoundation.framework>"
+            "$<LINK_LIBRARY:FRAMEWORK,AppKit.framework>"
   )
 else()
   # En Linux, Qt sí trae TLS, pero libcurl ya la tiene cualquier OBS. La voz usa espeak-ng, que se

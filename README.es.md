@@ -224,6 +224,7 @@ Para ver el chat mientras juegas con un solo monitor, abre las Propiedades de cu
 - **Muévela** arrastrándola y **cambia su tamaño** desde los bordes. Se vuelve a abrir donde la dejaste.
 - **Clic derecho** en ella: *Los clics atraviesan la ventana*, la opacidad y *Cerrar la ventana flotante*.
 - Con **Los clics atraviesan la ventana**, el ratón va al juego. Para volver a moverla, desmárcala en las Propiedades o usa el atajo *Multichat: ventana flotante, los clics la atraviesan o no* (**Ajustes → Atajos**).
+- **No sale en las capturas de pantalla:** en Windows (10 versión 2004 o superior) y macOS, una fuente de captura de pantalla de OBS no muestra la ventana flotante. En macOS 15 o superior, si aun así sale, marca *Ocultar OBS de la captura* en la fuente de captura de pantalla. En Linux el sistema no permite excluir una ventana: captura la ventana del juego en lugar de la pantalla completa.
 - Se ve sobre juegos **en ventana** o en **pantalla completa sin bordes**. En pantalla completa exclusiva ninguna ventana puede verse encima: así funciona el sistema.
 - No hace falta que la fuente se vea en la escena que transmites. Con **Solo en la ventana flotante (no se ve en OBS ni en la emisión)** no se dibuja en la escena: no sale en la vista previa, la emisión ni la grabación. Solo la ves tú, en la ventana.
 
