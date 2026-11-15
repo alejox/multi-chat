@@ -22,6 +22,21 @@
 #include <cstring>
 #include <functional>
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#ifndef WDA_EXCLUDEFROMCAPTURE
+#define WDA_EXCLUDEFROMCAPTURE 0x00000011
+#endif
+#elif defined(__APPLE__)
+void floating_exclude_from_capture(void *nsView);
+#endif
+
 namespace floating {
 
 using overlay_source::OverlaySource;
@@ -204,6 +219,20 @@ public:
 	}
 
 protected:
+	// La ventana es solo para quien transmite: se saca de las capturas de pantalla, para que una
+	// fuente de captura de pantalla de OBS no la muestre. Va en cada show: cambiar las banderas
+	// crea la ventana nativa de nuevo. Windows 10 2004+ y macOS; en Linux no hay forma (ni X11 ni
+	// Wayland dejan excluir una ventana): ahí se captura la ventana del juego, no la pantalla.
+	void showEvent(QShowEvent *event) override
+	{
+		QWidget::showEvent(event);
+#ifdef _WIN32
+		SetWindowDisplayAffinity(reinterpret_cast<HWND>(winId()), WDA_EXCLUDEFROMCAPTURE);
+#elif defined(__APPLE__)
+		floating_exclude_from_capture(reinterpret_cast<void *>(winId()));
+#endif
+	}
+
 	void paintEvent(QPaintEvent *) override
 	{
 		QPainter p(this);
