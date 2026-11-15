@@ -51,6 +51,8 @@ target_sources(
     src/overlay/properties.cpp
     src/overlay/source-internal.hpp
     src/overlay/source.cpp
+    src/overlay/floating-window.cpp
+    src/overlay/floating-window.hpp
     src/overlay/viewers-layout.cpp
     src/overlay/wiring.cpp
     src/platforms-registry.hpp

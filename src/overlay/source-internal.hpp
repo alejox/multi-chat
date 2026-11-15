@@ -29,12 +29,17 @@
 #include <cstdint>
 #include <cstring>
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
+
+namespace floating {
+struct State;
+}
 
 namespace overlay_source {
 
@@ -53,6 +58,9 @@ struct OverlaySource {
 	std::atomic<uint32_t> width{500};
 	std::atomic<uint32_t> height{600};
 	bool sized = false; // la de espectadores ya tomó el tamaño de su recuadro
+	// Ventana flotante (floating-window.cpp); vacío si está cerrada.
+	std::mutex floatingMutex;
+	std::shared_ptr<floating::State> floating;
 };
 
 // ---- Shared state (defined in wiring.cpp) ----

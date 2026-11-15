@@ -1,6 +1,7 @@
 // The properties window of each Multichat source.
 
 #include "source-internal.hpp"
+#include "floating-window.hpp"
 
 namespace overlay_source {
 
@@ -398,6 +399,7 @@ obs_properties_t *ov_properties(void *)
 	addPadding(advanced, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
 	addLineHeight(advanced, Kind::Chat);
 	addCustomCss(advanced);
+	floating::addProperties(props);
 	hookAll(props, Kind::Chat);
 	return props;
 }
@@ -443,6 +445,7 @@ obs_properties_t *vw_properties(void *)
 	addPlatforms(advanced);
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addCustomCss(advanced);
+	floating::addProperties(props);
 	hookAll(props, Kind::Viewers);
 	return props;
 }
@@ -465,6 +468,7 @@ obs_properties_t *ck_properties(void *)
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addCustomCss(advanced);
+	floating::addProperties(props);
 	hookAll(props, Kind::Clock);
 	return props;
 }
@@ -518,6 +522,7 @@ obs_properties_t *fe_properties(void *)
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addLineHeight(advanced, Kind::Featured);
 	addCustomCss(advanced);
+	floating::addProperties(props);
 	hookAll(props, Kind::Featured);
 	return props;
 }

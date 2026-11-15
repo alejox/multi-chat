@@ -41,6 +41,7 @@ A native OBS Studio 33+ plugin: no Python, no accounts, no API keys, no browser 
 | 🌐 **English and Spanish** | Everything follows the OBS language: menus, connection errors, on-screen sample messages and the notices Multichat builds (TikTok gifts; Starvios raids, redemptions, subscriptions and gifts). Twitch and YouTube notices arrive already written by the platform. |
 | 🛡️ **Moderation** | If a moderator deletes a message, or bans or times out someone, their messages disappear from the dock, the on-screen chat and the featured message. See [Moderation and filters](#-moderation-and-filters). |
 | 🚫 **Filters** | Hide bots (Nightbot, StreamElements, Streamlabs… are included), commands starting with `!` and blocked words, from the **Filters** tab of **Tools → Multichat…**. |
+| 🪟 **Floating window** | The chat (or any Multichat source) in a separate transparent window, always on top, to see it while you play on a single monitor. See [Floating window](#-floating-window-single-monitor). |
 | 🔇 **Mute a channel** | Click a channel in the dock to mute its messages in Multichat or show them again. It doesn't touch the platform. |
 | 🧪 **Test messages** | One switch (in the dock's gear and in Settings) that fills the dock with a test chat and makes the on-screen sources show sample messages and numbers while there's no chat. They never show while you stream. |
 | 🔄 **Updates** | OBS tells you when there's a new version and installs it for you after you accept. |
@@ -220,6 +221,16 @@ In **Tools → Multichat… → Filters** you can set:
 - **Blocked words**: one word or phrase per line. Whole words are compared, ignoring case and accents: *cat* hides "CAT" but not "category".
 
 Filters are saved right away and apply to messages that arrive from then on; hidden messages aren't read aloud either.
+
+### 🪟 Floating window (single monitor)
+
+To see the chat while you play on a single monitor, open the Properties of any Multichat source (chat, viewers, date and time or featured) and, in **Floating window (single monitor)**, tick **Also show in a floating window**. A separate window opens outside OBS, transparent and always on top, with exactly what that source shows: the same styles, layout and options.
+
+- **Move it** by dragging it, and **resize it** from its edges. It reopens where you left it.
+- **Right-click** it for *Clicks go through the window*, the opacity and *Close the floating window*.
+- With **Clicks go through the window** on, the mouse goes to the game. To move the window again, untick it in the Properties or use the hotkey *Multichat: floating window, clicks go through or not* (**Settings → Hotkeys**).
+- It shows over games in **windowed** or **borderless fullscreen** mode. In exclusive fullscreen no window can show on top: that's how the system works.
+- The source doesn't need to be visible in the scene you stream.
 
 ### 🔊 Read the chat aloud
 
