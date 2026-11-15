@@ -221,6 +221,7 @@ Los filtros se guardan al momento y se aplican a los mensajes que llegan a parti
 
 Para ver el chat mientras juegas con un solo monitor, abre las Propiedades de cualquier fuente Multichat (chat, espectadores, fecha y hora o destacado) y, en **Ventana flotante (un solo monitor)**, marca **Mostrar también en una ventana flotante**. Se abre una ventana aparte, fuera de OBS, transparente y siempre encima, con lo mismo que muestra esa fuente: los mismos estilos, disposición y opciones.
 
+- **Disposición en la ventana** (fuente de chat): *La misma de la fuente*, *Vertical* u *Horizontal*. Así la ventana puede ir en vertical aunque en la escena uses la cinta, o al revés; con disposición propia, el chat se adapta al tamaño de la ventana.
 - **Muévela** arrastrándola y **cambia su tamaño** desde los bordes. Se vuelve a abrir donde la dejaste.
 - **Clic derecho** en ella: *Los clics atraviesan la ventana*, la opacidad y *Cerrar la ventana flotante*.
 - Con **Los clics atraviesan la ventana**, el ratón va al juego. Para volver a moverla, desmárcala en las Propiedades o usa el atajo *Multichat: ventana flotante, los clics la atraviesan o no* (**Ajustes → Atajos**).

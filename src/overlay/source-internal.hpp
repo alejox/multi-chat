@@ -61,6 +61,9 @@ struct OverlaySource {
 	// Ventana flotante (floating-window.cpp); vacío si está cerrada.
 	std::mutex floatingMutex;
 	std::shared_ptr<floating::State> floating;
+	// Con disposición propia, la ventana tiene su fuente de navegador (van con floatingMutex).
+	obs_source_t *floatBrowser = nullptr;
+	QString floatLayout;
 	// "Solo en la ventana flotante": la fuente no se dibuja en la escena (lo lee el hilo de gráficos).
 	std::atomic<bool> floatOnly{false};
 };
@@ -96,6 +99,7 @@ template<typename Fn> void forEachSource(Fn &&fn)
 // ---- wiring.cpp: manager → pages ----
 void connectManager();
 void send(OverlaySource *s, const QJsonObject &payload);
+void sendFloatConfig(OverlaySource *s);
 QJsonObject configOf(const OverlaySource *s);
 void sendFeatured(OverlaySource *s);
 void sendAll(const QJsonObject &payload);

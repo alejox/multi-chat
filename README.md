@@ -235,6 +235,7 @@ Filters are saved right away and apply to messages that arrive from then on; hid
 
 To see the chat while you play on a single monitor, open the Properties of any Multichat source (chat, viewers, date and time or featured) and, in **Floating window (single monitor)**, tick **Also show in a floating window**. A separate window opens outside OBS, transparent and always on top, with exactly what that source shows: the same styles, layout and options.
 
+- **Layout in the window** (chat source): *Same as the source*, *Vertical* or *Horizontal*. The window can be vertical while the scene uses the ticker, or the other way round; with its own layout, the chat adapts to the window size.
 - **Move it** by dragging it, and **resize it** from its edges. It reopens where you left it.
 - **Right-click** it for *Clicks go through the window*, the opacity and *Close the floating window*.
 - With **Clicks go through the window** on, the mouse goes to the game. To move the window again, untick it in the Properties or use the hotkey *Multichat: floating window, clicks go through or not* (**Settings → Hotkeys**).
