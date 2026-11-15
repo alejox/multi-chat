@@ -409,6 +409,8 @@ void addProperties(obs_properties_t *props)
 	obs_properties_add_group(props, "group_float", obs_module_text("Group.Float"), OBS_GROUP_NORMAL, group);
 	obs_property_t *on = obs_properties_add_bool(group, "float_window", obs_module_text("Float.Show"));
 	obs_property_set_long_description(on, obs_module_text("Float.Show.Help"));
+	obs_property_t *only = obs_properties_add_bool(group, "float_only", obs_module_text("Float.Only"));
+	obs_property_set_long_description(only, obs_module_text("Float.Only.Help"));
 	obs_property_t *through =
 		obs_properties_add_bool(group, "float_clickthrough", obs_module_text("Float.ClickThrough"));
 	obs_property_set_long_description(through, obs_module_text("Float.ClickThrough.Help"));
@@ -420,6 +422,7 @@ void addProperties(obs_properties_t *props)
 void defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "float_window", false);
+	obs_data_set_default_bool(settings, "float_only", false);
 	obs_data_set_default_bool(settings, "float_clickthrough", false);
 	obs_data_set_default_int(settings, "float_opacity", 100);
 }
@@ -427,6 +430,8 @@ void defaults(obs_data_t *settings)
 void apply(OverlaySource *s, obs_data_t *settings)
 {
 	const Options o = readOptions(settings);
+	// Sin la ventana abierta no tendría sentido esconderla: se vería en ningún sitio.
+	s->floatOnly = o.enabled && obs_data_get_bool(settings, "float_only");
 	{
 		std::lock_guard<std::mutex> lock(s->floatingMutex);
 		if (!o.enabled && !s->floating)
