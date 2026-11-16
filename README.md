@@ -238,6 +238,7 @@ To see the chat while you play on a single monitor, open the Properties of any M
 
 - **Layout in the window** (chat source): *Same as the source*, *Vertical* or *Horizontal*. The window can be vertical while the scene uses the ticker, or the other way round; with its own layout, the chat adapts to the window size.
 - **Date and time in the window** (chat source): *Same as the source*, *Show* or *Hide*, without changing the source.
+- **Style in the window** (chat source): *Same as the source* or *Clean chat (no backgrounds)*, which shows only the message text even if the source uses a style such as GTA 6.
 - **Move it** by dragging it, and **resize it** from its edges. It reopens where you left it.
 - **Right-click** it for *Clicks go through the window*, the opacity and *Close the floating window*.
 - With **Clicks go through the window** on, the mouse goes to the game. To move the window again, untick it in the Properties or use the hotkey *Multichat: floating window, clicks go through or not* (**Settings → Hotkeys**).

@@ -224,6 +224,7 @@ Para ver el chat mientras juegas con un solo monitor, abre las Propiedades de cu
 
 - **Disposición en la ventana** (fuente de chat): *La misma de la fuente*, *Vertical* u *Horizontal*. Así la ventana puede ir en vertical aunque en la escena uses la cinta, o al revés; con disposición propia, el chat se adapta al tamaño de la ventana.
 - **Fecha y hora en la ventana** (fuente de chat): *Igual que en la fuente*, *Mostrar* u *Ocultar*, sin cambiar la fuente.
+- **Estilo en la ventana** (fuente de chat): *El mismo de la fuente* o *Chat limpio (sin fondos)*, que muestra solo el texto de los mensajes aunque la fuente use un estilo como GTA 6.
 - **Muévela** arrastrándola y **cambia su tamaño** desde los bordes. Se vuelve a abrir donde la dejaste.
 - **Clic derecho** en ella: *Los clics atraviesan la ventana*, la opacidad y *Cerrar la ventana flotante*.
 - Con **Los clics atraviesan la ventana**, el ratón va al juego. Para volver a moverla, desmárcala en las Propiedades o usa el atajo *Multichat: ventana flotante, los clics la atraviesan o no* (**Ajustes → Atajos**).

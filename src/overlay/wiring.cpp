@@ -113,12 +113,18 @@ void sendFloatConfig(OverlaySource *s)
 	QJsonObject config = configOf(s);
 	config.insert("streaming", streaming.load());
 	config.insert("sample", sampleMessages.load());
-	// layout = "disposición|fecha y hora" (ver floating-window.cpp); "same" deja lo de la fuente.
+	// layout = "disposición|fecha y hora|estilo" (ver floating-window.cpp); "same" deja lo de la fuente.
 	const QString ownLayout = layout.section('|', 0, 0), ownClock = layout.section('|', 1, 1);
 	if (ownLayout != QLatin1String("same"))
 		config.insert("layout", ownLayout);
 	if (ownClock != QLatin1String("same"))
 		config.insert("clock", ownClock == QLatin1String("show"));
+	// Chat limpio: sin el fondo de los mensajes ni el general, y sin el estilo de fondo.
+	if (layout.section('|', 2, 2) == QLatin1String("clean")) {
+		config.insert("background", false);
+		config.insert("panel", false);
+		config.insert("style", QStringLiteral("solid"));
+	}
 	sendTo(own, QJsonObject{{"type", "config"}, {"config", config}});
 	obs_source_release(own);
 }
