@@ -427,6 +427,7 @@ struct Options {
 	int opacity = 100;
 	QString layout = QStringLiteral("same");
 	QString clock = QStringLiteral("same");
+	QString style = QStringLiteral("same");
 };
 
 Options readOptions(obs_data_t *settings)
@@ -441,6 +442,8 @@ Options readOptions(obs_data_t *settings)
 	const QString clock = QString::fromUtf8(obs_data_get_string(settings, "float_clock"));
 	if (clock == QLatin1String("show") || clock == QLatin1String("hide"))
 		o.clock = clock;
+	if (strcmp(obs_data_get_string(settings, "float_style"), "clean") == 0)
+		o.style = QStringLiteral("clean");
 	return o;
 }
 
@@ -459,10 +462,12 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 	if (!s->browser)
 		return;
 	// Solo el chat tiene disposición; cambiarla abre la ventana de nuevo con otra página.
-	// "disposición|fecha y hora": con las dos en "same" la ventana copia la imagen de la fuente;
-	// si no, tiene su propia página con esos cambios.
-	const QString kShared = QStringLiteral("same|same");
-	const QString layout = s->kind == overlay_source::Kind::Chat ? o.layout + QLatin1Char('|') + o.clock : kShared;
+	// "disposición|fecha y hora|estilo": con todo en "same" la ventana copia la imagen de la
+	// fuente; si no, tiene su propia página con esos cambios.
+	const QString kShared = QStringLiteral("same|same|same");
+	const QString layout = s->kind == overlay_source::Kind::Chat
+				       ? o.layout + QLatin1Char('|') + o.clock + QLatin1Char('|') + o.style
+				       : kShared;
 	if (st && st->layout != layout) {
 		if (auto *window = static_cast<FloatingWindow *>(st->window.data()))
 			window->saveGeometry();
@@ -526,6 +531,11 @@ void addProperties(obs_properties_t *props, bool chat)
 		obs_property_list_add_string(clock, obs_module_text("Float.Clock.Show"), "show");
 		obs_property_list_add_string(clock, obs_module_text("Float.Clock.Hide"), "hide");
 		obs_property_set_long_description(clock, obs_module_text("Float.Clock.Help"));
+		obs_property_t *style = obs_properties_add_list(group, "float_style", obs_module_text("Float.Style"),
+								OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+		obs_property_list_add_string(style, obs_module_text("Float.Style.Same"), "same");
+		obs_property_list_add_string(style, obs_module_text("Float.Style.Clean"), "clean");
+		obs_property_set_long_description(style, obs_module_text("Float.Style.Help"));
 	}
 	obs_property_t *only = obs_properties_add_bool(group, "float_only", obs_module_text("Float.Only"));
 	obs_property_set_long_description(only, obs_module_text("Float.Only.Help"));
@@ -541,7 +551,7 @@ void addProperties(obs_properties_t *props, bool chat)
 void showProperties(obs_properties_t *props, obs_data_t *settings)
 {
 	const bool on = obs_data_get_bool(settings, "float_window");
-	for (const char *key : {"float_layout", "float_clock", "float_only", "float_clickthrough", "float_opacity"})
+	for (const char *key : {"float_layout", "float_clock", "float_style", "float_only", "float_clickthrough", "float_opacity"})
 		if (obs_property_t *p = obs_properties_get(props, key))
 			obs_property_set_visible(p, on);
 }
@@ -552,6 +562,7 @@ void defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "float_only", false);
 	obs_data_set_default_string(settings, "float_layout", "same");
 	obs_data_set_default_string(settings, "float_clock", "same");
+	obs_data_set_default_string(settings, "float_style", "same");
 	obs_data_set_default_bool(settings, "float_clickthrough", false);
 	obs_data_set_default_int(settings, "float_opacity", 100);
 }
