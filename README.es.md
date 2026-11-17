@@ -368,6 +368,12 @@ tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts),
 
 ¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra. En Linux, libcurl (que OBS ya usa) hace HTTPS y la conexión TLS del WebSocket; el protocolo WebSocket va en `src/net/net-linux.cpp`.
 
+## 🤖 Cómo está hecho este plugin
+
+AC Multichat se desarrolla con la ayuda de un asistente de programación con IA (Claude): gran parte del código se escribió con él. Alejandro (Alejoxgaming) diseña las funciones, prueba cada versión en sus propios directos en Windows, macOS y Linux, decide qué se publica y mantiene el proyecto. El historial de commits muestra qué cambios se hicieron con ayuda de IA.
+
+Si encuentras un fallo, [abre un issue](../../issues): cada reporte lo lee y lo responde una persona.
+
 ## 📄 Licencia
 
 GPL-2.0 o posterior, como todo plugin que enlaza con libobs: mira [LICENSE](LICENSE).
