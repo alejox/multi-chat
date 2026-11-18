@@ -387,7 +387,7 @@ Why native networking and not QtNetwork? OBS 33 doesn't ship Qt's TLS plugins, s
 
 ## ☕ Support
 
-AC Multichat is free and will stay free. If it saves you time on your streams, you can [buy me a coffee on Ko-fi](https://ko-fi.com/alejoxcode): it pays for development hours and the next features. The plugin never asks on its own; the link is at the bottom of the dock and in its gear menu.
+AC Multichat is free and will stay free. If it saves you time on your streams, you can [buy me a coffee on Ko-fi](https://ko-fi.com/alejoxcode): it pays for development hours and the next features. The plugin never asks on its own; the link is at the end of each source's Properties and in the dock's gear menu.
 
 ## 🤖 How this plugin is made
 
