@@ -3,6 +3,7 @@
 #include "first-run-wizard.hpp"
 #include "flow-layout.hpp"
 #include "image-cache.hpp"
+#include "support-dialog.hpp"
 #include "ui-common.hpp"
 #include "../i18n.hpp"
 #include "../chat-manager.hpp"
@@ -228,6 +229,16 @@ ChatDock::ChatDock(QWidget *parent) : QWidget(parent)
 
 	view_ = new ChatView(this);
 	root->addWidget(view_, 1);
+
+	// Al pie, discreto: abre el mensaje de apoyo con el enlace a Ko-fi. Nunca aparece solo.
+	auto *support = new QToolButton(this);
+	support->setText(QStringLiteral("☕ ") + i18n::tr("Support.Link"));
+	support->setAutoRaise(true);
+	support->setCursor(Qt::PointingHandCursor);
+	support->setStyleSheet("QToolButton { border: none; color: palette(mid); padding: 2px; }"
+			       "QToolButton:hover { color: palette(text); }");
+	connect(support, &QToolButton::clicked, this, [this] { open_support_dialog(this); });
+	root->addWidget(support, 0, Qt::AlignHCenter);
 	view_->setFontSize(fontSize_);
 	view_->setHiddenSources(hidden_);
 	view_->setShowTimestamps(timestamps_);
@@ -360,6 +371,8 @@ void ChatDock::fillGearMenu(QMenu *menu)
 	menu->addSeparator();
 	menu->addAction(i18n::tr("Dock.Menu.Wizard"), this, [this] { open_first_run_wizard(this); });
 	menu->addAction(i18n::tr("Dock.Menu.CheckUpdates"), this, [] { Updater::instance().check(true); });
+	menu->addSeparator();
+	menu->addAction(QStringLiteral("☕ ") + i18n::tr("Support.Link"), this, [this] { open_support_dialog(this); });
 }
 
 void ChatDock::clearWithUndo()

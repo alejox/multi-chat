@@ -104,6 +104,8 @@ target_sources(
     src/ui/profile-cache.hpp
     src/ui/settings-dialog.cpp
     src/ui/settings-dialog.hpp
+    src/ui/support-dialog.cpp
+    src/ui/support-dialog.hpp
     src/ui/ui-common.cpp
     src/ui/ui-common.hpp
 )

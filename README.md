@@ -10,6 +10,7 @@
 ![Linux](https://img.shields.io/badge/Linux-Ubuntu%2024.04%2B-E95420?logo=ubuntu&logoColor=white)
 ![OBS](https://img.shields.io/badge/OBS-33%2B-302E31?logo=obsstudio&logoColor=white)
 [![License](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-buy%20me%20a%20coffee-FF5E5B?logo=kofi&logoColor=white)](https://ko-fi.com/alejoxcode)
 
 **English** · [Español](README.es.md)
 
@@ -383,6 +384,10 @@ tests/                     tests without OBS: parsers (test-chat), voice (test-t
 
 Why native networking and not QtNetwork? OBS 33 doesn't ship Qt's TLS plugins, so HTTPS through QtNetwork doesn't work inside OBS. WinHTTP and NSURLSession handle HTTPS and WebSocket with no extra dependencies. On Linux, libcurl (which OBS already uses) does HTTPS and the WebSocket TLS connection; the WebSocket protocol lives in `src/net/net-linux.cpp`.
 </details>
+
+## ☕ Support
+
+AC Multichat is free and will stay free. If it saves you time on your streams, you can [buy me a coffee on Ko-fi](https://ko-fi.com/alejoxcode): it pays for development hours and the next features. The plugin never asks on its own; the link is at the bottom of the dock and in its gear menu.
 
 ## 🤖 How this plugin is made
 
