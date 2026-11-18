@@ -371,7 +371,7 @@ tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts),
 
 ## ☕ Apoyar
 
-AC Multichat es gratis y lo va a seguir siendo. Si te ahorra tiempo en tus directos, puedes [invitarme un café en Ko-fi](https://ko-fi.com/alejoxcode): paga horas de desarrollo y las próximas funciones. El plugin nunca lo pide solo; el enlace está al pie del dock y en el menú de su rueda.
+AC Multichat es gratis y lo va a seguir siendo. Si te ahorra tiempo en tus directos, puedes [invitarme un café en Ko-fi](https://ko-fi.com/alejoxcode): paga horas de desarrollo y las próximas funciones. El plugin nunca lo pide solo; el enlace está al final de las Propiedades de cada fuente y en el menú de la rueda del dock.
 
 ## 🤖 Cómo está hecho este plugin
 

@@ -2,6 +2,11 @@
 
 #include "source-internal.hpp"
 #include "floating-window.hpp"
+#include "../ui/support-dialog.hpp"
+
+#include <obs-frontend-api.h>
+
+#include <QWidget>
 
 namespace overlay_source {
 
@@ -287,6 +292,19 @@ void hookAll(obs_properties_t *props, Kind kind)
 	}
 }
 
+// Al final de las propiedades, discreto: abre el mensaje de apoyo con el enlace a Ko-fi.
+bool ov_open_support(obs_properties_t *, obs_property_t *, void *)
+{
+	open_support_dialog(static_cast<QWidget *>(obs_frontend_get_main_window()));
+	return false;
+}
+
+void addSupportButton(obs_properties_t *props)
+{
+	const QByteArray label = (QStringLiteral("☕ ") + i18n::tr("Support.Link")).toUtf8();
+	obs_properties_add_button2(props, "support", label.constData(), ov_open_support, nullptr);
+}
+
 bool ov_open_settings(obs_properties_t *, obs_property_t *, void *)
 {
 	open_multichat_settings_from_source();
@@ -403,6 +421,7 @@ obs_properties_t *ov_properties(void *)
 	addPadding(advanced, "pad_y", "pad_x", "Source.PadY", "Source.PadX");
 	addLineHeight(advanced, Kind::Chat);
 	addCustomCss(advanced);
+	addSupportButton(props);
 	hookAll(props, Kind::Chat);
 	return props;
 }
@@ -445,6 +464,7 @@ obs_properties_t *vw_properties(void *)
 	addPlatforms(advanced);
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addCustomCss(advanced);
+	addSupportButton(props);
 	hookAll(props, Kind::Viewers);
 	return props;
 }
@@ -467,6 +487,7 @@ obs_properties_t *ck_properties(void *)
 	obs_properties_t *advanced = addGroup(props, "group_advanced", "Group.Advanced");
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addCustomCss(advanced);
+	addSupportButton(props);
 	hookAll(props, Kind::Clock);
 	return props;
 }
@@ -520,6 +541,7 @@ obs_properties_t *fe_properties(void *)
 	addPadding(advanced, "pad_y", "pad_x", "Box.PadY", "Box.PadX");
 	addLineHeight(advanced, Kind::Featured);
 	addCustomCss(advanced);
+	addSupportButton(props);
 	hookAll(props, Kind::Featured);
 	return props;
 }
