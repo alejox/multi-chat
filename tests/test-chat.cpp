@@ -2000,10 +2000,10 @@ private slots:
 		withNotes.insert("body", "### Español\n- Chat **más rápido**\n- Menos <cortes>\n\n### English\n- Faster chat\n");
 		const QString notes = parseLatestRelease(withNotes, "-macos.zip").notes;
 		QCOMPARE(notesHtml(notes, true),
-			 QString::fromUtf8("<ul><li>Chat <b>más rápido</b></li><li>Menos &lt;cortes&gt;</li></ul>"));
-		QCOMPARE(notesHtml(notes, false), QString("<ul><li>Faster chat</li></ul>"));
-		QCOMPARE(notesHtml("### English\n- Only this", true), QString("<ul><li>Only this</li></ul>"));
-		QCOMPARE(notesHtml("* a\n- b", true), QString("<ul><li>a</li><li>b</li></ul>"));
+			 QString::fromUtf8("<ul style=\"margin-left:14px; -qt-list-indent:0;\"><li>Chat <b>más rápido</b></li><li>Menos &lt;cortes&gt;</li></ul>"));
+		QCOMPARE(notesHtml(notes, false), QString("<ul style=\"margin-left:14px; -qt-list-indent:0;\"><li>Faster chat</li></ul>"));
+		QCOMPARE(notesHtml("### English\n- Only this", true), QString("<ul style=\"margin-left:14px; -qt-list-indent:0;\"><li>Only this</li></ul>"));
+		QCOMPARE(notesHtml("* a\n- b", true), QString("<ul style=\"margin-left:14px; -qt-list-indent:0;\"><li>a</li><li>b</li></ul>"));
 		QVERIFY(notesHtml("**Full Changelog**: https://x/compare/a...b", true).isEmpty());
 		QVERIFY(notesHtml("", false).isEmpty());
 	}
