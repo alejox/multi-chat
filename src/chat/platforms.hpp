@@ -10,6 +10,7 @@
 #include <QHash>
 #include <QList>
 #include <QPair>
+#include <QSet>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QString>
@@ -152,6 +153,23 @@ QJsonObject toDeletion(const QJsonObject &action);
 // In the HTML of the chat page: the Super Chats YouTube has pinned right now, as messages with
 // paid.pin = seconds left, "pinned" (on screen they are only pinned) and "recovered" (not read aloud).
 QJsonArray pinnedFromPage(const QString &html, const QString &channel);
+// In the HTML of the chat page: the continuation to start reading from. Prefers "Live chat" (every
+// message) over the default "Top chat" (filtered); falls back to the first one in the page.
+QString firstContinuation(const QString &html);
+// How long to wait before the next poll (ms): 2 s while messages keep coming, up to 5 s after
+// several empty polls, never more than what YouTube asked for.
+int pollDelay(int timeoutMs, int emptyPolls);
+// The last message ids seen, to not repeat messages after a reconnection.
+class SeenIds {
+public:
+	// false if the id was already there. An empty id always counts as new.
+	bool add(const QString &id);
+
+private:
+	static constexpr int kMax = 600;
+	QSet<QString> set_;
+	QStringList order_;
+};
 // Siguiente continuación del chat y cuánto esperar (ms).
 QString nextContinuation(const QJsonObject &liveChatContinuation, int &timeoutMs);
 // Busca el id del vídeo en una URL (watch?v=, youtu.be/, /live/).
