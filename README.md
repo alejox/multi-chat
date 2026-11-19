@@ -1,6 +1,8 @@
 <div align="center">
 
-# 💬 AC Multichat
+<img src="docs/logo.png" alt="AC Multichat" width="128">
+
+# AC Multichat
 
 **Twitch, YouTube, Kick, TikTok and Starvios chats together in one OBS dock and on your scene. It detects when you multistream and connects only the chats of the platforms where you're live.**
 
