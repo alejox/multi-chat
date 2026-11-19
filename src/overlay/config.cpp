@@ -197,6 +197,8 @@ QJsonObject readConfig(Kind kind, obs_data_t *settings)
 		{"clockPosition", obs_data_get_string(settings, "clock_position")},
 		{"fit", obs_data_get_bool(settings, "fit_canvas")},
 		{"tickerWidth", (int)obs_data_get_int(settings, "ticker_width")},
+		{"paidColors", obs_data_get_bool(settings, "paid_colors")},
+		{"paidPin", obs_data_get_bool(settings, "paid_pin")},
 	};
 	readBoxStyle(config, settings, "", "bg");
 	readBoxStyle(config, settings, "panel_", "panel");

@@ -102,7 +102,17 @@ function build(m) {
   const head = el('div', 'head');
   for (const b of Array.isArray(m.badges) ? m.badges : [])
     if (own(BADGES, b)) head.appendChild(el('span', 'badge b-' + b, badgeLabel(b, config)));
-  if (m.amount) head.appendChild(el('span', 'amount', m.amount));
+  if (m.amount) {
+    const amount = el('span', 'amount', m.amount);
+    // Super Chat de YouTube: el monto con el color de su nivel.
+    const tier = m.paid && typeof m.paid.body === 'string' && /^#[0-9a-f]{6}$/i.test(m.paid.body) ? m.paid.body : null;
+    if (tier) {
+      const [r, g, b] = [1, 3, 5].map(i => parseInt(tier.slice(i, i + 2), 16));
+      amount.style.background = tier;
+      amount.style.color = 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#000' : '#fff';
+    }
+    head.appendChild(amount);
+  }
   const author = el('span', 'author', m.author || '');
   author.style.color = authorColor(config, m);
   head.appendChild(author);

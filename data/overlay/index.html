@@ -36,6 +36,29 @@
   .body { font-weight: var(--fw, 500); }
   .emote { height: 1.6em; vertical-align: middle; margin: -.3em .05em; }
   .noicons .pf, .nobadges .badge { display: none; }
+  /* Super Chats de YouTube: tarjeta de dos franjas con los colores que manda YouTube según el
+     monto (--ph/--pb fondos, --pht/--pbt textos). Mandan sobre el estilo de fondo elegido. */
+  html body .msg.paid { padding: 0 !important; border: 0 !important; border-radius: max(6px, var(--bg-radius)) !important;
+    background: var(--pb) !important; color: var(--pbt); overflow: hidden; text-shadow: none !important;
+    box-shadow: 0 2px 8px #0006 !important; clip-path: none !important; font-family: inherit; }
+  html body .msg.paid::after { content: none !important; }
+  .paid-h { display: flex; align-items: center; background: var(--ph); color: var(--pht); padding: .2em .55em; font-weight: 800; }
+  .paid-h .amount { margin: 0 0 0 auto; padding-left: .8em; background: none; color: inherit; font-size: .95em; }
+  html body .msg.paid .author { color: var(--pht) !important; text-shadow: none !important; text-transform: none; letter-spacing: 0; }
+  .paid-b { padding: .25em .55em; font-weight: 600; }
+  html body .msg.paid .body { color: var(--pbt) !important; }
+  .paid-b .sticker { display: block; height: 3.2em; margin: .1em 0; }
+  body.h .msg.paid { display: inline-flex; align-items: stretch; }
+  body.h .paid-b .sticker { height: 1.5em; display: inline-block; vertical-align: middle; margin: 0; }
+  /* Fijados arriba (solo en vertical): una píldora por Super Chat, con el tiempo que le queda. */
+  #pins { display: none; position: absolute; left: var(--pad-x); right: var(--pad-x); top: calc(var(--pins-top, 0px) + var(--pad-y));
+    flex-wrap: wrap; gap: .3em; z-index: 2; }
+  body:not(.h) #pins:not(:empty) { display: flex; }
+  .pin { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: .35em; max-width: 100%;
+    padding: .12em .7em .2em; border-radius: 999px; font-size: .72em; font-weight: 800; white-space: nowrap;
+    text-shadow: none; box-shadow: 0 2px 6px #0006; animation: in .25s ease-out; }
+  .pin span { overflow: hidden; text-overflow: ellipsis; }
+  .pin i { position: absolute; left: 0; bottom: 0; height: .16em; width: 100%; background: #0007; transform-origin: left; }
   /* Fondo general detrás de todo el chat. */
   #panel { display: none; position: fixed; inset: 0; box-sizing: border-box; background: rgba(var(--panel-rgb), var(--panel-alpha));
     border-radius: var(--panel-radius); border: var(--panel-bw) solid rgb(var(--panel-brgb)); }
@@ -65,6 +88,7 @@
 <body>
 <div id="panel"></div>
 <div id="list"></div>
+<div id="pins"></div>
 <div id="clock"><span class="bar"></span><span id="clock-text"></span></div>
 <script src="icons.js"></script>
 <script src="overlay.js"></script>
@@ -90,7 +114,105 @@ function forgetAll() {
 }
 const list = document.getElementById('list');
 
+// Colores de un Super Chat, solo si son #rrggbb; el texto, negro o blanco según el fondo.
+function paidOf(m) {
+  if (config.paidColors === false || !m.paid || typeof m.paid !== 'object') return null;
+  const hex = v => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null);
+  const onColor = c => {
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+    return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#000000' : '#ffffff';
+  };
+  const body = hex(m.paid.body), header = hex(m.paid.header) || body;
+  if (!body) return null;
+  return { body, header, bodyText: hex(m.paid.bodyText) || onColor(body), headerText: hex(m.paid.headerText) || onColor(header),
+    pin: Math.max(0, Number(m.paid.pin) || 0) };
+}
+
+function renderBody(m, authorColorValue) {
+  const body = el('span', 'body');
+  if (m.action) body.style.color = authorColorValue;
+  for (const p of m.parts || []) {
+    const src = p.type === 'emote' ? safeUrl(p.url) : null;
+    if (p.type === 'emote' && !src) {
+      body.appendChild(document.createTextNode(p.name || ''));
+    } else if (p.type === 'emote') {
+      const img = el('img', 'emote');
+      img.src = src;
+      img.alt = p.name;
+      img.onerror = () => img.replaceWith(document.createTextNode(p.name));
+      body.appendChild(img);
+    } else {
+      body.appendChild(document.createTextNode(p.text));
+    }
+  }
+  return body;
+}
+
+// Tarjeta de un Super Chat: franja con el nombre y el monto, y debajo el mensaje o el sticker.
+function renderPaid(m, paid) {
+  const row = el('div', 'msg paid');
+  row.dataset.id = m.id || '';
+  row.dataset.source = m.source || '';
+  for (const [name, value] of [['--ph', paid.header], ['--pb', paid.body], ['--pht', paid.headerText], ['--pbt', paid.bodyText]])
+    row.style.setProperty(name, value);
+  const head = el('div', 'paid-h');
+  head.appendChild(platformIcon(m.platform));
+  for (const b of m.badges || []) if (BADGES[b]) head.appendChild(el('span', 'badge b-' + b, badgeLabel(b, config)));
+  head.appendChild(el('span', 'author', m.author));
+  if (m.amount) head.appendChild(el('span', 'amount', m.amount));
+  row.appendChild(head);
+  const sticker = safeUrl(m.sticker);
+  if (sticker || (m.parts && m.parts.length)) {
+    const body = el('div', 'paid-b');
+    if (m.parts && m.parts.length) body.appendChild(renderBody(m, paid.bodyText));
+    if (sticker) {
+      const img = el('img', 'sticker');
+      img.src = sticker;
+      img.alt = '';
+      img.onerror = () => { img.remove(); if (!body.childNodes.length) body.remove(); };
+      body.appendChild(img);
+    }
+    row.appendChild(body);
+  }
+  return row;
+}
+
+// Fijados: como en YouTube, los Super Chats de cierto monto quedan arriba un tiempo.
+const pins = document.getElementById('pins');
+function layoutPins() {
+  document.documentElement.style.setProperty('--pins-top', list.style.top || '0px');
+  list.style.paddingTop = pins.children.length && config.layout !== 'horizontal'
+    ? `calc(var(--pad-y) + ${pins.offsetHeight + 6}px)` : '';
+}
+function unpin(chip) {
+  clearTimeout(chip.timer);
+  chip.remove();
+  layoutPins();
+  trimOverflow();
+}
+function pin(m, paid) {
+  if (config.paidPin === false || !paid.pin) return;
+  while (pins.children.length >= 4) unpin(pins.firstChild);
+  const chip = el('div', 'pin');
+  chip.dataset.id = m.id || '';
+  chip.dataset.source = m.source || '';
+  chip.style.background = paid.body;
+  chip.style.color = paid.bodyText;
+  chip.appendChild(el('span', '', m.amount ? `${m.author} · ${m.amount}` : m.author));
+  const bar = el('i');
+  chip.appendChild(bar);
+  pins.appendChild(chip);
+  bar.animate([{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }], { duration: paid.pin * 1000, fill: 'forwards' });
+  chip.timer = setTimeout(() => unpin(chip), paid.pin * 1000);
+  layoutPins();
+}
+function clearPins() {
+  for (const chip of [...pins.children]) unpin(chip);
+}
+
 function render(m) {
+  const paid = paidOf(m);
+  if (paid) return renderPaid(m, paid);
   const row = el('div', 'msg' + (m.kind === 'highlight' ? ' hl' : ''));
   row.dataset.id = m.id || '';
   row.dataset.source = m.source || '';
@@ -104,23 +226,7 @@ function render(m) {
   row.appendChild(author);
   if (m.parts && m.parts.length) {
     row.appendChild(document.createTextNode(m.action ? ' ' : ': '));
-    const body = el('span', 'body');
-    if (m.action) body.style.color = author.style.color;
-    for (const p of m.parts) {
-      const src = p.type === 'emote' ? safeUrl(p.url) : null;
-      if (p.type === 'emote' && !src) {
-        body.appendChild(document.createTextNode(p.name || ''));
-      } else if (p.type === 'emote') {
-        const img = el('img', 'emote');
-        img.src = src;
-        img.alt = p.name;
-        img.onerror = () => img.replaceWith(document.createTextNode(p.name));
-        body.appendChild(img);
-      } else {
-        body.appendChild(document.createTextNode(p.text));
-      }
-    }
-    row.appendChild(body);
+    row.appendChild(renderBody(m, author.style.color));
   }
   return row;
 }
@@ -218,7 +324,7 @@ function updateClock() {
   list.style.right = '';
   list.style.top = '';
   list.style.bottom = '';
-  if (!config.clock) return;
+  if (!config.clock) return layoutPins();
   clockText.textContent = clockLabel(new Date(), { date: config.clockDate, time: config.clockTime,
     seconds: config.clockSeconds, hour24: config.clockHour24 });
   document.body.classList.toggle('nobar', config.clockBar === false);
@@ -230,6 +336,7 @@ function updateClock() {
   const inset = `${clock.offsetHeight + Math.max(0, config.spacing)}px`;
   if (config.clockPosition === 'bottom') list.style.bottom = inset;
   else list.style.top = inset;
+  layoutPins();
 }
 setInterval(updateClock, 1000);
 
@@ -237,6 +344,7 @@ function applyConfig(c) {
   const { layout, scroll } = config;
   config = { ...config, ...c };
   if (config.layout !== layout || config.scroll !== scroll) list.textContent = '';
+  if (config.paidPin === false || config.paidColors === false) clearPins();
   document.body.classList.toggle('h', config.layout === 'horizontal');
   document.documentElement.style.setProperty('--fs', config.size + 'px');
   const root = document.documentElement.style;
@@ -271,12 +379,17 @@ function removeDeleted(d) {
     const hit = d.all ? row.dataset.source === d.source : ids.has(row.dataset.id);
     if (hit && row.dataset.source === (d.source || '')) remove(row);
   }
+  for (const chip of [...pins.children]) {
+    const hit = d.all ? chip.dataset.source === d.source : ids.has(chip.dataset.id);
+    if (hit && chip.dataset.source === (d.source || '')) unpin(chip);
+  }
 }
 
 // Undo after clearing: the plugin sends the history again (oldest first). The list starts
 // over with it; the ticker only gets the last few so it does not replay a long backlog.
 function restore(messages) {
   list.textContent = '';
+  clearPins();
   forgetAll();
   const items = (Array.isArray(messages) ? messages : []).filter(m => m && typeof m === 'object');
   for (const m of config.layout === 'horizontal' ? items.slice(-3) : items) {
@@ -291,8 +404,10 @@ window.addEventListener('multichat', e => {
   else if (data.type === 'message' && data.message) {
     if (data.message.channel !== 'demo') lastReal = Date.now();
     add(data.message);
+    const paid = paidOf(data.message);
+    if (paid) pin(data.message, paid);
   } else if (data.type === 'delete') removeDeleted(data);
-  else if (data.type === 'clear') list.textContent = '';
+  else if (data.type === 'clear') { list.textContent = ''; clearPins(); }
   else if (data.type === 'restore') restore(data.messages);
 });
 
@@ -307,6 +422,8 @@ const SAMPLES = [
   ['twitch', 'pixel_pancho', '#1E90FF', ['moderator'], 'GG'],
   ['youtube', 'Carlos R.', '', [], "let's gooo 💪"],
 ];
+// Con los mensajes de prueba también sale un Super Chat de ejemplo, para ver sus colores.
+const SAMPLE_PAID = { header: '#e65100', body: '#f57c00', headerText: '#ffffff', bodyText: '#ffffff', pin: 20 };
 let sample = 0;
 setInterval(() => {
   if (!config.sample || config.streaming || Date.now() - lastReal < 30000) return;
@@ -314,7 +431,11 @@ setInterval(() => {
   const [platform, author, color, badges, fallback] = SAMPLES[index];
   const texts = Array.isArray(config.samples) ? config.samples : [];
   const text = typeof texts[index] === 'string' && texts[index] ? texts[index] : fallback;
-  add({ id: 'sample-' + sample, platform, author, color, badges, parts: [{ type: 'text', text }], kind: 'chat' });
+  const message = { id: 'sample-' + sample, platform, author, color, badges, parts: [{ type: 'text', text }], kind: 'chat' };
+  if (index === SAMPLES.length - 1) Object.assign(message, { kind: 'highlight', amount: '$20.00', paid: SAMPLE_PAID });
+  add(message);
+  const paid = paidOf(message);
+  if (paid) pin(message, paid);
 }, 2500);
 
 applyConfig({});
