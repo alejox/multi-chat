@@ -408,6 +408,11 @@ obs_properties_t *ov_properties(void *)
 	addPlatforms(advanced);
 	obs_properties_add_bool(advanced, "icons", obs_module_text("Source.Icons"));
 	obs_properties_add_bool(advanced, "badges", obs_module_text("Source.Badges"));
+	obs_property_t *paidColors =
+		obs_properties_add_bool(advanced, "paid_colors", obs_module_text("Source.PaidColors"));
+	obs_property_set_long_description(paidColors, obs_module_text("Source.PaidColors.Help"));
+	obs_property_t *paidPin = obs_properties_add_bool(advanced, "paid_pin", obs_module_text("Source.PaidPin"));
+	obs_property_set_long_description(paidPin, obs_module_text("Source.PaidPin.Help"));
 	obs_property_t *fade = obs_properties_add_int(advanced, "fade", obs_module_text("Source.Fade"), 0, 600, 1);
 	obs_property_int_set_suffix(fade, " s");
 	obs_property_set_long_description(fade, obs_module_text("Source.Fade.Help"));

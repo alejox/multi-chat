@@ -7,6 +7,8 @@ const char *fixture(int index)
 			"identity":{"color":"#FF0000","badges":[{"type":"moderator"},{"type":"og"}]}}})js",
 		R"js({"addChatItemAction":{"item":{"liveChatPaidMessageRenderer":{
 			"id":"yt1","authorName":{"simpleText":"Ana"},"purchaseAmountText":{"simpleText":"$5.00"},
+			"headerBackgroundColor":4278239141,"headerTextColor":4278190080,
+			"bodyBackgroundColor":4280150454,"bodyTextColor":4278190080,
 			"authorBadges":[{"liveChatAuthorBadgeRenderer":{"icon":{"iconType":"MODERATOR"}}}],
 			"message":{"runs":[{"text":"hola "},{"emoji":{"emojiId":"😀","shortcuts":[":grin:"]}},
 			{"emoji":{"emojiId":"UC/x","isCustomEmoji":true,"shortcuts":[":yt:"],

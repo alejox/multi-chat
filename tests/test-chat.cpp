@@ -1762,6 +1762,30 @@ private slots:
 		QJsonArray parts = m["parts"].toArray();
 		QCOMPARE(parts[1].toObject()["text"].toString(), QString::fromUtf8("😀"));
 		QCOMPARE(parts[2].toObject()["type"].toString(), QString("emote"));
+		// Super Chat colors (ARGB integers) and how long YouTube pins that tier.
+		const QJsonObject paid = m["paid"].toObject();
+		QCOMPARE(paid["header"].toString(), QString("#00bfa5"));
+		QCOMPARE(paid["body"].toString(), QString("#1de9b6"));
+		QCOMPARE(paid["headerText"].toString(), QString("#000000"));
+		QCOMPARE(paid["pin"].toInt(), 120);
+		QVERIFY(!m.contains("sticker"));
+
+		const QJsonObject stickerAction = QJsonDocument::fromJson(
+			"{\"addChatItemAction\":{\"item\":{\"liveChatPaidStickerRenderer\":{\"id\":\"s1\","
+			"\"authorName\":{\"simpleText\":\"Sofi\"},\"purchaseAmountText\":{\"simpleText\":\"$10.00\"},"
+			"\"moneyChipBackgroundColor\":4294947584,\"backgroundColor\":4294953512,"
+			"\"sticker\":{\"thumbnails\":[{\"url\":\"//lh3.googleusercontent.com/a=s72\"},"
+			"{\"url\":\"//lh3.googleusercontent.com/a=s144\"}]}}}}}").object();
+		const QJsonObject sticker = youtube::toMessage(stickerAction, "@canal");
+		QCOMPARE(sticker["sticker"].toString(), QString("https://lh3.googleusercontent.com/a=s144"));
+		QCOMPARE(sticker["paid"].toObject()["body"].toString(), QString("#ffca28"));
+		QCOMPARE(sticker["paid"].toObject()["pin"].toInt(), 300);
+		// Without colors (format change) it stays a plain highlight.
+		const QJsonObject plain = youtube::toMessage(QJsonDocument::fromJson(
+			"{\"addChatItemAction\":{\"item\":{\"liveChatPaidMessageRenderer\":{\"id\":\"p\","
+			"\"authorName\":{\"simpleText\":\"X\"},\"purchaseAmountText\":{\"simpleText\":\"$1\"}}}}}").object(), "@c");
+		QVERIFY(!plain.contains("paid"));
+		QCOMPARE(plain["amount"].toString(), QString("$1"));
 
 		int timeout = 0;
 		QJsonObject lc = QJsonDocument::fromJson(fixture(2)).object();

@@ -277,10 +277,16 @@ QString ChatView::html(const QJsonObject &m) const
 				       .arg(bg.name(), label.toHtmlEscaped());
 	}
 	const QString amount = m.value("amount").toString();
-	if (!amount.isEmpty())
-		out += QStringLiteral("<span style=\"background-color:%1; color:#000000; font-weight:bold;\">"
-				      "&nbsp;%2&nbsp;</span>&nbsp;")
-			       .arg(ui::platformColor(platform).name(), amount.toHtmlEscaped());
+	if (!amount.isEmpty()) {
+		// Super Chat de YouTube: el monto con el color de su nivel.
+		const QColor tier(m.value("paid").toObject().value("body").toString());
+		const QColor chip = tier.isValid() ? tier : ui::platformColor(platform);
+		const bool dark = 0.299 * chip.red() + 0.587 * chip.green() + 0.114 * chip.blue() <= 150;
+		out += QStringLiteral("<span style=\"background-color:%1; color:%2; font-weight:bold;\">"
+				      "&nbsp;%3&nbsp;</span>&nbsp;")
+			       .arg(chip.name(), dark ? QStringLiteral("#ffffff") : QStringLiteral("#000000"),
+				    amount.toHtmlEscaped());
+	}
 
 	const QString author = m.value("author").toString();
 	const QColor color = ui::readableColor(m.value("color").toString(), author, base);
@@ -331,7 +337,9 @@ void ChatView::addMessage(const QJsonObject &m)
 	format.setBottomMargin(2);
 	if (m.value("kind").toString() == "highlight") {
 		const QColor base = palette().color(QPalette::Base);
-		data->background = ui::blend(base, ui::platformColor(m.value("platform").toString()), 0.22f);
+		const QColor tier(m.value("paid").toObject().value("body").toString());
+		data->background = ui::blend(base, tier.isValid() ? tier : ui::platformColor(m.value("platform").toString()),
+					     tier.isValid() ? 0.3f : 0.22f);
 		format.setLeftMargin(2);
 	}
 	const bool featured = !data->id.isEmpty() && data->id == featuredId_;

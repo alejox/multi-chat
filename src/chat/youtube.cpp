@@ -154,6 +154,66 @@ int viewersFromPage(const QString &html)
 	return ok ? n : -1;
 }
 
+namespace {
+
+// YouTube manda los colores como enteros ARGB (4280191205 = #FF1E88E5).
+QString argbToHex(const QJsonValue &value)
+{
+	const double number = value.isString() ? value.toString().toDouble() : value.toDouble(-1);
+	if (number < 0 || number > 4294967295.0)
+		return {};
+	const quint32 argb = quint32(number);
+	return QStringLiteral("#%1").arg(argb & 0xFFFFFF, 6, 16, QLatin1Char('0'));
+}
+
+// Segundos que YouTube deja fijado un Super Chat según su nivel (se reconoce por el color del
+// cuerpo): verde 2 min, amarillo 5, naranja 10, magenta 30 y rojo 1 h. Azul y celeste no se fijan.
+int pinSeconds(const QString &bodyColor)
+{
+	static const std::pair<const char *, int> tiers[] = {
+		{"#1de9b6", 120}, {"#ffca28", 300}, {"#f57c00", 600}, {"#e91e63", 1800}, {"#e62117", 3600},
+	};
+	for (const auto &[color, seconds] : tiers)
+		if (bodyColor.compare(QLatin1String(color), Qt::CaseInsensitive) == 0)
+			return seconds;
+	return 0;
+}
+
+// Colores de un Super Chat o Super Sticker: {header, body, headerText, bodyText, pin}. Vacío si
+// YouTube no los manda (membresías, o si cambian el formato): se muestra como hasta ahora.
+QJsonObject paidColors(const QJsonObject &r, bool sticker)
+{
+	const QString body = argbToHex(r.value(sticker ? "backgroundColor" : "bodyBackgroundColor"));
+	QString header = argbToHex(r.value(sticker ? "moneyChipBackgroundColor" : "headerBackgroundColor"));
+	if (body.isEmpty() && header.isEmpty())
+		return {};
+	if (header.isEmpty())
+		header = body;
+	QJsonObject paid{{"header", header}, {"body", body.isEmpty() ? header : body}};
+	const QString headerText = argbToHex(r.value(sticker ? "moneyChipTextColor" : "headerTextColor"));
+	const QString bodyText = argbToHex(r.value(sticker ? "authorNameTextColor" : "bodyTextColor"));
+	if (!headerText.isEmpty())
+		paid.insert("headerText", headerText);
+	if (!bodyText.isEmpty())
+		paid.insert("bodyText", bodyText);
+	paid.insert("pin", pinSeconds(paid.value("body").toString()));
+	return paid;
+}
+
+// La imagen más grande de un Super Sticker (las URL llegan a veces sin "https:").
+QString stickerUrl(const QJsonObject &r)
+{
+	const QJsonArray thumbs = r.value("sticker").toObject().value("thumbnails").toArray();
+	if (thumbs.isEmpty())
+		return {};
+	QString url = thumbs.last().toObject().value("url").toString();
+	if (url.startsWith(QLatin1String("//")))
+		url.prepend(QLatin1String("https:"));
+	return url.startsWith(QLatin1String("https://")) ? url : QString();
+}
+
+} // namespace
+
 QJsonObject toMessage(const QJsonObject &action, const QString &channel)
 {
 	const QJsonObject item = action.value("addChatItemAction").toObject().value("item").toObject();
@@ -176,8 +236,19 @@ QJsonObject toMessage(const QJsonObject &action, const QString &channel)
 		if (QString::fromLatin1(key) == "liveChatMembershipItemRenderer")
 			o.system = simpleText(r.value("headerSubtext").toObject());
 		QString author = simpleText(r.value("authorName").toObject());
-		return makeMessage("youtube", channel, author.isEmpty() ? QStringLiteral("?") : author,
-				   runsToParts(r.value("message").toObject().value("runs").toArray()), o);
+		QJsonObject message = makeMessage("youtube", channel, author.isEmpty() ? QStringLiteral("?") : author,
+						  runsToParts(r.value("message").toObject().value("runs").toArray()), o);
+		const QString type = QString::fromLatin1(key);
+		const bool sticker = type == "liveChatPaidStickerRenderer";
+		if (sticker || type == "liveChatPaidMessageRenderer") {
+			const QJsonObject paid = paidColors(r, sticker);
+			if (!paid.isEmpty())
+				message.insert("paid", paid);
+			const QString image = sticker ? stickerUrl(r) : QString();
+			if (!image.isEmpty())
+				message.insert("sticker", image);
+		}
+		return message;
 	}
 	return {};
 }
