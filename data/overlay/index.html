@@ -55,7 +55,10 @@
   /* Fijados arriba (solo en vertical): una píldora por Super Chat, con el tiempo que le queda. */
   #pins { display: none; position: absolute; left: var(--pad-x); right: var(--pad-x); top: calc(var(--pins-top, 0px) + var(--pad-y));
     flex-wrap: wrap; gap: .3em; z-index: 2; }
-  body:not(.h) #pins:not(:empty) { display: flex; }
+  #pins:not(:empty) { display: flex; }
+  /* En la cinta van fijos al final, antes de la fecha y la hora; los mensajes paran antes. */
+  body.h #pins { flex-wrap: nowrap; left: auto; right: calc(var(--pad-x) + var(--pins-right, 0px)); top: 50%; transform: translateY(-50%); }
+  body.h .pin { font-size: .8em; max-width: 16em; }
   .pin { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: .35em; max-width: 100%;
     padding: .12em .7em .2em; border-radius: 999px; font-size: .72em; font-weight: 800; white-space: nowrap;
     text-shadow: none; box-shadow: 0 2px 6px #0006; animation: in .25s ease-out; }
@@ -182,9 +185,19 @@ function renderPaid(m, paid) {
 // Fijados: como en YouTube, los Super Chats de cierto monto quedan arriba un tiempo.
 const pins = document.getElementById('pins');
 function layoutPins() {
-  document.documentElement.style.setProperty('--pins-top', list.style.top || '0px');
-  list.style.paddingTop = pins.children.length && config.layout !== 'horizontal'
-    ? `calc(var(--pad-y) + ${pins.offsetHeight + 6}px)` : '';
+  const root = document.documentElement.style;
+  if (config.layout === 'horizontal') {
+    // De derecha a izquierda: fecha y hora, fijados y, antes de ellos, los mensajes.
+    const gap = Math.max(0, config.hspacing);
+    const clockWidth = config.clock ? clock.offsetWidth + gap : 0;
+    root.setProperty('--pins-right', clockWidth + 'px');
+    const pinsWidth = pins.children.length ? pins.offsetWidth + gap : 0;
+    list.style.paddingTop = '';
+    list.style.right = clockWidth + pinsWidth ? `calc(var(--pad-x) + ${clockWidth + pinsWidth}px)` : '';
+    return;
+  }
+  root.setProperty('--pins-top', list.style.top || '0px');
+  list.style.paddingTop = pins.children.length ? `calc(var(--pad-y) + ${pins.offsetHeight + 6}px)` : '';
 }
 function unpin(chip) {
   clearTimeout(chip.timer);
@@ -194,7 +207,8 @@ function unpin(chip) {
 }
 function pin(m, paid) {
   if (config.paidPin === false || !paid.pin) return;
-  while (pins.children.length >= 4) unpin(pins.firstChild);
+  // En la cinta, como mucho 2: el resto del ancho es para los mensajes.
+  while (pins.children.length >= (config.layout === 'horizontal' ? 2 : 4)) unpin(pins.firstChild);
   const chip = el('div', 'pin');
   chip.dataset.id = m.id || '';
   chip.dataset.source = m.source || '';
@@ -331,10 +345,7 @@ function updateClock() {
     seconds: config.clockSeconds, hour24: config.clockHour24 });
   document.body.classList.toggle('nobar', config.clockBar === false);
   // Entre el último mensaje y el reloj, el mismo espacio que entre mensajes.
-  if (config.layout === 'horizontal') {
-    list.style.right = `calc(${clock.offsetWidth}px + var(--pad-x) + ${Math.max(0, config.hspacing)}px)`;
-    return;
-  }
+  if (config.layout === 'horizontal') return layoutPins();
   const inset = `${clock.offsetHeight + Math.max(0, config.spacing)}px`;
   if (config.clockPosition === 'bottom') list.style.bottom = inset;
   else list.style.top = inset;
@@ -345,7 +356,7 @@ setInterval(updateClock, 1000);
 function applyConfig(c) {
   const { layout, scroll } = config;
   config = { ...config, ...c };
-  if (config.layout !== layout || config.scroll !== scroll) list.textContent = '';
+  if (config.layout !== layout || config.scroll !== scroll) { list.textContent = ''; clearPins(); }
   if (config.paidPin === false || config.paidColors === false) clearPins();
   document.body.classList.toggle('h', config.layout === 'horizontal');
   document.documentElement.style.setProperty('--fs', config.size + 'px');
