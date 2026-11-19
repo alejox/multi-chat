@@ -207,6 +207,7 @@ function unpin(chip) {
 }
 function pin(m, paid) {
   if (config.paidPin === false || !paid.pin) return;
+  if (m.id && [...pins.children].some(chip => chip.dataset.id === m.id)) return;
   // En la cinta, como mucho 2: el resto del ancho es para los mensajes.
   while (pins.children.length >= (config.layout === 'horizontal' ? 2 : 4)) unpin(pins.firstChild);
   const chip = el('div', 'pin');
@@ -416,7 +417,8 @@ window.addEventListener('multichat', e => {
   if (data.type === 'config') applyConfig(data.config || {});
   else if (data.type === 'message' && data.message) {
     if (data.message.channel !== 'demo') lastReal = Date.now();
-    add(data.message);
+    // "pinned": un Super Chat que YouTube ya tenía fijado al conectar; no se repite en la lista.
+    if (!data.message.pinned) add(data.message);
     const paid = paidOf(data.message);
     if (paid) pin(data.message, paid);
   } else if (data.type === 'delete') removeDeleted(data);
