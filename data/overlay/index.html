@@ -40,7 +40,9 @@
      monto (--ph/--pb fondos, --pht/--pbt textos). Mandan sobre el estilo de fondo elegido. */
   html body .msg.paid { padding: 0 !important; border: 0 !important; border-radius: max(6px, var(--bg-radius)) !important;
     background: var(--pb) !important; color: var(--pbt); overflow: hidden; text-shadow: none !important;
-    box-shadow: 0 2px 8px #0006 !important; clip-path: none !important; font-family: inherit; }
+    box-shadow: 0 2px 8px #0006 !important; clip-path: none !important; font-family: inherit;
+    /* overflow: hidden lets a flex column squash the card when the list is full: never shrink. */
+    flex: none; }
   html body .msg.paid::after { content: none !important; }
   .paid-h { display: flex; align-items: center; background: var(--ph); color: var(--pht); padding: .2em .55em; font-weight: 800; }
   .paid-h .amount { margin: 0 0 0 auto; padding-left: .8em; background: none; color: inherit; font-size: .95em; }
