@@ -1815,6 +1815,39 @@ private slots:
 		QCOMPARE(timeout, 4000);
 	}
 
+	void youtubePolling()
+	{
+		// "Chat en vivo" (todos los mensajes) antes que "Chat destacado", que es el que viene elegido.
+		const QString page = QStringLiteral(
+			"<script>var a = {\"continuation\":\"primera\"};</script>"
+			"<script>window[\"ytInitialData\"] = {\"contents\":{\"header\":{\"sortFilterSubMenuRenderer\":{"
+			"\"subMenuItems\":[{\"title\":\"Top chat\",\"selected\":true,\"continuation\":{"
+			"\"reloadContinuationData\":{\"continuation\":\"destacado\"}}},{\"title\":\"Live chat\","
+			"\"selected\":false,\"continuation\":{\"reloadContinuationData\":{\"continuation\":\"todo\"}}}"
+			"]}}}};</script>");
+		QCOMPARE(youtube::firstContinuation(page), QString("todo"));
+		// Sin menú: la primera continuación de la página, como antes.
+		QCOMPARE(youtube::firstContinuation("x {\"continuation\":\"primera\"} y"), QString("primera"));
+		QVERIFY(youtube::firstContinuation("nada").isEmpty());
+
+		// Con mensajes, cada 2 s aunque YouTube pida 10; sin mensajes se espacia hasta 5 s.
+		QCOMPARE(youtube::pollDelay(10000, 0), 2000);
+		QCOMPARE(youtube::pollDelay(10000, 2), 4000);
+		QCOMPARE(youtube::pollDelay(10000, 50), 5000);
+		QCOMPARE(youtube::pollDelay(1500, 3), 1500);
+		QCOMPARE(youtube::pollDelay(0, 0), 1000);
+
+		youtube::SeenIds seen;
+		QVERIFY(seen.add("a"));
+		QVERIFY(!seen.add("a"));
+		QVERIFY(seen.add(""));
+		QVERIFY(seen.add(""));
+		for (int i = 0; i < 700; ++i)
+			seen.add(QString::number(i));
+		QVERIFY(seen.add("a")); // los más antiguos se olvidan
+		QVERIFY(!seen.add("699"));
+	}
+
 	void youtubeLivePage()
 	{
 		const QString live = fixture(3);

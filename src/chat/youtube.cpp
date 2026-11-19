@@ -275,20 +275,91 @@ void collectTickerItems(const QJsonValue &value, QJsonArray &out, int depth = 0)
 	}
 }
 
-} // namespace
-
-QJsonArray pinnedFromPage(const QString &html, const QString &channel)
+// Los datos con los que arranca la página del chat (ytInitialData); vacío si no están.
+QJsonObject initialData(const QString &html)
 {
-	QJsonArray out;
 	static const QString marker = QStringLiteral("window[\"ytInitialData\"] = ");
 	const qsizetype start = html.indexOf(marker);
 	const qsizetype end = start < 0 ? -1 : html.indexOf(QStringLiteral(";</script>"), start);
 	if (end < 0)
+		return {};
+	return QJsonDocument::fromJson(html.mid(start + marker.size(), end - start - marker.size()).toUtf8())
+		.object();
+}
+
+// El menú "Chat destacado / Chat en vivo" (sortFilterSubMenuRenderer), en cualquier nivel.
+QJsonObject findSortMenu(const QJsonValue &value, int depth = 0)
+{
+	if (depth > 24)
+		return {};
+	if (value.isArray()) {
+		for (const QJsonValue v : value.toArray()) {
+			const QJsonObject found = findSortMenu(v, depth + 1);
+			if (!found.isEmpty())
+				return found;
+		}
+	} else if (value.isObject()) {
+		const QJsonObject o = value.toObject();
+		for (auto it = o.begin(); it != o.end(); ++it) {
+			if (it.key() == QLatin1String("sortFilterSubMenuRenderer"))
+				return it.value().toObject();
+			const QJsonObject found = findSortMenu(it.value(), depth + 1);
+			if (!found.isEmpty())
+				return found;
+		}
+	}
+	return {};
+}
+
+} // namespace
+
+QString firstContinuation(const QString &html)
+{
+	// YouTube abre el chat en "Chat destacado", que filtra mensajes cuando hay mucho movimiento.
+	// La otra opción del menú es "Chat en vivo": todos los mensajes.
+	const QJsonArray items = findSortMenu(initialData(html)).value("subMenuItems").toArray();
+	for (const QJsonValue v : items) {
+		const QJsonObject item = v.toObject();
+		const QString c = item.value("continuation")
+					  .toObject()
+					  .value("reloadContinuationData")
+					  .toObject()
+					  .value("continuation")
+					  .toString();
+		if (!item.value("selected").toBool() && !c.isEmpty())
+			return c;
+	}
+	return capture(html, "\"continuation\":\"([^\"]+)\"");
+}
+
+int pollDelay(int timeoutMs, int emptyPolls)
+{
+	// Con el chat en movimiento, cada 2 s; si no llega nada, se va espaciando hasta 5 s.
+	const int wanted = 2000 + 1000 * std::clamp(emptyPolls, 0, 3);
+	return std::min(wanted, std::clamp(timeoutMs, 1000, 6000));
+}
+
+bool SeenIds::add(const QString &id)
+{
+	if (id.isEmpty())
+		return true;
+	if (set_.contains(id))
+		return false;
+	set_.insert(id);
+	order_.append(id);
+	while (order_.size() > kMax)
+		set_.remove(order_.takeFirst());
+	return true;
+}
+
+QJsonArray pinnedFromPage(const QString &html, const QString &channel)
+{
+	QJsonArray out;
+	const QJsonObject data = initialData(html);
+	if (data.isEmpty())
 		return out;
-	const QJsonDocument data =
-		QJsonDocument::fromJson(html.mid(start + marker.size(), end - start - marker.size()).toUtf8());
 	QJsonArray items;
-	collectTickerItems(data.object(), items);
+	collectTickerItems(data, items);
 	for (const QJsonValue v : items) {
 		const QJsonObject item = v.toObject();
 		const int remaining = item.value("durationSec").toInt();
@@ -425,7 +496,7 @@ protected:
 		const QString html = QString::fromUtf8(page.body);
 		const QString key = capture(html, "\"INNERTUBE_API_KEY\":\"([^\"]+)\"");
 		QString version = capture(html, "\"INNERTUBE_CONTEXT_CLIENT_VERSION\":\"([^\"]+)\"");
-		QString continuation = capture(html, "\"continuation\":\"([^\"]+)\"");
+		QString continuation = firstContinuation(html);
 		if (continuation.isEmpty()) {
 			if (!source_.videoFixed)
 				source_.extra.clear();
@@ -450,14 +521,24 @@ protected:
 			post_(pinned);
 		}
 		bool first = true;
+		int failures = 0, emptyPolls = 0;
 		while (!stopped() && !continuation.isEmpty()) {
 			QJsonObject body{{"context", context}, {"continuation", continuation}};
 			net::Response res = net::postJson(
 				url, QJsonDocument(body).toJson(QJsonDocument::Compact).toStdString(), kCookies);
-			if (!res.ok())
-				throw ChatError(Text{"Error.Responded",
+			if (!res.ok()) {
+				// Un fallo suelto (red, YouTube ocupado, límite de peticiones) no corta el chat:
+				// se reintenta con la misma continuación, que sigue donde se quedó.
+				if (++failures > 4)
+					throw ChatError(
+						Text{"Error.Responded",
 						     {QStringLiteral("YouTube"), res.status ? QString::number(res.status)
 											     : QString::fromStdString(res.error)}});
+				if (wait(res.status == 429 ? 10000 * failures : 2000 * failures))
+					return;
+				continue;
+			}
+			failures = 0;
 			const QJsonObject lc = QJsonDocument::fromJson(QByteArray::fromStdString(res.body))
 						       .object()
 						       .value("continuationContents")
@@ -466,20 +547,30 @@ protected:
 						       .toObject();
 			if (lc.isEmpty())
 				break;
-			// El primer lote es historial antiguo: no lo repetimos.
-			if (!first) {
-				for (const QJsonValue a : lc.value("actions").toArray()) {
-					QJsonObject m = toMessage(a.toObject(), source_.channel);
-					if (m.isEmpty())
-						m = toDeletion(a.toObject());
-					if (!m.isEmpty())
-						post_(m);
+			// El primer lote es historial: al conectar por primera vez no se repite; al reconectar
+			// se muestran solo los mensajes que se escribieron mientras no había conexión.
+			const bool history = first && !connectedBefore_;
+			int posted = 0;
+			for (const QJsonValue a : lc.value("actions").toArray()) {
+				QJsonObject m = toMessage(a.toObject(), source_.channel);
+				if (m.isEmpty()) {
+					m = toDeletion(a.toObject());
+					if (first)
+						continue;
+				} else if (!seen_.add(m.value("id").toString()) || history) {
+					continue;
+				}
+				if (!m.isEmpty()) {
+					post_(m);
+					++posted;
 				}
 			}
 			first = false;
+			connectedBefore_ = true;
+			emptyPolls = posted ? 0 : emptyPolls + 1;
 			int timeoutMs = 3000;
 			continuation = nextContinuation(lc, timeoutMs);
-			if (wait(std::clamp(timeoutMs, 1000, 6000)))
+			if (wait(pollDelay(timeoutMs, emptyPolls)))
 				return;
 		}
 		if (!source_.videoFixed)
@@ -489,6 +580,8 @@ protected:
 
 private:
 	QSet<QString> seenPinned_;
+	SeenIds seen_;
+	bool connectedBefore_ = false;
 };
 
 std::shared_ptr<Connector> create(const SourceInfo &s, Connector::PostFn post, Connector::ReportFn report)
