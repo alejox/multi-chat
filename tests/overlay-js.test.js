@@ -26,8 +26,7 @@ test('safeUrl only lets http and https through', () => {
 test('nameColor keeps light colors and lightens dark ones', () => {
   assert.strictEqual(overlay.nameColor('#FF7F50', 'a'), 'rgb(255,127,80)');
   assert.strictEqual(overlay.nameColor('#203040', 'a'), 'rgb(199,203,207)');
-  // Current behavior: very dark colors overshoot 255 (CSS clamps it to white). See "Found bugs" in
-  // odd/tasks/internal-cleanup.md.
+  // Current behavior: very dark colors overshoot 255 (CSS clamps it to white).
   assert.strictEqual(overlay.nameColor('000000', 'a'), 'rgb(272,272,272)');
 });
 
