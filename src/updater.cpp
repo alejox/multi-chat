@@ -216,8 +216,13 @@ void Updater::askToUpdate(const chat::Release &release)
 	box.setIcon(QMessageBox::Information);
 	box.setTextFormat(Qt::RichText);
 	box.setTextInteractionFlags(Qt::TextBrowserInteraction);
-	box.setText(i18n::tr("Update.Ask").arg(release.version, QString::fromLatin1(PLUGIN_VERSION),
-					   release.page.toHtmlEscaped()));
+	QString text = i18n::tr("Update.Ask").arg(release.version, QString::fromLatin1(PLUGIN_VERSION),
+						  release.page.toHtmlEscaped());
+	// Lo que trae la versión nueva, tal como lo cuenta la Release.
+	const QString notes = chat::notesHtml(release.notes, QString::fromUtf8(obs_get_locale()).startsWith("es"));
+	if (!notes.isEmpty())
+		text += QStringLiteral("<br><br><b>%1</b>").arg(i18n::tr("Update.WhatsNew")) + notes;
+	box.setText(text);
 	QPushButton *now = box.addButton(i18n::tr("Update.Now"), QMessageBox::AcceptRole);
 	box.addButton(i18n::tr("Update.Later"), QMessageBox::RejectRole);
 	QPushButton *skip = box.addButton(i18n::tr("Update.Skip"), QMessageBox::DestructiveRole);

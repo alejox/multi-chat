@@ -1994,6 +1994,18 @@ private slots:
 		QJsonObject draft = json;
 		draft.insert("prerelease", true);
 		QVERIFY(parseLatestRelease(draft, "-macos.zip").version.isEmpty());
+
+		// Las novedades de la Release, en el idioma de OBS.
+		QJsonObject withNotes = json;
+		withNotes.insert("body", "### Español\n- Chat **más rápido**\n- Menos <cortes>\n\n### English\n- Faster chat\n");
+		const QString notes = parseLatestRelease(withNotes, "-macos.zip").notes;
+		QCOMPARE(notesHtml(notes, true),
+			 QString::fromUtf8("<ul><li>Chat <b>más rápido</b></li><li>Menos &lt;cortes&gt;</li></ul>"));
+		QCOMPARE(notesHtml(notes, false), QString("<ul><li>Faster chat</li></ul>"));
+		QCOMPARE(notesHtml("### English\n- Only this", true), QString("<ul><li>Only this</li></ul>"));
+		QCOMPARE(notesHtml("* a\n- b", true), QString("<ul><li>a</li><li>b</li></ul>"));
+		QVERIFY(notesHtml("**Full Changelog**: https://x/compare/a...b", true).isEmpty());
+		QVERIFY(notesHtml("", false).isEmpty());
 	}
 
 	void textsFillArgumentsInOnePass()
