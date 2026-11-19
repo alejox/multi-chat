@@ -149,6 +149,9 @@ QJsonObject toMessage(const QJsonObject &action, const QString &channel);
 // markChatItemAsDeletedAction, markChatItemsByAuthorAsDeletedAction, removeChatItemAction and
 // removeChatItemByAuthorAction as a moderation event (see message.hpp); empty for other actions.
 QJsonObject toDeletion(const QJsonObject &action);
+// In the HTML of the chat page: the Super Chats YouTube has pinned right now, as messages with
+// paid.pin = seconds left, "pinned" (on screen they are only pinned) and "recovered" (not read aloud).
+QJsonArray pinnedFromPage(const QString &html, const QString &channel);
 // Siguiente continuación del chat y cuánto esperar (ms).
 QString nextContinuation(const QJsonObject &liveChatContinuation, int &timeoutMs);
 // Busca el id del vídeo en una URL (watch?v=, youtu.be/, /live/).

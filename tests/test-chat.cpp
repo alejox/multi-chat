@@ -1787,6 +1787,28 @@ private slots:
 		QVERIFY(!plain.contains("paid"));
 		QCOMPARE(plain["amount"].toString(), QString("$1"));
 
+		// Super Chats YouTube already has pinned when connecting: only those with time left, with
+		// the seconds left as the pin time, marked so they are pinned but not listed or read aloud.
+		const QString page = QStringLiteral(
+			"<script>window[\"ytInitialData\"] = {\"a\":{\"ticker\":{\"items\":["
+			"{\"liveChatTickerPaidMessageItemRenderer\":{\"id\":\"t1\",\"durationSec\":67,\"fullDurationSec\":300,"
+			"\"showItemEndpoint\":{\"showLiveChatItemEndpoint\":{\"renderer\":{\"liveChatPaidMessageRenderer\":{"
+			"\"id\":\"t1\",\"authorName\":{\"simpleText\":\"@byron\"},\"purchaseAmountText\":{\"simpleText\":\"ARS 100.00\"},"
+			"\"headerBackgroundColor\":4294947584,\"bodyBackgroundColor\":4294953512,"
+			"\"message\":{\"runs\":[{\"text\":\"hola\"}]}}}}}}},"
+			"{\"liveChatTickerPaidMessageItemRenderer\":{\"id\":\"t2\",\"durationSec\":0,"
+			"\"showItemEndpoint\":{\"showLiveChatItemEndpoint\":{\"renderer\":{\"liveChatPaidMessageRenderer\":{"
+			"\"id\":\"t2\",\"authorName\":{\"simpleText\":\"x\"},\"bodyBackgroundColor\":4294953512}}}}}}]}}};</script>");
+		const QJsonArray pinned = youtube::pinnedFromPage(page, "@canal");
+		QCOMPARE(pinned.size(), qsizetype(1));
+		const QJsonObject first = pinned[0].toObject();
+		QCOMPARE(first["id"].toString(), QString("t1"));
+		QCOMPARE(first["amount"].toString(), QString("ARS 100.00"));
+		QCOMPARE(first["paid"].toObject()["pin"].toInt(), 67);
+		QVERIFY(first["pinned"].toBool());
+		QVERIFY(first["recovered"].toBool());
+		QVERIFY(youtube::pinnedFromPage("<html>nothing</html>", "@c").isEmpty());
+
 		int timeout = 0;
 		QJsonObject lc = QJsonDocument::fromJson(fixture(2)).object();
 		QCOMPARE(youtube::nextContinuation(lc, timeout), QString("abc"));

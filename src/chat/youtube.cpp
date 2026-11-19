@@ -5,6 +5,7 @@
 
 #include <QJsonDocument>
 #include <QRegularExpression>
+#include <QSet>
 
 #include <algorithm>
 
@@ -253,6 +254,66 @@ QJsonObject toMessage(const QJsonObject &action, const QString &channel)
 	return {};
 }
 
+namespace {
+
+// Busca en cualquier nivel los elementos fijados de Super Chat (liveChatTickerPaidMessageItemRenderer).
+void collectTickerItems(const QJsonValue &value, QJsonArray &out, int depth = 0)
+{
+	if (depth > 24)
+		return;
+	if (value.isArray()) {
+		for (const QJsonValue v : value.toArray())
+			collectTickerItems(v, out, depth + 1);
+	} else if (value.isObject()) {
+		const QJsonObject o = value.toObject();
+		for (auto it = o.begin(); it != o.end(); ++it) {
+			if (it.key() == QLatin1String("liveChatTickerPaidMessageItemRenderer"))
+				out.append(it.value());
+			else
+				collectTickerItems(it.value(), out, depth + 1);
+		}
+	}
+}
+
+} // namespace
+
+QJsonArray pinnedFromPage(const QString &html, const QString &channel)
+{
+	QJsonArray out;
+	static const QString marker = QStringLiteral("window[\"ytInitialData\"] = ");
+	const qsizetype start = html.indexOf(marker);
+	const qsizetype end = start < 0 ? -1 : html.indexOf(QStringLiteral(";</script>"), start);
+	if (end < 0)
+		return out;
+	const QJsonDocument data =
+		QJsonDocument::fromJson(html.mid(start + marker.size(), end - start - marker.size()).toUtf8());
+	QJsonArray items;
+	collectTickerItems(data.object(), items);
+	for (const QJsonValue v : items) {
+		const QJsonObject item = v.toObject();
+		const int remaining = item.value("durationSec").toInt();
+		const QJsonObject renderer = item.value("showItemEndpoint")
+						     .toObject()
+						     .value("showLiveChatItemEndpoint")
+						     .toObject()
+						     .value("renderer")
+						     .toObject();
+		if (remaining <= 0 || renderer.isEmpty())
+			continue;
+		QJsonObject message =
+			toMessage(QJsonObject{{"addChatItemAction", QJsonObject{{"item", renderer}}}}, channel);
+		QJsonObject paid = message.value("paid").toObject();
+		if (paid.isEmpty())
+			continue;
+		paid.insert("pin", remaining);
+		message.insert("paid", paid);
+		message.insert("pinned", true);    // ya pasó por el chat: en pantalla solo se fija
+		message.insert("recovered", true); // y no se lee en voz alta
+		out.append(message);
+	}
+	return out;
+}
+
 QJsonObject toDeletion(const QJsonObject &action)
 {
 	// A moderator deleted one message (targetItemId) or hid / banned a user (externalChannelId, the
@@ -378,6 +439,16 @@ protected:
 		const QJsonObject context{{"client", QJsonObject{{"clientName", "WEB"}, {"clientVersion", version}}}};
 
 		report_("connected", Text());
+		// Los Super Chats que YouTube tiene fijados ahora mismo, con el tiempo que les queda (una
+		// vez cada uno, aunque se reconecte).
+		for (const QJsonValue v : pinnedFromPage(html, source_.channel)) {
+			const QJsonObject pinned = v.toObject();
+			const QString id = pinned.value("id").toString();
+			if (seenPinned_.contains(id))
+				continue;
+			seenPinned_.insert(id);
+			post_(pinned);
+		}
 		bool first = true;
 		while (!stopped() && !continuation.isEmpty()) {
 			QJsonObject body{{"context", context}, {"continuation", continuation}};
@@ -415,6 +486,9 @@ protected:
 			source_.extra.clear(); // el directo terminó: la próxima vez se busca uno nuevo
 		throw ChatError(Text{"Error.LiveChatEnded", {}});
 	}
+
+private:
+	QSet<QString> seenPinned_;
 };
 
 std::shared_ptr<Connector> create(const SourceInfo &s, Connector::PostFn post, Connector::ReportFn report)
