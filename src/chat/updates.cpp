@@ -108,7 +108,8 @@ QString notesHtml(const QString &notes, bool spanish)
 		items = plain;
 	if (items.isEmpty())
 		return {};
-	QString html = QStringLiteral("<ul>");
+	// Sin la sangría grande que Qt da a las listas, que estrecha el texto del aviso.
+	QString html = QStringLiteral("<ul style=\"margin-left:14px; -qt-list-indent:0;\">");
 	for (const QString &item : items.mid(0, 8)) {
 		QString text = item.toHtmlEscaped();
 		text.replace(QRegularExpression(QStringLiteral("\\*\\*(.+?)\\*\\*")), QStringLiteral("<b>\\1</b>"));
