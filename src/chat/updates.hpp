@@ -15,7 +15,14 @@ struct Release {
 	QString assetName; // file name of this system's archive (empty if the release lacks it)
 	QString sha256;    // its SHA-256 from the asset's "digest" (lowercase hex), empty if absent
 	QString sumsUrl;   // the release's SHA256SUMS asset, empty if absent
+	QString notes;     // the release's description (Markdown), empty if it has none
 };
+
+// What changed, as an HTML list for the update dialog, from a release description written like
+// CHANGELOG.md: "### Español" and "### English" headings, each followed by "- item" lines.
+// `spanish` picks the section (the other one is used if the wanted one is missing); a description
+// without those headings gives all its items. Empty if there are none. At most 8 items.
+QString notesHtml(const QString &notes, bool spanish);
 
 // "sha256:<64 hex>" (GitHub's asset digest) → lowercase hex; empty if it is not a SHA-256 digest.
 QString sha256FromDigest(const QString &digest);

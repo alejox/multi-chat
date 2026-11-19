@@ -86,6 +86,37 @@ bool isNewerVersion(const QString &latest, const QString &current)
 	return false;
 }
 
+QString notesHtml(const QString &notes, bool spanish)
+{
+	QStringList es, en, plain;
+	QStringList *current = &plain;
+	for (QString line : notes.split('\n')) {
+		line = line.trimmed();
+		if (line.startsWith('#')) {
+			const QString title = line.remove(QRegularExpression(QStringLiteral("^#+\\s*"))).toLower();
+			current = title.startsWith(QStringLiteral("espa")) ? &es
+				  : title.startsWith(QStringLiteral("engl")) ? &en
+									     : &plain;
+		} else if (line.startsWith(QStringLiteral("- ")) || line.startsWith(QStringLiteral("* "))) {
+			current->append(line.mid(2).trimmed());
+		}
+	}
+	QStringList items = spanish ? es : en;
+	if (items.isEmpty())
+		items = spanish ? en : es;
+	if (items.isEmpty())
+		items = plain;
+	if (items.isEmpty())
+		return {};
+	QString html = QStringLiteral("<ul>");
+	for (const QString &item : items.mid(0, 8)) {
+		QString text = item.toHtmlEscaped();
+		text.replace(QRegularExpression(QStringLiteral("\\*\\*(.+?)\\*\\*")), QStringLiteral("<b>\\1</b>"));
+		html += QStringLiteral("<li>") + text + QStringLiteral("</li>");
+	}
+	return html + QStringLiteral("</ul>");
+}
+
 Release parseLatestRelease(const QJsonObject &json, const QString &assetSuffix)
 {
 	Release r;
@@ -95,6 +126,7 @@ Release parseLatestRelease(const QJsonObject &json, const QString &assetSuffix)
 	if (r.version.startsWith('v'))
 		r.version.remove(0, 1);
 	r.page = json.value("html_url").toString();
+	r.notes = json.value("body").toString();
 	r.url = r.page;
 	for (const QJsonValue a : json.value("assets").toArray()) {
 		const QJsonObject asset = a.toObject();
