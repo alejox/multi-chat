@@ -275,18 +275,27 @@ Funciona con cualquier forma de hacer multistream (Restream, *Multiple RTMP outp
 
 Sin configurar nada, el plugin le pregunta a YouTube por mensajes nuevos cada 2 segundos. Si conectas tu cuenta de Google, usa la API oficial de YouTube y los mensajes llegan apenas se escriben, como en Twitch y Kick. El permiso es de **solo lectura**: el plugin no puede publicar ni cambiar nada en tu canal.
 
-Hace falta crear, una sola vez, una «aplicación» propia en Google Cloud (es gratis y no pide tarjeta):
+**Conéctalo en OBS:** en el dock, ⚙ → *Ajustes* → pestaña **YouTube** → **Iniciar sesión con Google**. Se abre el navegador: elige tu cuenta y acepta el permiso. Listo, no hay que configurar nada más.
+
+> **Mientras Google verifica la app:** por ahora solo pueden iniciar sesión las cuentas de prueba que se hayan añadido. Si Google muestra «Acceso bloqueado», tu cuenta todavía no está habilitada; el chat de YouTube sigue funcionando igual, con el método normal.
+
+<details>
+<summary><b>Avanzado: usar tu propia aplicación de Google Cloud</b></summary>
+
+Si prefieres no usar la aplicación de AC Multichat (o compilas el plugin tú mismo), puedes crear una propia una sola vez (es gratis y no pide tarjeta):
 
 1. **Crea el proyecto:** entra a [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate), ponle un nombre (por ejemplo `AC Multichat`) y pulsa **Crear**.
 2. **Activa la API:** abre [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) con ese proyecto elegido y pulsa **Habilitar**.
 3. **Configura la pantalla de permiso:** en [Google Auth Platform](https://console.cloud.google.com/auth/overview) pulsa **Comenzar**; escribe un nombre de app y tu correo, elige público **Externo**, vuelve a poner tu correo como contacto y acepta.
 4. **Añádete como usuario de prueba:** en **Público** → **Usuarios de prueba** → **Agregar usuarios**, escribe la cuenta de Google con la que vas a iniciar sesión.
 5. **Crea el cliente:** en **Clientes** → **Crear cliente**, elige el tipo **App de escritorio**, ponle un nombre y pulsa **Crear**. Copia el **ID de cliente** y el **secreto de cliente** (el secreto solo se muestra en ese momento).
-6. **Conéctalo en OBS:** en el dock, ⚙ → *Ajustes* → pestaña **YouTube**, pega los dos valores y pulsa **Iniciar sesión con Google**. Se abre el navegador: elige tu cuenta, pulsa *Continuar* en el aviso de «Google no verificó esta app» (es tu propia app) y acepta el permiso.
+6. **Conéctalo en OBS:** en la pestaña **YouTube**, marca **Usar mi propia aplicación de Google Cloud (avanzado)**, pega los dos valores y pulsa **Iniciar sesión con Google**. En el aviso de «Google no verificó esta app» pulsa *Continuar* (es tu propia app).
+
+</details>
 
 Cuando haya un directo de YouTube conectado, la pestaña dirá *chat instantáneo activo*. Si la API no se puede usar (se agotó la cuota diaria, falló el permiso…), el plugin sigue con el método normal y ahí mismo te dice el motivo.
 
-- Mientras la app esté en modo *Prueba*, Google caduca la sesión a los 7 días: basta con volver a pulsar **Iniciar sesión**.
+- Mientras la app de Google esté en modo *Prueba*, Google caduca la sesión a los 7 días: basta con volver a pulsar **Iniciar sesión**.
 - Por este camino no llegan las imágenes de los emojis personalizados del canal ni de los Super Stickers (se ve su texto), y las insignias de miembro no muestran su dibujo.
 - La sesión se guarda en el archivo de configuración del plugin en tu equipo; no se envía a ningún otro sitio que no sea Google.
 
@@ -328,7 +337,8 @@ Ejecuta el comando `xattr -cr …` de los pasos de instalación. El plugin no es
 
 ## 🔒 Privacidad
 
-- Sin cuentas, sin inicios de sesión y sin telemetría. Todo corre dentro de OBS en tu computador; no hay ningún servidor nuestro.
+- Sin cuentas propias y sin telemetría. Todo corre dentro de OBS en tu computador; no hay ningún servidor nuestro.
+- **Inicio de sesión con Google (opcional):** solo si lo activas para el chat de YouTube al instante. Se pide permiso de solo lectura (`youtube.readonly`) y la sesión se guarda en tu equipo; solo se usa para hablar con Google y YouTube. Detalles en la [política de privacidad](https://www.alejoxcode.com/privacidad).
 - Para leer los chats y los espectadores, el plugin habla directamente y de forma anónima con cada plataforma que añades: Twitch (IRC y su GraphQL público), YouTube, Kick, TikTok y Starvios (su punto de acceso público de Supabase). Los emotes y las fotos de perfil se cargan de los servidores de imágenes de cada plataforma.
 - **Solo TikTok:** el ID de la sala del canal de TikTok que añades se envía a [Euler Stream](https://www.eulerstream.com) para firmar la conexión.
 - **Actualizaciones:** al abrir OBS, el plugin pregunta a la API de GitHub por la última Release de este repositorio y, solo si aceptas, la descarga de GitHub.

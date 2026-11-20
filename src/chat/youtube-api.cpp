@@ -14,6 +14,14 @@
 #include <chrono>
 #include <mutex>
 
+// Set by CMake for release builds; local builds without them use a client the user brings.
+#ifndef MULTICHAT_GOOGLE_CLIENT_ID
+#define MULTICHAT_GOOGLE_CLIENT_ID ""
+#endif
+#ifndef MULTICHAT_GOOGLE_CLIENT_SECRET
+#define MULTICHAT_GOOGLE_CLIENT_SECRET ""
+#endif
+
 namespace chat {
 namespace youtube {
 namespace api {
@@ -86,6 +94,26 @@ QJsonArray textParts(const QString &text)
 }
 
 } // namespace
+
+Credentials builtInClient()
+{
+	return {QStringLiteral(MULTICHAT_GOOGLE_CLIENT_ID), QStringLiteral(MULTICHAT_GOOGLE_CLIENT_SECRET), QString()};
+}
+
+bool hasBuiltInClient()
+{
+	const Credentials c = builtInClient();
+	return !c.clientId.isEmpty() && !c.clientSecret.isEmpty();
+}
+
+Credentials effective(const Credentials &saved)
+{
+	if (!saved.clientId.isEmpty() || !hasBuiltInClient())
+		return saved;
+	Credentials out = builtInClient();
+	out.refreshToken = saved.refreshToken;
+	return out;
+}
 
 void setCredentials(const Credentials &credentials)
 {

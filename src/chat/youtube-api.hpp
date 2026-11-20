@@ -27,6 +27,13 @@ struct Credentials {
 	}
 };
 
+// The plugin's own Google client, compiled in from MULTICHAT_GOOGLE_CLIENT_ID/SECRET (see
+// CMakeLists.txt); empty in builds without one, where users must bring their own client.
+Credentials builtInClient();
+bool hasBuiltInClient();
+// What was saved, with the built-in client filled in when it names no client of its own.
+Credentials effective(const Credentials &saved);
+
 // Thread-safe. Set from the main thread (config and sign-in); read by the YouTube connectors.
 void setCredentials(const Credentials &credentials);
 Credentials credentials();

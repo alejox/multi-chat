@@ -1949,6 +1949,21 @@ private slots:
 		QVERIFY(api::status().active && api::status().problem.isEmpty());
 		api::setCredentials({});
 		QVERIFY(!api::status().active);
+
+		// The built-in client (made up in tests/CMakeLists.txt) fills in a config that names no client
+		// of its own, keeping the saved session; a user's own client is used as is.
+		QVERIFY(api::hasBuiltInClient());
+		QCOMPARE(api::builtInClient().clientId, QString("built-in.apps.googleusercontent.com"));
+		const api::Credentials filled = api::effective({"", "", "refresh"});
+		QCOMPARE(filled.clientId, QString("built-in.apps.googleusercontent.com"));
+		QCOMPARE(filled.clientSecret, QString("built-in-secret"));
+		QCOMPARE(filled.refreshToken, QString("refresh"));
+		QVERIFY(!api::effective({}).refreshToken.size());
+		QCOMPARE(api::effective({}).clientId, QString("built-in.apps.googleusercontent.com"));
+		const api::Credentials own = api::effective({"mine", "s", "r"});
+		QCOMPARE(own.clientId, QString("mine"));
+		QCOMPARE(own.clientSecret, QString("s"));
+		QCOMPARE(own.refreshToken, QString("r"));
 	}
 
 	void youtubeApiStream()

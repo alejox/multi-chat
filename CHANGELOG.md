@@ -7,11 +7,11 @@ its items before installing (the Spanish ones when OBS is in Spanish, the Englis
 
 ### Español
 
-- **Nuevo:** chat de YouTube al instante. Si inicias sesión con Google (Ajustes → YouTube), YouTube envía cada mensaje apenas se escribe, en vez de consultarse cada 2 segundos. Es opcional; el README explica cómo configurarlo.
+- **Nuevo:** chat de YouTube al instante. Si inicias sesión con Google (Ajustes → YouTube), YouTube envía cada mensaje apenas se escribe, en vez de consultarse cada 2 segundos. Es opcional y basta con un clic: no hay que crear nada en Google Cloud (quien lo prefiera puede usar su propia aplicación).
 
 ### English
 
-- **New:** instant YouTube chat. If you sign in with Google (Settings → YouTube), YouTube sends each message as soon as it is written, instead of being checked every 2 seconds. It is optional; the README explains how to set it up.
+- **New:** instant YouTube chat. If you sign in with Google (Settings → YouTube), YouTube sends each message as soon as it is written, instead of being checked every 2 seconds. It is optional and takes one click: there is nothing to create in Google Cloud (you can still use your own application if you prefer).
 
 ## 2.4.2
 

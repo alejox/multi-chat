@@ -49,6 +49,8 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.publish == 'true'
     uses: ./.github/workflows/build.yml
+    # El cliente de Google del plugin llega a la compilación como secreto.
+    secrets: inherit
 
   publish:
     needs: [prepare, build]

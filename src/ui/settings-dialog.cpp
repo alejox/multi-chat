@@ -309,7 +309,14 @@ private:
 		layout->addWidget(help(i18n::tr("YouTubeLogin.Intro")));
 
 		const api::Credentials saved = ChatManager::instance().youtubeApi();
+		// Con el cliente de Google incluido basta con el botón; la app propia queda como opción avanzada.
+		const bool builtIn = api::hasBuiltInClient();
+		ytOwnClient_ = new QCheckBox(i18n::tr("YouTubeLogin.OwnClient"), page);
+		ytOwnClient_->setChecked(!saved.clientId.isEmpty());
+		ytOwnClient_->setVisible(builtIn);
+		layout->addWidget(ytOwnClient_);
 		auto *box = new QGroupBox(i18n::tr("YouTubeLogin.Client"), page);
+		ytClientBox_ = box;
 		auto *form = new QFormLayout(box);
 		ytClientId_ = new QLineEdit(saved.clientId, box);
 		ytClientId_->setPlaceholderText(QStringLiteral("…apps.googleusercontent.com"));
@@ -320,6 +327,9 @@ private:
 		auto *clientHelp = help(i18n::tr("YouTubeLogin.ClientHelp"));
 		form->addRow(clientHelp);
 		layout->addWidget(box);
+		connect(ytOwnClient_, &QCheckBox::toggled, this, [this] { updateYouTube(); });
+		if (builtIn)
+			layout->addWidget(help(i18n::tr("YouTubeLogin.Testing")));
 
 		ytStatus_ = new QLabel(page);
 		ytStatus_->setWordWrap(true);
@@ -336,12 +346,16 @@ private:
 
 		ytLogin_ = new YouTubeLogin(this);
 		connect(ytSignIn_, &QPushButton::clicked, this, [this] {
+			namespace api = chat::youtube::api;
+			api::Credentials client = api::builtInClient();
+			if (usingOwnClient())
+				client = {ytClientId_->text().trimmed(), ytClientSecret_->text().trimmed(), QString()};
 			if (ytLogin_->running()) {
 				ytLogin_->cancel();
 				ytMessage_.clear();
-			} else if (ytClientId_->text().trimmed().isEmpty() || ytClientSecret_->text().trimmed().isEmpty()) {
+			} else if (client.clientId.isEmpty() || client.clientSecret.isEmpty()) {
 				ytMessage_ = i18n::tr("YouTubeLogin.NeedClient");
-			} else if (ytLogin_->start(ytClientId_->text(), ytClientSecret_->text())) {
+			} else if (ytLogin_->start(client.clientId, client.clientSecret)) {
 				ytMessage_ = i18n::tr("YouTubeLogin.Waiting");
 			} else {
 				ytMessage_ = i18n::tr("YouTubeLogin.Failed").arg(QStringLiteral("127.0.0.1"));
@@ -358,7 +372,13 @@ private:
 			updateYouTube();
 		});
 		connect(ytLogin_, &YouTubeLogin::finished, this, [this](const chat::youtube::api::Credentials &c) {
-			ChatManager::instance().setYouTubeApi(c);
+			chat::youtube::api::Credentials stored = c;
+			// With the built-in client, only the session is saved: the client comes with each build.
+			if (!usingOwnClient()) {
+				stored.clientId.clear();
+				stored.clientSecret.clear();
+			}
+			ChatManager::instance().setYouTubeApi(stored);
 			ytMessage_.clear();
 			updateYouTube();
 		});
@@ -374,6 +394,13 @@ private:
 		return page;
 	}
 
+	// The user's own Google Cloud app: always in builds without the built-in client, otherwise
+	// only when they ask for it.
+	bool usingOwnClient() const
+	{
+		return !chat::youtube::api::hasBuiltInClient() || ytOwnClient_->isChecked();
+	}
+
 	void updateYouTube()
 	{
 		namespace api = chat::youtube::api;
@@ -381,6 +408,8 @@ private:
 		const bool running = ytLogin_->running();
 		ytSignIn_->setText(i18n::tr(running ? "YouTubeLogin.Cancel" : signedIn ? "YouTubeLogin.SignInAgain" : "YouTubeLogin.SignIn"));
 		ytSignOut_->setVisible(signedIn && !running);
+		ytClientBox_->setVisible(usingOwnClient());
+		ytOwnClient_->setEnabled(!running);
 		ytClientId_->setEnabled(!running);
 		ytClientSecret_->setEnabled(!running);
 		QString text;
@@ -915,6 +944,8 @@ private:
 	QCheckBox *readAuthor_ = nullptr;
 	QHash<QString, QCheckBox *> readPlatforms_; // by platform id
 	QSpinBox *maxLength_ = nullptr;
+	QCheckBox *ytOwnClient_ = nullptr;
+	QGroupBox *ytClientBox_ = nullptr;
 	QLineEdit *ytClientId_ = nullptr;
 	QLineEdit *ytClientSecret_ = nullptr;
 	QLabel *ytStatus_ = nullptr;

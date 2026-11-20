@@ -102,8 +102,9 @@ public:
 
 	// Hidden users, commands and blocked words. They apply to messages that arrive from now on.
 	// Sign-in for YouTube's instant chat (client and refresh token), saved in config.json as
-	// "youtubeApi". Setting it hands it to the YouTube connectors, which switch on their own.
-	chat::youtube::api::Credentials youtubeApi() const { return chat::youtube::api::credentials(); }
+	// "youtubeApi". An empty client means the plugin's built-in one. Setting it hands it to the
+	// YouTube connectors, which switch on their own.
+	chat::youtube::api::Credentials youtubeApi() const;
 	void setYouTubeApi(const chat::youtube::api::Credentials &credentials);
 
 	chat::FilterRules filters() const { return filters_; }

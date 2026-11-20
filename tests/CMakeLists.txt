@@ -28,7 +28,10 @@ add_executable(
 )
 target_link_libraries(test-chat PRIVATE Qt6::Core Qt6::Test)
 target_compile_definitions(test-chat PRIVATE MULTICHAT_LOCALE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../data/locale"
-                                            MULTICHAT_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../src")
+                                            MULTICHAT_SRC_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../src"
+                                            # A made-up built-in Google client (test-manager builds without one).
+                                            MULTICHAT_GOOGLE_CLIENT_ID="built-in.apps.googleusercontent.com"
+                                            MULTICHAT_GOOGLE_CLIENT_SECRET="built-in-secret")
 
 add_executable(test-tts test-tts.cpp ${src}/chat/message.cpp ${src}/tts/notification-sound.cpp ${src}/tts/speech-text.cpp
                         ${src}/tts/voice-engine.cpp ${src}/tts/voice-settings.cpp)

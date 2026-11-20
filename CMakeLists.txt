@@ -29,6 +29,26 @@ target_compile_options(
 )
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON)
 
+# Cliente de Google del plugin (OAuth «App de escritorio»), para que el usuario solo pulse «Iniciar
+# sesión con Google». Llega de las variables de entorno MULTICHAT_GOOGLE_CLIENT_ID y
+# MULTICHAT_GOOGLE_CLIENT_SECRET (secretos del repositorio en GitHub Actions). Sin ellas, el plugin
+# compila igual y cada usuario usa su propia app de Google Cloud. Google no considera confidencial el
+# secreto de un cliente de escritorio, pero no se guarda en el repositorio.
+set(_google_client_id "$ENV{MULTICHAT_GOOGLE_CLIENT_ID}")
+set(_google_client_secret "$ENV{MULTICHAT_GOOGLE_CLIENT_SECRET}")
+if(_google_client_id AND _google_client_secret)
+  if(NOT _google_client_id MATCHES "^[A-Za-z0-9._-]+$" OR NOT _google_client_secret MATCHES "^[A-Za-z0-9._-]+$")
+    message(FATAL_ERROR "MULTICHAT_GOOGLE_CLIENT_ID o MULTICHAT_GOOGLE_CLIENT_SECRET tienen caracteres no válidos")
+  endif()
+  target_compile_definitions(
+    ${CMAKE_PROJECT_NAME}
+    PRIVATE MULTICHAT_GOOGLE_CLIENT_ID="${_google_client_id}" MULTICHAT_GOOGLE_CLIENT_SECRET="${_google_client_secret}"
+  )
+  message(STATUS "obs-multichat: con el cliente de Google incluido")
+else()
+  message(STATUS "obs-multichat: sin cliente de Google incluido (cada usuario usa el suyo)")
+endif()
+
 target_sources(
   ${CMAKE_PROJECT_NAME}
   PRIVATE

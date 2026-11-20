@@ -43,6 +43,10 @@ jobs:
         id: version
         run: echo "v=$(python3 -c "import json;print(json.load(open('buildspec.json'))['version'])")" >> "$GITHUB_OUTPUT"
       - name: Configurar (descarga OBS 33, obs-deps y Qt)
+        env:
+          # Cliente de Google del plugin (ver CMakeLists.txt). Sin los secretos, compila sin él.
+          MULTICHAT_GOOGLE_CLIENT_ID: ${{ secrets.MULTICHAT_GOOGLE_CLIENT_ID }}
+          MULTICHAT_GOOGLE_CLIENT_SECRET: ${{ secrets.MULTICHAT_GOOGLE_CLIENT_SECRET }}
         run: |
           xcodebuild -version
           cmake --preset macos-ci
@@ -78,6 +82,10 @@ jobs:
         id: version
         run: '"v=$((Get-Content buildspec.json | ConvertFrom-Json).version)" >> $env:GITHUB_OUTPUT'
       - name: Configurar (descarga OBS 33, obs-deps y Qt)
+        env:
+          # Cliente de Google del plugin (ver CMakeLists.txt). Sin los secretos, compila sin él.
+          MULTICHAT_GOOGLE_CLIENT_ID: ${{ secrets.MULTICHAT_GOOGLE_CLIENT_ID }}
+          MULTICHAT_GOOGLE_CLIENT_SECRET: ${{ secrets.MULTICHAT_GOOGLE_CLIENT_SECRET }}
         run: cmake --preset windows-ci-x64
       - name: Compilar con Visual Studio
         run: cmake --build --preset windows-ci-x64
@@ -137,6 +145,10 @@ jobs:
             libcurl4-openssl-dev libespeak-ng-dev libsimde-dev libgles2-mesa-dev ninja-build
           dpkg -s obs-studio | grep '^Version'
       - name: Configurar
+        env:
+          # Cliente de Google del plugin (ver CMakeLists.txt). Sin los secretos, compila sin él.
+          MULTICHAT_GOOGLE_CLIENT_ID: ${{ secrets.MULTICHAT_GOOGLE_CLIENT_ID }}
+          MULTICHAT_GOOGLE_CLIENT_SECRET: ${{ secrets.MULTICHAT_GOOGLE_CLIENT_SECRET }}
         run: cmake --preset ubuntu-ci-x86_64
       - name: Compilar
         run: cmake --build --preset ubuntu-ci-x86_64
