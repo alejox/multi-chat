@@ -64,6 +64,8 @@ struct OverlaySource {
 	// Con disposición propia, la ventana tiene su fuente de navegador (van con floatingMutex).
 	obs_source_t *floatBrowser = nullptr;
 	QString floatLayout;
+	// Cuánto se agranda la letra en la ventana (la cinta horizontal crece con el alto de la ventana).
+	double floatScale = 1.0;
 	// "Solo en la ventana flotante": la fuente no se dibuja en la escena (lo lee el hilo de gráficos).
 	std::atomic<bool> floatOnly{false};
 };
@@ -100,6 +102,9 @@ template<typename Fn> void forEachSource(Fn &&fn)
 void connectManager();
 void send(OverlaySource *s, const QJsonObject &payload);
 void sendFloatConfig(OverlaySource *s);
+// The config of the floating window's own page: the source's, with the window's layout, clock,
+// style ("layout|clock|style", see floating-window.cpp) and font scale.
+QJsonObject floatConfig(OverlaySource *s, const QString &layout, double scale);
 QJsonObject configOf(const OverlaySource *s);
 void sendFeatured(OverlaySource *s);
 void sendAll(const QJsonObject &payload);
