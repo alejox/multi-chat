@@ -3,6 +3,16 @@
 Each `## <version>` section becomes the description of that release, and the plugin's updater shows
 its items before installing (the Spanish ones when OBS is in Spanish, the English ones otherwise).
 
+## 2.4.2
+
+### Español
+
+- **Error corregido:** los mensajes de Starvios no aparecían. Starvios cambió la forma en que reparte su chat y el plugin ya escucha la nueva; siguen llegando al instante.
+
+### English
+
+- **Bug fixed:** Starvios messages were not showing up. Starvios changed how it delivers its chat and the plugin now listens to the new way; they still arrive instantly.
+
 ## 2.4.1
 
 ### Español

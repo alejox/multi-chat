@@ -263,6 +263,9 @@ struct Frame {
 };
 // Decide el formato mirando el contenido: los backends de net:: no distinguen texto de binario.
 Frame decodeFrame(QByteArrayView data);
+// A "postgres_changes" event of the live_chat_messages table (payload.data: type, record) in the
+// shape of the page's "msg" broadcast ({op, msg}); empty for anything else.
+QJsonObject broadcastFromChange(const QJsonObject &payload);
 
 // Emotes de la plataforma: código en minúsculas → URL de la imagen.
 using EmoteMap = QHash<QString, QString>;

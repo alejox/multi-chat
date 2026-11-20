@@ -324,13 +324,21 @@ QByteArray compactJson(const QJsonObject &object)
 	return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-QString joinFrame(const QString &topic)
+QString joinFrame(const QString &topic, const QString &streamId)
 {
+	// Starvios dejó de difundir los mensajes por el canal público (noviembre de 2026), así que además
+	// se piden los cambios de la tabla del chat de este directo: llegan al instante y sin sesión.
+	const QJsonObject changes{
+		{"event", "*"},
+		{"schema", "public"},
+		{"table", "live_chat_messages"},
+		{"filter", QStringLiteral("stream_id=eq.%1").arg(streamId)},
+	};
 	// Sin presencia: entrar en ella contaría al plugin como un espectador.
 	const QJsonObject config{
 		{"broadcast", QJsonObject{{"ack", false}, {"self", false}}},
 		{"presence", QJsonObject{{"key", ""}, {"enabled", false}}},
-		{"postgres_changes", QJsonArray{}},
+		{"postgres_changes", QJsonArray{changes}},
 		{"private", false},
 	};
 	const QJsonArray frame{"1", "1", topic, "phx_join", QJsonObject{{"config", config}}};
@@ -350,6 +358,28 @@ bool isExpectedEvent(const QString &event)
 	};
 	return expected.contains(event);
 }
+
+} // namespace
+
+QJsonObject broadcastFromChange(const QJsonObject &payload)
+{
+	const QJsonObject data = payload.value(QStringLiteral("data")).toObject();
+	if (jsonText(data.value(QStringLiteral("table"))) != QStringLiteral("live_chat_messages"))
+		return {};
+	const QString type = jsonText(data.value(QStringLiteral("type")));
+	// Un borrado real solo trae la clave en old_record; lo normal es un UPDATE con is_deleted.
+	QJsonObject row = data.value(QStringLiteral("record")).toObject();
+	if (row.isEmpty())
+		row = data.value(QStringLiteral("old_record")).toObject();
+	if (row.isEmpty() || (type != QStringLiteral("INSERT") && type != QStringLiteral("UPDATE") &&
+			      type != QStringLiteral("DELETE")))
+		return {};
+	if (type == QStringLiteral("DELETE"))
+		row.insert(QStringLiteral("is_deleted"), true);
+	return {{QStringLiteral("op"), type}, {QStringLiteral("msg"), row}};
+}
+
+namespace {
 
 const QRegularExpression &emoteCodePattern()
 {
@@ -644,7 +674,7 @@ protected:
 		setSocket(ws);
 
 		const QString topic = QStringLiteral("realtime:stream:%1").arg(streamId);
-		ws->send(joinFrame(topic).toStdString());
+		ws->send(joinFrame(topic, streamId).toStdString());
 		Background background(this, ws, streamId);
 
 		bool joined = false;
@@ -683,6 +713,10 @@ protected:
 					background.joined();
 					report_("connected", Text());
 					recoverGap(background, streamId);
+				} else if (frame.event == QStringLiteral("postgres_changes")) {
+					const QJsonObject payload = broadcastFromChange(frame.payload);
+					if (!payload.isEmpty())
+						onBroadcast(payload, background);
 				} else if (frame.event == QStringLiteral("phx_error") || frame.event == QStringLiteral("phx_close")) {
 					throw ChatError(Text{"Error.ChannelClosed", {QStringLiteral("Starvios")}});
 				} else {

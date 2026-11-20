@@ -397,6 +397,43 @@ private slots:
 		QVERIFY(starvios::decodeFrame(realtimeFrame("t", "msg", "", payload, 9)).type == Frame::Type::Ignored);
 	}
 
+	void starviosDatabaseChanges()
+	{
+		using starvios::Frame;
+		// Lo que manda Realtime por cada mensaje nuevo de la tabla del chat (sin el perfil del autor).
+		const QByteArray raw =
+			"[\"1\",null,\"realtime:stream:s1\",\"postgres_changes\",{\"ids\":[1],\"data\":{"
+			"\"table\":\"live_chat_messages\",\"type\":\"INSERT\",\"schema\":\"public\","
+			"\"record\":{\"id\":\"m1\",\"body\":\"hola\",\"user_id\":\"u1\",\"stream_id\":\"s1\"}}}]";
+		const Frame f = starvios::decodeFrame(raw);
+		QVERIFY(f.type == Frame::Type::Control);
+		QCOMPARE(f.event, QString("postgres_changes"));
+		const QJsonObject added = starvios::broadcastFromChange(f.payload);
+		QCOMPARE(added["op"].toString(), QString("INSERT"));
+		QCOMPARE(added["msg"].toObject()["body"].toString(), QString("hola"));
+		QVERIFY(starvios::toDeletion(added).isEmpty());
+
+		auto change = [](const char *type, const QJsonObject &record, const QJsonObject &old = {}) {
+			return QJsonObject{{"data", QJsonObject{{"table", "live_chat_messages"},
+							       {"type", type},
+							       {"record", record},
+							       {"old_record", old}}}};
+		};
+		// Borrado por moderación: un UPDATE con is_deleted, o un DELETE que solo trae la clave.
+		const QJsonObject hidden =
+			starvios::broadcastFromChange(change("UPDATE", {{"id", "m1"}, {"is_deleted", true}}));
+		QCOMPARE(starvios::toDeletion(hidden)["id"].toString(), QString("m1"));
+		const QJsonObject removed = starvios::broadcastFromChange(change("DELETE", {}, {{"id", "m2"}}));
+		QCOMPARE(starvios::toDeletion(removed)["id"].toString(), QString("m2"));
+
+		QVERIFY(starvios::broadcastFromChange(change("TRUNCATE", {{"id", "m1"}})).isEmpty());
+		QVERIFY(starvios::broadcastFromChange(change("INSERT", {})).isEmpty());
+		QVERIFY(starvios::broadcastFromChange({{"data", QJsonObject{{"table", "otra"}, {"type", "INSERT"},
+									     {"record", QJsonObject{{"id", "x"}}}}}})
+				.isEmpty());
+		QVERIFY(starvios::broadcastFromChange({}).isEmpty());
+	}
+
 	void starviosMalformedFrames()
 	{
 		using starvios::Frame;
