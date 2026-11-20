@@ -20,8 +20,9 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
 find_package(obs-frontend-api REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
+# Network: solo para la página local del inicio de sesión de YouTube (TCP sin TLS; OBS ya trae QtNetwork).
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets Network)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets Qt6::Network)
 target_compile_options(
   ${CMAKE_PROJECT_NAME}
   PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
@@ -68,6 +69,8 @@ target_sources(
     src/chat/twitch.cpp
     src/chat/kick.cpp
     src/chat/youtube.cpp
+    src/chat/youtube-api.cpp
+    src/chat/youtube-api.hpp
     src/chat/tiktok.cpp
     src/chat/starvios.cpp
     src/chat/updates.cpp
@@ -105,6 +108,8 @@ target_sources(
     src/ui/settings-dialog.cpp
     src/ui/settings-dialog.hpp
     src/ui/support-dialog.cpp
+    src/ui/youtube-login.cpp
+    src/ui/youtube-login.hpp
     src/ui/support-dialog.hpp
     src/ui/ui-common.cpp
     src/ui/ui-common.hpp

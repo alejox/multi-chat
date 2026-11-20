@@ -9,7 +9,10 @@
 #include <winhttp.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <mutex>
+#include <thread>
 
 namespace net {
 
@@ -275,7 +278,79 @@ private:
 	std::mutex sendMutex_;
 };
 
+// Respuesta en continuo: un hilo lee con WinHttpReadData (que bloquea) y read() espera sus datos.
+class WinStream : public Stream {
+public:
+	WinStream(HINTERNET connection, HINTERNET request, int status)
+		: connection_(connection),
+		  request_(request),
+		  status_(status)
+	{
+		thread_ = std::thread([this] {
+			char buffer[16384];
+			for (;;) {
+				DWORD read = 0;
+				if (!WinHttpReadData(request_, buffer, sizeof(buffer), &read) || read == 0)
+					break;
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					buffer_.append(buffer, read);
+				}
+				cv_.notify_all();
+			}
+			{
+				std::lock_guard<std::mutex> lock(mutex_);
+				done_ = true;
+			}
+			cv_.notify_all();
+		});
+	}
+	~WinStream() override
+	{
+		// Cerrar el handle cancela el WinHttpReadData que esté esperando.
+		WinHttpCloseHandle(request_);
+		if (thread_.joinable())
+			thread_.join();
+		WinHttpCloseHandle(connection_);
+	}
+
+	Result read(std::string &chunk, int timeoutMs) override
+	{
+		std::unique_lock<std::mutex> lock(mutex_);
+		cv_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return !buffer_.empty() || done_; });
+		if (!buffer_.empty()) {
+			chunk.swap(buffer_);
+			buffer_.clear();
+			return Result::Data;
+		}
+		return done_ ? Result::Closed : Result::Timeout;
+	}
+
+	int status() const override { return status_; }
+
+private:
+	HINTERNET connection_;
+	HINTERNET request_;
+	int status_;
+	std::thread thread_;
+	std::mutex mutex_;
+	std::condition_variable cv_;
+	std::string buffer_;
+	bool done_ = false;
+};
+
 } // namespace
+
+std::shared_ptr<Stream> openStream(const std::string &url, const Headers &headers, std::string &error)
+{
+	HINTERNET connection = nullptr;
+	HINTERNET request = openRequest("GET", url, headers, {}, 15000, false, connection, error);
+	if (!request)
+		return nullptr;
+	// Ya con la respuesta empezada, la espera de datos no tiene límite: un chat puede estar callado.
+	WinHttpSetTimeouts(request, 15000, 15000, 15000, 0);
+	return std::make_shared<WinStream>(connection, request, statusCode(request));
+}
 
 Response request(const std::string &method, const std::string &url, const Headers &headers, const std::string &body,
 		 int timeoutMs)

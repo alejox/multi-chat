@@ -1,13 +1,16 @@
 // YouTube: lee el chat público del directo con el endpoint interno de la web (sin API key).
 
 #include "platforms.hpp"
+#include "youtube-api.hpp"
 #include "message.hpp"
 
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QSet>
 
 #include <algorithm>
+#include <chrono>
 
 namespace chat {
 namespace youtube {
@@ -491,6 +494,28 @@ protected:
 		if (stopped())
 			return;
 
+		// Con sesión de Google: la API oficial, que manda cada mensaje al instante. Si no se puede
+		// usar (cuota, permiso, red), se sigue con el método de siempre y se reintenta más tarde.
+		if (apiAllowed()) {
+			const ApiResult result = apiSession(video);
+			api::setActive(false);
+			switch (result) {
+			case ApiResult::Stopped:
+			case ApiResult::Restart:
+				return;
+			case ApiResult::Ended:
+				if (!source_.videoFixed)
+					source_.extra.clear();
+				throw ChatError(Text{"Error.LiveChatEnded", {}});
+			case ApiResult::Failed:
+				apiRetryAt_ = std::chrono::steady_clock::now() + std::chrono::minutes(5);
+				apiFailedGeneration_ = api::generation();
+				// El primer lote del otro método es historial que ya se mostró por la API.
+				connectedBefore_ = false;
+				break;
+			}
+		}
+
 		net::Response page =
 			net::get(("https://www.youtube.com/live_chat?is_popout=1&v=" + video).toStdString(), kCookies);
 		const QString html = QString::fromUtf8(page.body);
@@ -572,6 +597,9 @@ protected:
 			continuation = nextContinuation(lc, timeoutMs);
 			if (wait(pollDelay(timeoutMs, emptyPolls)))
 				return;
+			// Se inició sesión (o ya toca reintentar): la sesión vuelve a empezar, ahora por la API.
+			if (apiAllowed())
+				return;
 		}
 		if (!source_.videoFixed)
 			source_.extra.clear(); // el directo terminó: la próxima vez se busca uno nuevo
@@ -579,9 +607,170 @@ protected:
 	}
 
 private:
+	enum class ApiResult { Stopped, Restart, Ended, Failed };
+
+	bool apiAllowed() const
+	{
+		if (!api::signedIn())
+			return false;
+		return api::generation() != apiFailedGeneration_ || std::chrono::steady_clock::now() >= apiRetryAt_;
+	}
+
+	ApiResult apiFailed(const QString &problem)
+	{
+		api::setProblem(problem);
+		return ApiResult::Failed;
+	}
+
+	// Lee el chat por la API oficial hasta que haya que parar. Los mensajes llegan por una conexión
+	// que YouTube deja abierta; al cortarse se retoma donde iba (nextPageToken).
+	ApiResult apiSession(const QString &video)
+	{
+		using clock = std::chrono::steady_clock;
+		const quint64 generation = api::generation();
+		QString error;
+		QString token = api::accessToken(&error);
+		if (token.isEmpty())
+			return apiFailed(error);
+		if (apiVideo_ != video) {
+			apiVideo_ = video;
+			apiChatId_.clear();
+			apiPageToken_.clear();
+		}
+		if (apiChatId_.isEmpty()) {
+			apiChatId_ = api::liveChatId(video, token, &error);
+			if (apiChatId_.isEmpty())
+				return apiFailed(error);
+		}
+		int failures = 0;
+		bool renewed = false;
+		while (!stopped()) {
+			if (api::generation() != generation)
+				return ApiResult::Restart;
+			token = api::accessToken(&error);
+			if (token.isEmpty())
+				return apiFailed(error);
+			// Sin punto de reanudación, YouTube empieza por el historial reciente: no se repite.
+			const bool resuming = !apiPageToken_.isEmpty();
+			const qint64 since = QDateTime::currentMSecsSinceEpoch() - 3000;
+			std::string connectError;
+			auto stream = net::openStream(api::streamUrl(apiChatId_, apiPageToken_).toStdString(),
+						      {{"Authorization", "Bearer " + token.toStdString()},
+						       {"Accept", "application/json"}},
+						      connectError);
+			if (!stream) {
+				if (++failures > 4)
+					return apiFailed(QStringLiteral("connection: ") + QString::fromStdString(connectError));
+				if (wait(2000 * failures))
+					return ApiResult::Stopped;
+				continue;
+			}
+			if (stream->status() == 200) {
+				report_("connected", Text{"Detail.Instant", {}});
+				api::setActive(true);
+			}
+			const auto opened = clock::now();
+			api::ObjectSplitter splitter;
+			std::string chunk;
+			QString reason;
+			bool ended = false;
+			while (reason.isEmpty() && !ended) {
+				if (stopped())
+					return ApiResult::Stopped;
+				if (api::generation() != generation)
+					return ApiResult::Restart;
+				// El permiso caduca a la hora: se reconecta antes con uno nuevo.
+				if (clock::now() - opened > std::chrono::minutes(50))
+					break;
+				const net::Stream::Result got = stream->read(chunk, 500);
+				if (got == net::Stream::Result::Timeout)
+					continue;
+				if (got == net::Stream::Result::Closed)
+					break;
+				splitter.feed(QByteArray::fromStdString(chunk));
+				QByteArray raw;
+				while (splitter.next(raw)) {
+					const QJsonObject response = QJsonDocument::fromJson(raw).object();
+					reason = api::errorReason(response);
+					if (!reason.isEmpty())
+						break;
+					for (const QJsonValue v : response.value("items").toArray()) {
+						const QJsonObject item = v.toObject();
+						if (api::isChatEnded(item)) {
+							ended = true;
+							continue;
+						}
+						if (!resuming && api::publishedMs(item) < since)
+							continue;
+						QJsonObject m = api::toMessage(item, source_.channel);
+						if (m.isEmpty())
+							m = api::toDeletion(item);
+						else if (!seen_.add(m.value("id").toString()))
+							continue;
+						if (!m.isEmpty())
+							post_(m);
+					}
+					const QString next = response.value("nextPageToken").toString();
+					if (!next.isEmpty())
+						apiPageToken_ = next;
+					if (response.contains("offlineAt"))
+						ended = true;
+				}
+			}
+			const int status = stream->status();
+			stream.reset();
+			api::setActive(false);
+			if (ended || reason == "liveChatEnded" || reason == "liveChatDisabled" || reason == "liveChatNotFound") {
+				apiChatId_.clear();
+				apiPageToken_.clear();
+				return ApiResult::Ended;
+			}
+			if (status == 401 || reason == "authError" || reason == "UNAUTHENTICATED") {
+				// El permiso caducó antes de tiempo: se pide otro una vez.
+				api::dropAccessToken();
+				if (renewed)
+					return apiFailed(QStringLiteral("YouTube API: ") + reason);
+				renewed = true;
+				continue;
+			}
+			if (reason == "pageTokenInvalid" || reason == "invalidPageToken") {
+				apiPageToken_.clear();
+				continue;
+			}
+			if (reason == "rateLimitExceeded") {
+				// Se reconectó demasiado seguido: basta con esperar un poco.
+				if (++failures > 4)
+					return apiFailed(QStringLiteral("YouTube API: ") + reason);
+				if (wait(5000 * failures))
+					return ApiResult::Stopped;
+				continue;
+			}
+			if (!reason.isEmpty() || status != 200)
+				return apiFailed(QStringLiteral("YouTube API: ") +
+						 (reason.isEmpty() ? QStringLiteral("HTTP %1").arg(status) : reason));
+			renewed = false;
+			// Cierre normal del servidor: se retoma. Si se cierra nada más abrir varias veces, algo
+			// va mal y no se insiste (cada conexión gasta cuota).
+			if (clock::now() - opened < std::chrono::seconds(15)) {
+				if (++failures > 4)
+					return apiFailed(QStringLiteral("YouTube API: the connection keeps closing"));
+				if (wait(2000 * failures))
+					return ApiResult::Stopped;
+			} else {
+				failures = 0;
+			}
+		}
+		return ApiResult::Stopped;
+	}
+
 	QSet<QString> seenPinned_;
 	SeenIds seen_;
 	bool connectedBefore_ = false;
+	QString apiVideo_;
+	QString apiChatId_;
+	QString apiPageToken_;
+	std::chrono::steady_clock::time_point apiRetryAt_{};
+	quint64 apiFailedGeneration_ = 0;
 };
 
 std::shared_ptr<Connector> create(const SourceInfo &s, Connector::PostFn post, Connector::ReportFn report)

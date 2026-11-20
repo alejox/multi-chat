@@ -5,6 +5,66 @@
 #import <Foundation/Foundation.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+
+// Recibe una respuesta en continuo: NSURLSession avisa aquí de cada trozo que llega.
+@interface MCStreamDelegate : NSObject <NSURLSessionDataDelegate>
+@end
+
+@implementation MCStreamDelegate {
+      @public
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::string buffer;
+    std::string failure;
+    int status;
+    bool gotResponse;
+    bool done;
+}
+
+- (void)URLSession:(NSURLSession *)session
+              dataTask:(NSURLSessionDataTask *)dataTask
+    didReceiveResponse:(NSURLResponse *)response
+     completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if ([response isKindOfClass:[NSHTTPURLResponse class]])
+            status = (int) ((NSHTTPURLResponse *) response).statusCode;
+        gotResponse = true;
+    }
+    cv.notify_all();
+    completionHandler(NSURLSessionResponseAllow);
+}
+
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        std::string *out = &buffer;
+        [data enumerateByteRangesUsingBlock:^(const void *bytes, NSRange range, BOOL *) {
+            out->append(static_cast<const char *>(bytes), range.length);
+        }];
+    }
+    cv.notify_all();
+}
+
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error
+{
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (error) {
+            const char *text = error.localizedDescription.UTF8String;
+            failure = text ? text : "error de red";
+        }
+        done = true;
+    }
+    cv.notify_all();
+}
+
+@end
 
 namespace net {
 
@@ -129,7 +189,80 @@ namespace net {
             std::atomic<bool> closed_ {false};
         };
 
+        class MacStream : public Stream
+        {
+              public:
+            MacStream(NSURLSession *session, NSURLSessionDataTask *task, MCStreamDelegate *delegate)
+                : session_(session), task_(task), delegate_(delegate)
+            {}
+            ~MacStream() override
+            {
+                [task_ cancel];
+                // La sesión retiene al delegado hasta que se invalida.
+                [session_ invalidateAndCancel];
+            }
+
+            Result read(std::string &chunk, int timeoutMs) override
+            {
+                std::unique_lock<std::mutex> lock(delegate_->mutex);
+                MCStreamDelegate *d = delegate_;
+                d->cv.wait_for(lock, std::chrono::milliseconds(timeoutMs), [d] {
+                    return !d->buffer.empty() || d->done;
+                });
+                if (!d->buffer.empty()) {
+                    chunk.swap(d->buffer);
+                    d->buffer.clear();
+                    return Result::Data;
+                }
+                return d->done ? Result::Closed : Result::Timeout;
+            }
+
+            int status() const override
+            {
+                std::lock_guard<std::mutex> lock(delegate_->mutex);
+                return delegate_->status;
+            }
+
+              private:
+            NSURLSession *session_;
+            NSURLSessionDataTask *task_;
+            MCStreamDelegate *delegate_;
+        };
+
     }  // namespace
+
+    std::shared_ptr<Stream> openStream(const std::string &url, const Headers &headers, std::string &error)
+    {
+        @autoreleasepool {
+            // El plazo de la petición es el tiempo máximo sin recibir nada: un chat puede estar callado.
+            const NSTimeInterval idle = 6 * 3600;
+            NSMutableURLRequest *req = makeRequest(url, headers, idle, error);
+            if (!req)
+                return nullptr;
+            [req setValue:@"identity" forHTTPHeaderField:@"Accept-Encoding"];
+            NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+            config.HTTPAdditionalHeaders = @{@"User-Agent": @(kUserAgent)};
+            config.timeoutIntervalForRequest = idle;
+            config.timeoutIntervalForResource = 7 * 24 * 3600;
+            config.HTTPCookieStorage = nil;
+            config.URLCache = nil;
+            MCStreamDelegate *delegate = [[MCStreamDelegate alloc] init];
+            NSURLSession *session = [NSURLSession sessionWithConfiguration:config delegate:delegate delegateQueue:nil];
+            NSURLSessionDataTask *task = [session dataTaskWithRequest:req];
+            auto stream = std::make_shared<MacStream>(session, task, delegate);
+            [task resume];
+            std::unique_lock<std::mutex> lock(delegate->mutex);
+            const bool answered = delegate->cv.wait_for(lock, std::chrono::seconds(20), [delegate] {
+                return delegate->gotResponse || delegate->done;
+            });
+            if (!answered || !delegate->gotResponse) {
+                error = delegate->failure.empty() ? "sin respuesta" : delegate->failure;
+                lock.unlock();
+                return nullptr;
+            }
+            return stream;
+        }
+    }
 
     Response request(const std::string &method, const std::string &url, const Headers &headers, const std::string &body,
                      int timeoutMs)

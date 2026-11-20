@@ -45,6 +45,12 @@ Response request(const std::string &method, const std::string &url, const Header
 	return r;
 }
 
+std::shared_ptr<Stream> openStream(const std::string &, const Headers &, std::string &error)
+{
+	error = "sin red en las pruebas";
+	return nullptr;
+}
+
 std::shared_ptr<WebSocket> connectWebSocket(const std::string &url, const Headers &, std::string &error)
 {
 	netstub::SocketFactory factory;

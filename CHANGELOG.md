@@ -3,6 +3,16 @@
 Each `## <version>` section becomes the description of that release, and the plugin's updater shows
 its items before installing (the Spanish ones when OBS is in Spanish, the English ones otherwise).
 
+## 2.5.0
+
+### Español
+
+- **Nuevo:** chat de YouTube al instante. Si inicias sesión con Google (Ajustes → YouTube), YouTube envía cada mensaje apenas se escribe, en vez de consultarse cada 2 segundos. Es opcional; el README explica cómo configurarlo.
+
+### English
+
+- **New:** instant YouTube chat. If you sign in with Google (Settings → YouTube), YouTube sends each message as soon as it is written, instead of being checked every 2 seconds. It is optional; the README explains how to set it up.
+
 ## 2.4.2
 
 ### Español
