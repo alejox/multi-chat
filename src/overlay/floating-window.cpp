@@ -135,8 +135,26 @@ void renderFrame(void *param, uint32_t, uint32_t)
 	st->next ^= 1;
 }
 
-// Con disposición propia, la página tiene el tamaño de la ventana: en vertical, todo; en
-// horizontal, su ancho y el alto de una línea. Hilo de la interfaz.
+// Alto de la página propia y cuánto agrandar la letra para una ventana de este tamaño. En vertical
+// la página ocupa toda la ventana (más ancha, líneas más largas; más alta, más mensajes); en
+// horizontal es una sola línea, así que con la ventana más alta crece la letra hasta llenarla.
+int ownPageHeight(OverlaySource *s, const QString &layout, const QSize &window, double &scale)
+{
+	scale = 1.0;
+	const QJsonObject base = overlay_source::floatConfig(s, layout, 1.0);
+	if (base.value("layout").toString() != QLatin1String("horizontal"))
+		return std::max(40, window.height());
+	// El relleno no crece con la letra: se ajusta unas veces hasta que la línea llena el alto.
+	const double target = window.height();
+	scale = std::clamp(target / overlay_source::tickerHeight(base), 0.5, 8.0);
+	for (int i = 0; i < 3; ++i)
+		scale = std::clamp(scale * target / overlay_source::tickerHeight(overlay_source::floatConfig(s, layout, scale)),
+				   0.5, 8.0);
+	const int scaled = int(overlay_source::tickerHeight(overlay_source::floatConfig(s, layout, scale)));
+	return std::max(10, std::min(window.height(), scaled));
+}
+
+// La página propia tiene el tamaño de la ventana. Hilo de la interfaz.
 void syncOwnBrowser(obs_weak_source_t *weak, State &st, const QSize &window)
 {
 	if (!st.own)
@@ -145,15 +163,14 @@ void syncOwnBrowser(obs_weak_source_t *weak, State &st, const QSize &window)
 	if (!source)
 		return;
 	if (auto *s = static_cast<OverlaySource *>(obs_obj_get_data(source))) {
-		const QJsonObject config = overlay_source::configOf(s);
-		const int w = std::max(80, window.width());
-		QString layout = st.layout.section('|', 0, 0);
-		if (layout == QLatin1String("same"))
-			layout = config.value("layout").toString();
-		const int h = layout == QLatin1String("horizontal") ? int(overlay_source::tickerHeight(config))
-									 : std::max(40, window.height());
+		double scale = 1.0;
+		const int h = ownPageHeight(s, st.layout, window, scale);
+		{
+			std::lock_guard<std::mutex> lock(s->floatingMutex);
+			s->floatScale = scale;
+		}
 		obs_data_t *bs = overlay_source::browserSettings(s);
-		obs_data_set_int(bs, "width", w);
+		obs_data_set_int(bs, "width", std::max(80, window.width()));
 		obs_data_set_int(bs, "height", h);
 		obs_source_update(st.own, bs);
 		obs_data_release(bs);
@@ -207,9 +224,15 @@ public:
 			QSize size(int(std::max(1u, obs_source_get_width(source))),
 				   int(std::max(1u, obs_source_get_height(source))));
 			size.scale(screen.width() / 3, screen.height() * 2 / 3, Qt::KeepAspectRatio);
-			if (state_->layout.startsWith(QLatin1String("horizontal")))
-				size = QSize(screen.width() / 2, 80);
-			else if (state_->layout.startsWith(QLatin1String("vertical")))
+			auto *s = static_cast<OverlaySource *>(obs_obj_get_data(source));
+			const QString layout = s && state_->own ? overlay_source::floatConfig(s, state_->layout, 1.0)
+									  .value("layout")
+									  .toString()
+								: QString();
+			if (layout == QLatin1String("horizontal"))
+				size = QSize(screen.width() / 2, int(overlay_source::tickerHeight(
+									 overlay_source::floatConfig(s, state_->layout, 1.0))));
+			else if (layout == QLatin1String("vertical"))
 				size = QSize(420, std::min(600, screen.height() * 2 / 3));
 			resize(size);
 			move(screen.right() - size.width() - 24, screen.bottom() - size.height() - 24);
@@ -233,7 +256,7 @@ public:
 		save_.setInterval(500);
 		connect(&save_, &QTimer::timeout, this, [this] { saveGeometry(); });
 		fit_.setSingleShot(true);
-		fit_.setInterval(200);
+		fit_.setInterval(120);
 		connect(&fit_, &QTimer::timeout, this, [this] { syncOwnBrowser(weak_, *state_, size()); });
 		// Recién abierta se ve su borde unos segundos, para encontrarla aunque no haya mensajes.
 		outlineUntil_ = os_gettime_ns() + 4'000'000'000ULL;
@@ -462,8 +485,9 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 	if (!s->browser)
 		return;
 	// Solo el chat tiene disposición; cambiarla abre la ventana de nuevo con otra página.
-	// "disposición|fecha y hora|estilo": con todo en "same" la ventana copia la imagen de la
-	// fuente; si no, tiene su propia página con esos cambios.
+	// "disposición|fecha y hora|estilo". El chat siempre tiene su propia página, del tamaño de la
+	// ventana: al estirarla cabe más chat en vez de agrandarse la imagen. Las demás fuentes copian
+	// la imagen de la de la escena.
 	const QString kShared = QStringLiteral("same|same|same");
 	const QString layout = s->kind == overlay_source::Kind::Chat
 				       ? o.layout + QLatin1Char('|') + o.clock + QLatin1Char('|') + o.style
@@ -478,7 +502,7 @@ void applyOnUi(OverlaySource *s, obs_source_t *source, const Options &o)
 		st = std::make_shared<State>();
 		st->layout = layout;
 		st->browser = s->browser;
-		if (layout != kShared) {
+		if (s->kind == overlay_source::Kind::Chat) {
 			obs_data_t *bs = overlay_source::browserSettings(s);
 			st->own = obs_source_create_private("browser_source", "multichat-float", bs);
 			obs_data_release(bs);

@@ -2,6 +2,8 @@
 
 #include "source-internal.hpp"
 
+#include <cmath>
+
 namespace overlay_source {
 
 // OBS puede crear y destruir fuentes desde otros hilos: el acceso a la lista va con candado.
@@ -29,11 +31,13 @@ void sendTo(obs_source_t *browser, const QJsonObject &payload)
 }
 
 // La fuente de navegador propia de la ventana flotante (con una referencia), o nullptr.
-obs_source_t *floatBrowserRef(OverlaySource *s, QString *layout = nullptr)
+obs_source_t *floatBrowserRef(OverlaySource *s, QString *layout = nullptr, double *scale = nullptr)
 {
 	std::lock_guard<std::mutex> lock(s->floatingMutex);
 	if (layout)
 		*layout = s->floatLayout;
+	if (scale)
+		*scale = s->floatScale;
 	return s->floatBrowser ? obs_source_get_ref(s->floatBrowser) : nullptr;
 }
 
@@ -103,21 +107,16 @@ void sendConfig(OverlaySource *s)
 	sendFloatConfig(s);
 }
 
-// La página de la ventana flotante recibe la misma configuración con su propia disposición.
-void sendFloatConfig(OverlaySource *s)
+QJsonObject floatConfig(OverlaySource *s, const QString &layout, double scale)
 {
-	QString layout;
-	obs_source_t *own = floatBrowserRef(s, &layout);
-	if (!own)
-		return;
 	QJsonObject config = configOf(s);
 	config.insert("streaming", streaming.load());
 	config.insert("sample", sampleMessages.load());
 	// layout = "disposición|fecha y hora|estilo" (ver floating-window.cpp); "same" deja lo de la fuente.
 	const QString ownLayout = layout.section('|', 0, 0), ownClock = layout.section('|', 1, 1);
-	if (ownLayout != QLatin1String("same"))
+	if (ownLayout != QLatin1String("same") && !ownLayout.isEmpty())
 		config.insert("layout", ownLayout);
-	if (ownClock != QLatin1String("same"))
+	if (ownClock != QLatin1String("same") && !ownClock.isEmpty())
 		config.insert("clock", ownClock == QLatin1String("show"));
 	// Chat limpio: sin el fondo de los mensajes ni el general, y sin el estilo de fondo.
 	if (layout.section('|', 2, 2) == QLatin1String("clean")) {
@@ -125,7 +124,20 @@ void sendFloatConfig(OverlaySource *s)
 		config.insert("panel", false);
 		config.insert("style", QStringLiteral("solid"));
 	}
-	sendTo(own, QJsonObject{{"type", "config"}, {"config", config}});
+	if (scale != 1.0)
+		config.insert("size", std::max(8, int(std::lround(config.value("size").toInt(22) * scale))));
+	return config;
+}
+
+// La página de la ventana flotante recibe la misma configuración con su propia disposición.
+void sendFloatConfig(OverlaySource *s)
+{
+	QString layout;
+	double scale = 1.0;
+	obs_source_t *own = floatBrowserRef(s, &layout, &scale);
+	if (!own)
+		return;
+	sendTo(own, QJsonObject{{"type", "config"}, {"config", floatConfig(s, layout, scale)}});
 	obs_source_release(own);
 }
 
