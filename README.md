@@ -291,7 +291,7 @@ Out of the box, the plugin asks YouTube for new messages every 2 seconds. If you
 
 **Connect it in OBS:** in the dock, ⚙ → *Settings* → **YouTube** tab → **Sign in with Google**. The browser opens: choose your account and accept the permission. That's it, nothing else to set up.
 
-> **While Google verifies the app:** for now only the test accounts that were added can sign in. If Google shows "Access blocked", your account is not enabled yet; YouTube chat keeps working as usual, with the normal method.
+> **While Google finishes verifying the app:** you may see a "Google hasn't verified this app" notice. Click **Advanced** → **Go to AC Multichat** to continue. If you'd rather not, YouTube chat keeps working as usual, with the normal method.
 
 <details>
 <summary><b>Advanced: use your own Google Cloud application</b></summary>
@@ -309,7 +309,7 @@ If you'd rather not use the AC Multichat application (or you build the plugin yo
 
 When a YouTube live stream is connected, the tab will say *instant chat active*. If the API cannot be used (daily quota used up, permission failed…), the plugin carries on with the normal method and tells you the reason right there.
 
-- While the Google app is in *Testing* mode, Google expires the session after 7 days: just click **Sign in** again.
+- If you use your own application and it is in *Testing* mode, Google expires the session after 7 days: just click **Sign in** again.
 - Through this path the images of the channel's custom emojis and of Super Stickers do not arrive (their text shows), and member badges do not show their picture.
 - The session is stored in the plugin's configuration file on your computer; it is sent nowhere but Google.
 

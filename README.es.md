@@ -277,7 +277,7 @@ Sin configurar nada, el plugin le pregunta a YouTube por mensajes nuevos cada 2 
 
 **Conéctalo en OBS:** en el dock, ⚙ → *Ajustes* → pestaña **YouTube** → **Iniciar sesión con Google**. Se abre el navegador: elige tu cuenta y acepta el permiso. Listo, no hay que configurar nada más.
 
-> **Mientras Google verifica la app:** por ahora solo pueden iniciar sesión las cuentas de prueba que se hayan añadido. Si Google muestra «Acceso bloqueado», tu cuenta todavía no está habilitada; el chat de YouTube sigue funcionando igual, con el método normal.
+> **Mientras Google termina de verificar la app:** puede salir el aviso «Google no verificó esta app». Pulsa **Configuración avanzada** → **Ir a AC Multichat** para continuar. Si prefieres no hacerlo, el chat de YouTube sigue funcionando igual, con el método normal.
 
 <details>
 <summary><b>Avanzado: usar tu propia aplicación de Google Cloud</b></summary>
@@ -295,7 +295,7 @@ Si prefieres no usar la aplicación de AC Multichat (o compilas el plugin tú mi
 
 Cuando haya un directo de YouTube conectado, la pestaña dirá *chat instantáneo activo*. Si la API no se puede usar (se agotó la cuota diaria, falló el permiso…), el plugin sigue con el método normal y ahí mismo te dice el motivo.
 
-- Mientras la app de Google esté en modo *Prueba*, Google caduca la sesión a los 7 días: basta con volver a pulsar **Iniciar sesión**.
+- Si usas tu propia aplicación y está en modo *Prueba*, Google caduca la sesión a los 7 días: basta con volver a pulsar **Iniciar sesión**.
 - Por este camino no llegan las imágenes de los emojis personalizados del canal ni de los Super Stickers (se ve su texto), y las insignias de miembro no muestran su dibujo.
 - La sesión se guarda en el archivo de configuración del plugin en tu equipo; no se envía a ningún otro sitio que no sea Google.
 
