@@ -13,6 +13,16 @@ its items before installing (the Spanish ones when OBS is in Spanish, the Englis
 
 - **New:** instant YouTube chat. If you sign in with Google (Settings → YouTube), YouTube sends each message as soon as it is written, instead of being checked every 2 seconds. It is optional; the README explains how to set it up.
 
+## 2.4.3
+
+### Español
+
+- **Mejora:** la ventana flotante del chat se adapta a su tamaño. Al estirarla, el chat ocupa toda la ventana (más ancha, líneas más largas; más alta, más mensajes) en vez de solo agrandarse la imagen. En horizontal, la letra crece con el alto de la ventana.
+
+### English
+
+- **Improvement:** the chat's floating window adapts to its size. When you stretch it, the chat fills the whole window (wider, longer lines; taller, more messages) instead of just scaling the image. In horizontal mode, the text grows with the window's height.
+
 ## 2.4.2
 
 ### Español
