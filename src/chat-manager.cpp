@@ -72,6 +72,9 @@ void ChatManager::load()
 	filters_ = chat::FilterRules::fromJson(cfg.value("filters").toObject());
 	demo_ = chat::testMessagesEnabled(cfg);
 	voice_ = tts::VoiceSettings::fromJson(cfg.value("voice").toObject());
+	const QJsonObject yt = cfg.value("youtubeApi").toObject();
+	chat::youtube::api::setCredentials({yt.value("clientId").toString(), yt.value("clientSecret").toString(),
+					    yt.value("refreshToken").toString()});
 	configure(chat::chatEntriesFromJson(cfg), cfg.value("mode").toString() == "always" ? Mode::Always : Mode::Auto);
 }
 
@@ -83,6 +86,18 @@ void ChatManager::save() const
 	cfg.insert("filters", filters_.toJson());
 	if (!env_.store.save(cfg))
 		log(true, QString("could not save %1").arg(env_.store.path()));
+}
+
+void ChatManager::setYouTubeApi(const chat::youtube::api::Credentials &c)
+{
+	chat::youtube::api::setCredentials(c);
+	if (c.clientId.isEmpty() && c.clientSecret.isEmpty() && c.refreshToken.isEmpty())
+		config_.remove("youtubeApi");
+	else
+		config_.insert("youtubeApi", QJsonObject{{"clientId", c.clientId},
+							{"clientSecret", c.clientSecret},
+							{"refreshToken", c.refreshToken}});
+	save();
 }
 
 void ChatManager::setVoiceSettings(const tts::VoiceSettings &settings)

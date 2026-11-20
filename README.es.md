@@ -271,6 +271,25 @@ Los chats pausados no se conectan en ningún modo.
 
 Funciona con cualquier forma de hacer multistream (Restream, *Multiple RTMP outputs*, Aitum Multistream…), porque consulta a cada plataforma directamente. Si el servicio de emisión de OBS es Restream, Castr o StreamYard, también se marca como multistream.
 
+### ⚡ Chat de YouTube al instante (opcional)
+
+Sin configurar nada, el plugin le pregunta a YouTube por mensajes nuevos cada 2 segundos. Si conectas tu cuenta de Google, usa la API oficial de YouTube y los mensajes llegan apenas se escriben, como en Twitch y Kick. El permiso es de **solo lectura**: el plugin no puede publicar ni cambiar nada en tu canal.
+
+Hace falta crear, una sola vez, una «aplicación» propia en Google Cloud (es gratis y no pide tarjeta):
+
+1. **Crea el proyecto:** entra a [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate), ponle un nombre (por ejemplo `AC Multichat`) y pulsa **Crear**.
+2. **Activa la API:** abre [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) con ese proyecto elegido y pulsa **Habilitar**.
+3. **Configura la pantalla de permiso:** en [Google Auth Platform](https://console.cloud.google.com/auth/overview) pulsa **Comenzar**; escribe un nombre de app y tu correo, elige público **Externo**, vuelve a poner tu correo como contacto y acepta.
+4. **Añádete como usuario de prueba:** en **Público** → **Usuarios de prueba** → **Agregar usuarios**, escribe la cuenta de Google con la que vas a iniciar sesión.
+5. **Crea el cliente:** en **Clientes** → **Crear cliente**, elige el tipo **App de escritorio**, ponle un nombre y pulsa **Crear**. Copia el **ID de cliente** y el **secreto de cliente** (el secreto solo se muestra en ese momento).
+6. **Conéctalo en OBS:** en el dock, ⚙ → *Ajustes* → pestaña **YouTube**, pega los dos valores y pulsa **Iniciar sesión con Google**. Se abre el navegador: elige tu cuenta, pulsa *Continuar* en el aviso de «Google no verificó esta app» (es tu propia app) y acepta el permiso.
+
+Cuando haya un directo de YouTube conectado, la pestaña dirá *chat instantáneo activo*. Si la API no se puede usar (se agotó la cuota diaria, falló el permiso…), el plugin sigue con el método normal y ahí mismo te dice el motivo.
+
+- Mientras la app esté en modo *Prueba*, Google caduca la sesión a los 7 días: basta con volver a pulsar **Iniciar sesión**.
+- Por este camino no llegan las imágenes de los emojis personalizados del canal ni de los Super Stickers (se ve su texto), y las insignias de miembro no muestran su dibujo.
+- La sesión se guarda en el archivo de configuración del plugin en tu equipo; no se envía a ningún otro sitio que no sea Google.
+
 ### Notas por plataforma
 
 - **Twitch:** conexión IRC anónima, de solo lectura.

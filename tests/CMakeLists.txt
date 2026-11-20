@@ -21,6 +21,7 @@ add_executable(
   ${src}/chat/twitch.cpp
   ${src}/chat/kick.cpp
   ${src}/chat/youtube.cpp
+  ${src}/chat/youtube-api.cpp
   ${src}/chat/tiktok.cpp
   ${src}/chat/starvios.cpp
   ${src}/chat/updates.cpp
@@ -56,6 +57,7 @@ add_executable(
   ${src}/chat/twitch.cpp
   ${src}/chat/kick.cpp
   ${src}/chat/youtube.cpp
+  ${src}/chat/youtube-api.cpp
   ${src}/chat/tiktok.cpp
   ${src}/chat/starvios.cpp
   ${src}/tts/speech-text.cpp

@@ -9,6 +9,7 @@
 #include "image-cache.hpp"
 #include "profile-cache.hpp"
 #include "ui-common.hpp"
+#include "youtube-login.hpp"
 #include "../i18n.hpp"
 #include "../chat-manager.hpp"
 #include "../chat/message.hpp"
@@ -26,6 +27,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -44,6 +46,7 @@
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
+#include <QUrl>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -67,6 +70,7 @@ public:
 		tabs->addTab(chatsPage, i18n::tr("Settings.Tab.Chats"));
 		tabs->addTab(buildFilters(tabs), i18n::tr("Settings.Tab.Filters"));
 		tabs->addTab(buildVoice(tabs), i18n::tr("Settings.Tab.Voice"));
+		tabs->addTab(buildYouTube(tabs), QStringLiteral("YouTube"));
 		root->addWidget(tabs);
 
 		// Lista de chats.
@@ -285,6 +289,114 @@ private:
 	// "Voice" tab: the plugin's voice output reads the chat aloud in every scene. Saved a moment
 	// after each change; blocked words and hidden users stay in the Filters tab, volume and
 	// monitoring in OBS's audio mixer.
+	// "YouTube" tab: sign in with Google so YouTube pushes the chat instead of the plugin polling it.
+	QWidget *buildYouTube(QWidget *parent)
+	{
+		namespace api = chat::youtube::api;
+		auto *page = new QWidget(parent);
+		auto *layout = new QVBoxLayout(page);
+		auto help = [page](const QString &text) {
+			auto *label = new QLabel(text, page);
+			label->setWordWrap(true);
+			label->setForegroundRole(QPalette::PlaceholderText);
+			return label;
+		};
+		auto *title = new QLabel(i18n::tr("YouTubeLogin.Title"), page);
+		QFont bold = title->font();
+		bold.setBold(true);
+		title->setFont(bold);
+		layout->addWidget(title);
+		layout->addWidget(help(i18n::tr("YouTubeLogin.Intro")));
+
+		const api::Credentials saved = ChatManager::instance().youtubeApi();
+		auto *box = new QGroupBox(i18n::tr("YouTubeLogin.Client"), page);
+		auto *form = new QFormLayout(box);
+		ytClientId_ = new QLineEdit(saved.clientId, box);
+		ytClientId_->setPlaceholderText(QStringLiteral("…apps.googleusercontent.com"));
+		ytClientSecret_ = new QLineEdit(saved.clientSecret, box);
+		ytClientSecret_->setEchoMode(QLineEdit::PasswordEchoOnEdit);
+		form->addRow(i18n::tr("YouTubeLogin.ClientId"), ytClientId_);
+		form->addRow(i18n::tr("YouTubeLogin.ClientSecret"), ytClientSecret_);
+		auto *clientHelp = help(i18n::tr("YouTubeLogin.ClientHelp"));
+		form->addRow(clientHelp);
+		layout->addWidget(box);
+
+		ytStatus_ = new QLabel(page);
+		ytStatus_->setWordWrap(true);
+		ytStatus_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		layout->addWidget(ytStatus_);
+		auto *buttons = new QHBoxLayout();
+		ytSignIn_ = new QPushButton(i18n::tr("YouTubeLogin.SignIn"), page);
+		ytSignOut_ = new QPushButton(i18n::tr("YouTubeLogin.SignOut"), page);
+		buttons->addWidget(ytSignIn_);
+		buttons->addWidget(ytSignOut_);
+		buttons->addStretch(1);
+		layout->addLayout(buttons);
+		layout->addStretch(1);
+
+		ytLogin_ = new YouTubeLogin(this);
+		connect(ytSignIn_, &QPushButton::clicked, this, [this] {
+			if (ytLogin_->running()) {
+				ytLogin_->cancel();
+				ytMessage_.clear();
+			} else if (ytClientId_->text().trimmed().isEmpty() || ytClientSecret_->text().trimmed().isEmpty()) {
+				ytMessage_ = i18n::tr("YouTubeLogin.NeedClient");
+			} else if (ytLogin_->start(ytClientId_->text(), ytClientSecret_->text())) {
+				ytMessage_ = i18n::tr("YouTubeLogin.Waiting");
+			} else {
+				ytMessage_ = i18n::tr("YouTubeLogin.Failed").arg(QStringLiteral("127.0.0.1"));
+			}
+			updateYouTube();
+		});
+		connect(ytSignOut_, &QPushButton::clicked, this, [this] {
+			ytLogin_->cancel();
+			// Se olvida la sesión; el cliente se queda para volver a entrar sin copiarlo otra vez.
+			chat::youtube::api::Credentials c = ChatManager::instance().youtubeApi();
+			c.refreshToken.clear();
+			ChatManager::instance().setYouTubeApi(c);
+			ytMessage_.clear();
+			updateYouTube();
+		});
+		connect(ytLogin_, &YouTubeLogin::finished, this, [this](const chat::youtube::api::Credentials &c) {
+			ChatManager::instance().setYouTubeApi(c);
+			ytMessage_.clear();
+			updateYouTube();
+		});
+		connect(ytLogin_, &YouTubeLogin::failed, this, [this](const QString &error) {
+			ytMessage_ = error.isEmpty() ? i18n::tr("YouTubeLogin.Cancelled") : i18n::tr("YouTubeLogin.Failed").arg(error);
+			updateYouTube();
+		});
+		// Lo que encuentran los conectores (activo, o por qué no) cambia sin avisar: se consulta.
+		auto *poll = new QTimer(this);
+		connect(poll, &QTimer::timeout, this, [this] { updateYouTube(); });
+		poll->start(2000);
+		updateYouTube();
+		return page;
+	}
+
+	void updateYouTube()
+	{
+		namespace api = chat::youtube::api;
+		const bool signedIn = api::signedIn();
+		const bool running = ytLogin_->running();
+		ytSignIn_->setText(i18n::tr(running ? "YouTubeLogin.Cancel" : signedIn ? "YouTubeLogin.SignInAgain" : "YouTubeLogin.SignIn"));
+		ytSignOut_->setVisible(signedIn && !running);
+		ytClientId_->setEnabled(!running);
+		ytClientSecret_->setEnabled(!running);
+		QString text;
+		if (!ytMessage_.isEmpty()) {
+			text = ytMessage_;
+		} else if (!signedIn) {
+			text = i18n::tr("YouTubeLogin.State.Out");
+		} else {
+			const api::Status status = api::status();
+			text = i18n::tr(status.active ? "YouTubeLogin.State.Active" : "YouTubeLogin.State.In");
+			if (!status.problem.isEmpty())
+				text += QStringLiteral("\n") + i18n::tr("YouTubeLogin.State.Problem").arg(status.problem);
+		}
+		ytStatus_->setText(text);
+	}
+
 	QWidget *buildVoice(QWidget *parent)
 	{
 		auto *page = new QWidget(parent);
@@ -803,6 +915,13 @@ private:
 	QCheckBox *readAuthor_ = nullptr;
 	QHash<QString, QCheckBox *> readPlatforms_; // by platform id
 	QSpinBox *maxLength_ = nullptr;
+	QLineEdit *ytClientId_ = nullptr;
+	QLineEdit *ytClientSecret_ = nullptr;
+	QLabel *ytStatus_ = nullptr;
+	QPushButton *ytSignIn_ = nullptr;
+	QPushButton *ytSignOut_ = nullptr;
+	YouTubeLogin *ytLogin_ = nullptr;
+	QString ytMessage_; // lo último que pasó con el inicio de sesión
 	QList<QWidget *> soundWidgets_; // shown when the mode plays a sound
 	QList<QWidget *> readWidgets_;  // shown when the mode reads aloud
 	QTimer voiceTimer_;

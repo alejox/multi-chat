@@ -65,6 +65,23 @@ inline std::string Response::header(const std::string &name) const
 	return {};
 }
 
+// Respuesta HTTP que el servidor va mandando poco a poco por una conexión que deja abierta.
+class Stream {
+public:
+	enum class Result { Data, Timeout, Closed };
+
+	virtual ~Stream() = default;
+	// Espera hasta `timeoutMs` a que lleguen más datos. Data: `chunk` trae lo recibido (nunca
+	// vacío). Timeout: aún no llegó nada. Closed: el servidor terminó o se cortó la conexión.
+	virtual Result read(std::string &chunk, int timeoutMs) = 0;
+	// Código HTTP de la respuesta (se conoce al abrir).
+	virtual int status() const = 0;
+};
+
+// GET cuya respuesta se lee con Stream::read. Bloquea hasta tener las cabeceras de la respuesta.
+// nullptr (y `error`) si no se pudo conectar.
+std::shared_ptr<Stream> openStream(const std::string &url, const Headers &headers, std::string &error);
+
 std::shared_ptr<WebSocket> connectWebSocket(const std::string &url, const Headers &headers, std::string &error);
 
 extern const char *const kUserAgent;

@@ -51,6 +51,7 @@ const QHash<QString, QString> &englishTexts()
 		{"Event.PumpkinWin", "Congratulations, %1! They caught 10 pumpkins and got 100 Starvies"},
 		{"Event.Gift", "%1 sent %2%3"},
 		{"Event.GiftUnnamed", "%1 sent %2a gift"},
+		{"Detail.Instant", "instant chat (YouTube API)"},
 		{"Detail.WaitingLive", "waiting for the stream to start"},
 		{"Error.Connect", "couldn't connect: %1"},
 		{"Error.Responded", "%1 responded %2"},

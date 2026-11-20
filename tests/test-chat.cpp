@@ -3,9 +3,11 @@
 #include "../src/chat/message.hpp"
 #include "../src/chat/platforms.hpp"
 #include "../src/chat/updates.hpp"
+#include "../src/chat/youtube-api.hpp"
 
 #include <QJsonDocument>
 #include <QThread>
+#include <QTimeZone>
 #include <QtTest/QtTest>
 
 #include <atomic>
@@ -1883,6 +1885,151 @@ private slots:
 			seen.add(QString::number(i));
 		QVERIFY(seen.add("a")); // los más antiguos se olvidan
 		QVERIFY(!seen.add("699"));
+	}
+
+	void youtubeApiSignIn()
+	{
+		namespace api = youtube::api;
+		// PKCE: el reto es el SHA-256 del verificador en base64 para URL (ejemplo del RFC 7636).
+		QCOMPARE(api::challengeFor("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
+			 QString("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"));
+		QCOMPARE(api::makeVerifier().size(), 64);
+		QVERIFY(api::makeVerifier() != api::makeVerifier());
+
+		const QString url = api::authUrl("id.apps.googleusercontent.com", "http://127.0.0.1:5000", "reto", "st");
+		QVERIFY(url.startsWith("https://accounts.google.com/o/oauth2/v2/auth?"));
+		QVERIFY(url.contains("client_id=id.apps.googleusercontent.com"));
+		QVERIFY(url.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A5000"));
+		QVERIFY(url.contains("scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fyoutube.readonly"));
+		QVERIFY(url.contains("code_challenge=reto") && url.contains("code_challenge_method=S256"));
+		QVERIFY(url.contains("access_type=offline") && url.contains("state=st"));
+
+		const api::Credentials c{"id", "se&cret", "r/1"};
+		QCOMPARE(api::refreshBody(c),
+			 QByteArray("client_id=id&client_secret=se%26cret&refresh_token=r%2F1&grant_type=refresh_token"));
+		const QByteArray exchange = api::codeExchangeBody(c, "4/abc", "ver", "http://127.0.0.1:5000");
+		QVERIFY(exchange.contains("code=4%2Fabc") && exchange.contains("code_verifier=ver"));
+		QVERIFY(exchange.contains("grant_type=authorization_code"));
+
+		const api::Tokens ok = api::parseTokens(
+			"{\"access_token\":\"ya29\",\"expires_in\":3599,\"refresh_token\":\"1//r\",\"token_type\":\"Bearer\"}");
+		QCOMPARE(ok.accessToken, QString("ya29"));
+		QCOMPARE(ok.refreshToken, QString("1//r"));
+		QCOMPARE(ok.expiresIn, 3599);
+		QVERIFY(ok.error.isEmpty());
+		const api::Tokens bad =
+			api::parseTokens("{\"error\":\"invalid_grant\",\"error_description\":\"Token has been revoked.\"}");
+		QVERIFY(bad.accessToken.isEmpty());
+		QCOMPARE(bad.error, QString("invalid_grant: Token has been revoked."));
+
+		QString code, state, error;
+		QVERIFY(api::parseRedirect("GET /?state=st&code=4%2Fabc&scope=x HTTP/1.1\r\n", code, state, error));
+		QCOMPARE(code, QString("4/abc"));
+		QCOMPARE(state, QString("st"));
+		QVERIFY(api::parseRedirect("GET /?error=access_denied&state=st HTTP/1.1", code, state, error));
+		QCOMPARE(error, QString("access_denied"));
+		QVERIFY(code.isEmpty());
+		QVERIFY(!api::parseRedirect("GET /favicon.ico HTTP/1.1", code, state, error));
+		QVERIFY(!api::parseRedirect("POST /?code=x HTTP/1.1", code, state, error));
+
+		// Las credenciales: con cliente y sesión hay inicio de sesión; cada cambio se nota.
+		api::setCredentials({});
+		QVERIFY(!api::signedIn());
+		const quint64 before = api::generation();
+		api::setCredentials({"id", "secret", ""});
+		QVERIFY(!api::signedIn());
+		api::setCredentials({"id", "secret", "refresh"});
+		QVERIFY(api::signedIn());
+		QCOMPARE(api::generation(), before + 2);
+		api::setCredentials({"id", "secret", "refresh"});
+		QCOMPARE(api::generation(), before + 2);
+		api::setProblem("quotaExceeded");
+		QCOMPARE(api::status().problem, QString("quotaExceeded"));
+		api::setActive(true);
+		QVERIFY(api::status().active && api::status().problem.isEmpty());
+		api::setCredentials({});
+		QVERIFY(!api::status().active);
+	}
+
+	void youtubeApiStream()
+	{
+		namespace api = youtube::api;
+		QCOMPARE(api::streamUrl("Cg0K/x", ""),
+			 QString("https://youtube.googleapis.com/youtube/v3/liveChat/messages/stream"
+				 "?part=id,snippet,authorDetails&liveChatId=Cg0K%2Fx"));
+		QVERIFY(api::streamUrl("a", "tok=").endsWith("&liveChatId=a&pageToken=tok%3D"));
+
+		// La respuesta es una lista JSON que nunca termina y llega cortada por cualquier sitio.
+		api::ObjectSplitter splitter;
+		QByteArray object;
+		splitter.feed("[{\"a\":{\"t\":\"}{ \\\" ]\"}");
+		QVERIFY(!splitter.next(object));
+		splitter.feed("}\n,\n{\"b\":[{\"c\":1},{}]},{\"d\"");
+		QVERIFY(splitter.next(object));
+		QCOMPARE(QJsonDocument::fromJson(object).object()["a"].toObject()["t"].toString(), QString("}{ \" ]"));
+		QVERIFY(splitter.next(object));
+		QCOMPARE(object, QByteArray("{\"b\":[{\"c\":1},{}]}"));
+		QVERIFY(!splitter.next(object));
+		splitter.feed(":2}]");
+		QVERIFY(splitter.next(object));
+		QCOMPARE(object, QByteArray("{\"d\":2}"));
+		QVERIFY(!splitter.next(object));
+
+		auto json = [](const char *text) { return QJsonDocument::fromJson(text).object(); };
+		QCOMPARE(api::errorReason(json("{\"error\":{\"code\":403,\"errors\":[{\"reason\":\"liveChatEnded\"}]}}")),
+			 QString("liveChatEnded"));
+		QCOMPARE(api::errorReason(json("{\"error\":{\"code\":401,\"status\":\"UNAUTHENTICATED\"}}")),
+			 QString("UNAUTHENTICATED"));
+		QCOMPARE(api::errorReason(json("{\"error\":{\"code\":500}}")), QString("HTTP 500"));
+		QVERIFY(api::errorReason(json("{\"items\":[]}")).isEmpty());
+
+		const QJsonObject text = json(
+			"{\"id\":\"LCC.1\",\"snippet\":{\"type\":\"textMessageEvent\",\"publishedAt\":\"2026-11-20T07:00:01.5Z\","
+			"\"displayMessage\":\"hola :)\",\"textMessageDetails\":{\"messageText\":\"hola :)\"}},"
+			"\"authorDetails\":{\"channelId\":\"UC1\",\"displayName\":\"Ana\",\"isChatModerator\":true,"
+			"\"isChatSponsor\":true}}");
+		const QJsonObject m = api::toMessage(text, "@canal");
+		QCOMPARE(m["id"].toString(), QString("LCC.1"));
+		QCOMPARE(m["platform"].toString(), QString("youtube"));
+		QCOMPARE(m["author"].toString(), QString("Ana"));
+		QCOMPARE(m["authorId"].toString(), QString("UC1"));
+		QCOMPARE(m["kind"].toString(), QString("chat"));
+		QCOMPARE(m["parts"].toArray()[0].toObject()["text"].toString(), QString("hola :)"));
+		QCOMPARE(m["badges"].toArray(), (QJsonArray{"moderator", "member"}));
+		QCOMPARE(api::publishedMs(text), QDateTime(QDate(2026, 11, 20), QTime(7, 0, 1, 500), Qt::UTC).toMSecsSinceEpoch());
+		QVERIFY(api::toDeletion(text).isEmpty());
+
+		const QJsonObject paid = api::toMessage(
+			json("{\"id\":\"LCC.2\",\"snippet\":{\"type\":\"superChatEvent\",\"displayMessage\":\"$5.00 from Luis: gracias\","
+			     "\"superChatDetails\":{\"amountDisplayString\":\"$5.00\",\"userComment\":\"gracias\",\"tier\":4}},"
+			     "\"authorDetails\":{\"channelId\":\"UC2\",\"displayName\":\"Luis\"}}"),
+			"@canal");
+		QCOMPARE(paid["kind"].toString(), QString("highlight"));
+		QCOMPARE(paid["amount"].toString(), QString("$5.00"));
+		QCOMPARE(paid["parts"].toArray()[0].toObject()["text"].toString(), QString("gracias"));
+		QCOMPARE(paid["paid"].toObject()["body"].toString(), QString("#ffca28"));
+		QCOMPARE(paid["paid"].toObject()["pin"].toInt(), 300);
+		QCOMPARE(paid["paid"].toObject()["bodyText"].toString(), QString("#000000"));
+
+		const QJsonObject member = api::toMessage(
+			json("{\"id\":\"LCC.3\",\"snippet\":{\"type\":\"newSponsorEvent\",\"displayMessage\":\"Welcome to Fans!\"},"
+			     "\"authorDetails\":{\"displayName\":\"Eva\"}}"),
+			"@canal");
+		QCOMPARE(member["kind"].toString(), QString("highlight"));
+		QCOMPARE(member["system"].toString(), QString("Welcome to Fans!"));
+
+		const QJsonObject deleted = json(
+			"{\"id\":\"LCC.4\",\"snippet\":{\"type\":\"messageDeletedEvent\","
+			"\"messageDeletedDetails\":{\"deletedMessageId\":\"LCC.1\"}}}");
+		QVERIFY(api::toMessage(deleted, "@canal").isEmpty());
+		QVERIFY(isDeletion(api::toDeletion(deleted)));
+		QVERIFY(deletionMatches(api::toDeletion(deleted), m));
+		const QJsonObject banned = api::toDeletion(json(
+			"{\"snippet\":{\"type\":\"userBannedEvent\",\"userBannedDetails\":{\"bannedUserDetails\":"
+			"{\"channelId\":\"UC1\",\"displayName\":\"Ana\"}}}}"));
+		QVERIFY(deletionMatches(banned, m));
+		QVERIFY(api::isChatEnded(json("{\"snippet\":{\"type\":\"chatEndedEvent\"}}")));
+		QVERIFY(!api::isChatEnded(text));
 	}
 
 	void youtubeLivePage()

@@ -397,6 +397,147 @@ Response request(const std::string &method, const std::string &url, const Header
 	return res;
 }
 
+namespace {
+
+// Respuesta en continuo con la interfaz "multi" de curl: read() mueve la transferencia hasta que
+// llegan datos, vence el plazo o termina.
+class CurlStream : public Stream {
+public:
+	CurlStream() : multi_(curl_multi_init()) {}
+	~CurlStream() override
+	{
+		if (multi_ && easy_.h)
+			curl_multi_remove_handle(multi_, easy_.h);
+		if (multi_)
+			curl_multi_cleanup(multi_);
+	}
+
+	bool open(const std::string &url, const Headers &headers, std::string &error)
+	{
+		if (!multi_ || !easy_.h) {
+			error = "curl_easy_init";
+			return false;
+		}
+		CURL *h = easy_.h;
+		common(h, url, 15000);
+		curl_easy_setopt(h, CURLOPT_FOLLOWLOCATION, 1L);
+		curl_easy_setopt(h, CURLOPT_ACCEPT_ENCODING, "identity"); // comprimido llegaría a trozos grandes
+		curl_easy_setopt(h, CURLOPT_TCP_KEEPALIVE, 1L);
+		for (const auto &[name, value] : headers)
+			easy_.headers = curl_slist_append(easy_.headers, (name + ": " + value).c_str());
+		if (easy_.headers)
+			curl_easy_setopt(h, CURLOPT_HTTPHEADER, easy_.headers);
+		curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, onData);
+		curl_easy_setopt(h, CURLOPT_WRITEDATA, this);
+		curl_easy_setopt(h, CURLOPT_HEADERFUNCTION, onHeaderLine);
+		curl_easy_setopt(h, CURLOPT_HEADERDATA, this);
+		curl_multi_add_handle(multi_, h);
+		// Hasta tener las cabeceras de la respuesta final (un chat sin mensajes aún no manda cuerpo).
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+		while (!headersDone_ && buffer_.empty() && !done_) {
+			if (std::chrono::steady_clock::now() > deadline) {
+				error = "sin respuesta";
+				return false;
+			}
+			pump(200);
+		}
+		long status = 0;
+		curl_easy_getinfo(h, CURLINFO_RESPONSE_CODE, &status);
+		status_ = int(status);
+		if (status_ == 0) {
+			error = failure_.empty() ? "sin respuesta" : failure_;
+			return false;
+		}
+		return true;
+	}
+
+	Result read(std::string &chunk, int timeoutMs) override
+	{
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeoutMs);
+		for (;;) {
+			if (!buffer_.empty()) {
+				chunk.swap(buffer_);
+				buffer_.clear();
+				return Result::Data;
+			}
+			if (done_)
+				return Result::Closed;
+			const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
+						  deadline - std::chrono::steady_clock::now())
+						  .count();
+			if (left <= 0)
+				return Result::Timeout;
+			pump(int(std::min<long long>(left, 250)));
+		}
+	}
+
+	int status() const override { return status_; }
+
+private:
+	static size_t onData(char *data, size_t size, size_t count, void *user)
+	{
+		auto *self = static_cast<CurlStream *>(user);
+		const size_t n = size * count;
+		if (self->buffer_.size() + n > kMaxBody)
+			return 0;
+		self->buffer_.append(data, n);
+		return n;
+	}
+
+	// La línea en blanco cierra las cabeceras; si era una redirección, vienen las de la siguiente.
+	static size_t onHeaderLine(char *, size_t size, size_t count, void *user)
+	{
+		auto *self = static_cast<CurlStream *>(user);
+		const size_t n = size * count;
+		if (n <= 2) {
+			long status = 0;
+			curl_easy_getinfo(self->easy_.h, CURLINFO_RESPONSE_CODE, &status);
+			if (status >= 200 && (status < 300 || status >= 400))
+				self->headersDone_ = true;
+		}
+		return n;
+	}
+
+	void pump(int waitMs)
+	{
+		int running = 0;
+		curl_multi_perform(multi_, &running);
+		if (running && buffer_.empty()) {
+			curl_multi_poll(multi_, nullptr, 0, waitMs, nullptr);
+			curl_multi_perform(multi_, &running);
+		}
+		int left = 0;
+		while (CURLMsg *msg = curl_multi_info_read(multi_, &left)) {
+			if (msg->msg == CURLMSG_DONE) {
+				done_ = true;
+				if (msg->data.result != CURLE_OK)
+					failure_ = curl_easy_strerror(msg->data.result);
+			}
+		}
+		if (!running)
+			done_ = true;
+	}
+
+	CURLM *multi_;
+	Easy easy_;
+	std::string buffer_;
+	std::string failure_;
+	int status_ = 0;
+	bool done_ = false;
+	bool headersDone_ = false;
+};
+
+} // namespace
+
+std::shared_ptr<Stream> openStream(const std::string &url, const Headers &headers, std::string &error)
+{
+	globalInit();
+	auto stream = std::make_shared<CurlStream>();
+	if (!stream->open(url, headers, error))
+		return nullptr;
+	return stream;
+}
+
 std::shared_ptr<WebSocket> connectWebSocket(const std::string &url, const Headers &headers, std::string &error)
 {
 	globalInit();

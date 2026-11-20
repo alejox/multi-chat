@@ -285,6 +285,25 @@ Paused chats don't connect in either mode.
 
 It works with any way of multistreaming (Restream, *Multiple RTMP outputs*, Aitum Multistream…), because it asks each platform directly. If the OBS streaming service is Restream, Castr or StreamYard, it's also marked as multistream.
 
+### ⚡ Instant YouTube chat (optional)
+
+Out of the box, the plugin asks YouTube for new messages every 2 seconds. If you connect your Google account, it uses YouTube's official API and messages arrive as soon as they are written, like Twitch and Kick. The permission is **read-only**: the plugin cannot post or change anything on your channel.
+
+You need to create, once, your own "application" in Google Cloud (it is free and asks for no card):
+
+1. **Create the project:** go to [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate), give it a name (for example `AC Multichat`) and click **Create**.
+2. **Enable the API:** open [YouTube Data API v3](https://console.cloud.google.com/apis/library/youtube.googleapis.com) with that project selected and click **Enable**.
+3. **Set up the consent screen:** in [Google Auth Platform](https://console.cloud.google.com/auth/overview) click **Get started**; enter an app name and your email, choose audience **External**, enter your email again as contact and accept.
+4. **Add yourself as a test user:** in **Audience** → **Test users** → **Add users**, enter the Google account you will sign in with.
+5. **Create the client:** in **Clients** → **Create client**, choose type **Desktop app**, name it and click **Create**. Copy the **Client ID** and the **Client secret** (the secret is only shown at that moment).
+6. **Connect it in OBS:** in the dock, ⚙ → *Settings* → **YouTube** tab, paste both values and click **Sign in with Google**. The browser opens: choose your account, click *Continue* on the "Google hasn't verified this app" notice (it is your own app) and accept the permission.
+
+When a YouTube live stream is connected, the tab will say *instant chat active*. If the API cannot be used (daily quota used up, permission failed…), the plugin carries on with the normal method and tells you the reason right there.
+
+- While the app is in *Testing* mode, Google expires the session after 7 days: just click **Sign in** again.
+- Through this path the images of the channel's custom emojis and of Super Stickers do not arrive (their text shows), and member badges do not show their picture.
+- The session is stored in the plugin's configuration file on your computer; it is sent nowhere but Google.
+
 ### Platform notes
 
 - **Twitch:** anonymous, read-only IRC connection.
