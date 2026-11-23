@@ -79,7 +79,10 @@ jobs:
           # plugin las muestra antes de instalar); si no hay, GitHub genera las notas.
           version="${TAG#v}"; version="${version%%-*}"
           awk -v v="## $version" '$0==v{on=1;next} /^## /{on=0} on' CHANGELOG.md > notes.md
+          # Al final de cada Release: el aviso de firma que pide SignPath Foundation en la página
+          # de descarga (ver CODE_SIGNING.md).
           if grep -q '[^[:space:]]' notes.md; then
+            printf '\n---\n\nFree code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). Status and policy: [CODE_SIGNING.md](https://github.com/%s/blob/main/CODE_SIGNING.md)\n' "$GITHUB_REPOSITORY" >> notes.md
             notes=(--notes-file notes.md)
           else
             notes=(--generate-notes)

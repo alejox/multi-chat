@@ -298,6 +298,12 @@ YouTube, Kick, TikTok and Starvios have no official public API to read the chat 
 ## ❓ FAQ
 
 <details>
+<summary><b>Windows says Smart App Control blocked the plugin</b></summary>
+
+Smart App Control (Windows 11) blocks files without a digital signature that Microsoft doesn't know yet, and the Windows builds are not signed yet (see [Code signing](#-code-signing)). It has no exceptions for a single program: the only way to use the plugin meanwhile is to turn it off in **Windows Security → App & browser control → Smart App Control settings**. That lowers the computer's protection, so it is your call; on some Windows 11 versions it cannot be turned back on without reinstalling Windows.
+</details>
+
+<details>
 <summary><b>OBS says the plugin "failed to load"</b></summary>
 
 You're on OBS 32 or older. Update OBS to 33 or newer. On Windows, also check the plugin is in `C:\ProgramData\obs-studio\plugins\obs-multichat\` and not in the old `C:\Program Files\obs-studio` folders.
@@ -387,6 +393,14 @@ tests/                     tests without OBS: parsers (test-chat), voice (test-t
 
 Why native networking and not QtNetwork? OBS 33 doesn't ship Qt's TLS plugins, so HTTPS through QtNetwork doesn't work inside OBS. WinHTTP and NSURLSession handle HTTPS and WebSocket with no extra dependencies. On Linux, libcurl (which OBS already uses) does HTTPS and the WebSocket TLS connection; the WebSocket protocol lives in `src/net/net-linux.cpp`.
 </details>
+
+## 🔏 Code signing
+
+Windows warns about, and Smart App Control may block, programs that are not digitally signed. AC Multichat has applied to [SignPath Foundation](https://signpath.org), which signs open source projects for free, so that the Windows builds are signed. Until that is approved, the Windows files are **not signed yet**: if Smart App Control blocks the plugin, see the [FAQ](#-faq).
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+The signing rules (who can sign, what gets signed and what the plugin sends over the network) are in [CODE_SIGNING.md](CODE_SIGNING.md).
 
 ## ☕ Support
 
