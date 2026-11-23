@@ -303,6 +303,12 @@ YouTube, Kick, TikTok y Starvios no tienen una API pública oficial para leer el
 ## ❓ Preguntas frecuentes
 
 <details>
+<summary><b>Windows dice que Smart App Control bloqueó el plugin</b></summary>
+
+Smart App Control (Windows 11) bloquea los archivos sin firma digital que Microsoft aún no conoce, y las versiones de Windows todavía no van firmadas (mira [Firma de código](#-firma-de-código)). No admite excepciones para un programa concreto: mientras tanto, la única forma de usar el plugin es desactivarlo en **Seguridad de Windows → Control de aplicaciones y navegador → Configuración de Smart App Control**. Eso baja la protección del equipo, así que es decisión tuya; en algunas versiones de Windows 11 no se puede volver a activar sin reinstalar Windows.
+</details>
+
+<details>
 <summary><b>OBS dice que el plugin «no se ha podido cargar»</b></summary>
 
 Tienes OBS 32 o anterior: actualiza OBS a la 33 o superior. En Windows, revisa también que el plugin esté en `C:\ProgramData\obs-studio\plugins\obs-multichat\` y no en las carpetas de antes en `C:\Program Files\obs-studio`.
@@ -390,6 +396,14 @@ tests/                     pruebas sin OBS: parsers (test-chat), voz (test-tts),
 ```
 
 ¿Por qué red nativa y no QtNetwork? OBS 33 no instala los plugins TLS de Qt, así que HTTPS con QtNetwork no funciona dentro de OBS. WinHTTP y NSURLSession soportan HTTPS y WebSocket sin dependencias extra. En Linux, libcurl (que OBS ya usa) hace HTTPS y la conexión TLS del WebSocket; el protocolo WebSocket va en `src/net/net-linux.cpp`.
+
+## 🔏 Firma de código
+
+Windows avisa, y Smart App Control puede bloquear, los programas que no tienen firma digital. AC Multichat solicitó a [SignPath Foundation](https://signpath.org), que firma gratis proyectos de código abierto, la firma de las versiones de Windows. Mientras eso se aprueba, los archivos de Windows **aún no van firmados**: si Smart App Control bloquea el plugin, mira las [preguntas frecuentes](#-preguntas-frecuentes).
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+Las reglas de la firma (quién puede firmar, qué se firma y qué envía el plugin por la red) están en [CODE_SIGNING.md](CODE_SIGNING.md).
 
 ## ☕ Apoyar
 
